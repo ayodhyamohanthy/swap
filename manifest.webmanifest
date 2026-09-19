@@ -1,0 +1,46 @@
+{
+  "name": "SwapSeat — Global Train & Flight Seat Swap",
+  "short_name": "SwapSeat",
+  "description": "Swap train berths & flight seats visually. See your exact berth in the compartment, match with co-passengers, swap with mutual consent. Global PWA.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#070b19",
+  "theme_color": "#070b19",
+  "categories": ["travel", "navigation", "social"],
+  "lang": "en",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Find a swap",
+      "url": "./index.html#swap",
+      "description": "Post a seat swap request"
+    },
+    {
+      "name": "Marketplace",
+      "url": "./index.html#market",
+      "description": "Browse live swap requests"
+    }
+  ]
+}

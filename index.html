@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#070b19"/>
+<title>SwapSeat — Global Train & Flight Seat Swap PWA</title>
+<meta name="description" content="See your exact berth in the compartment. Swap train berths & flight seats visually with co-passengers. Train number → coach map. Flight → cabin map. Global PWA, offline-ready."/>
+<link rel="manifest" href="./manifest.webmanifest"/>
+<link rel="icon" type="image/png" href="./icons/icon-192.png"/>
+<link rel="apple-touch-icon" href="./icons/icon-192.png"/>
+<meta property="og:title" content="SwapSeat — See it. Swap it."/>
+<meta property="og:description" content="Visual train compartment + flight cabin seat swap. Global PWA."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700&family=Outfit:wght@700;900&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="./styles.css"/>
+</head>
+<body>
+<header class="topbar"><div class="wrap">
+  <a class="brand" href="#top">SwapSeat<small>GLOBAL PWA</small></a>
+  <nav class="main">
+    <a href="#swap">Swap</a><a href="#market">Marketplace</a><a href="#plus">Plus</a><a href="#how">How it works</a><a href="#faq">FAQ</a>
+  </nav><div class="spacer"></div>
+  <span class="pill" id="walletPill">Free · 1 swap</span>
+  <button class="btn small primary" id="plusBtn">💎 Plus</button>
+  <button class="btn small ghost" id="installBtn" hidden>⬇ Install</button>
+</div></header>
+
+<main class="wrap" id="top">
+  <div class="hero">
+    <span class="pill">🚂 Trains · ✈️ Flights · 🚌 Buses · 🎪 Events — <b>&nbsp;global, offline-ready</b></span>
+    <h1>Don't read <span class="grad">“Side Upper”.</span><br/>See where you sleep.</h1>
+    <p class="muted">Enter a <b>train number</b> → we draw the real coach & compartment. Enter a <b>flight number</b> → we draw the real cabin. Tap your berth, tap what you want, match visually.</p>
+    <div class="mode-tabs" role="tablist">
+      <button data-mode="train" class="on">🚂 Train</button>
+      <button data-mode="flight">✈️ Flight</button>
+      <button data-mode="bus">🚌 Bus</button>
+      <button data-mode="event">🎪 Event</button>
+    </div>
+  </div>
+
+  <!-- STEP 1: journey -->
+  <section class="card" id="swap">
+    <div class="eyebrow">Step 1 · Your journey</div>
+    <h2 style="margin:4px 0">Find your train / flight</h2>
+    <div class="journey" id="journeyForm">
+      <div class="field" id="numField"><label>Train number</label><input id="journeyNo" inputmode="numeric" placeholder="e.g. 12951 Rajdhani" value="12951"/></div>
+      <div class="field"><label>Travel date</label><input id="journeyDate" type="date"/></div>
+      <div class="field"><label>&nbsp;</label><button class="btn primary" id="lookupBtn" style="width:100%">Draw seat map →</button></div>
+    </div>
+    <p class="fine">Try: trains <code>12951</code> <code>12002</code> <code>22436</code> <code>9010</code>(Eurostar) <code>170</code>(Amtrak) · flights <code>6E2031</code> <code>AI202</code> <code>EK507</code> <code>BA178</code>. Unknown numbers fall back to generic maps.</p>
+    <div id="journeyCard"></div>
+  </section>
+
+  <!-- STEP 2: visual map -->
+  <section class="card" id="mapSection" hidden>
+    <div class="eyebrow">Step 2 · Visual seat picker — the differentiator</div>
+    <h2 style="margin:4px 0" id="mapTitle">Pick your seat</h2>
+    <div class="legend" id="mapLegend"></div>
+    <div class="coach-pills" id="coachPills"></div>
+    <div id="seatmap" style="margin-top:10px"></div>
+    <div class="zoombox" id="zoombox" hidden></div>
+    <div style="margin-top:12px">
+      <div class="eyebrow">What do you want?</div>
+      <div class="goal-chips" id="goalChips"></div>
+      <p class="fine" id="pickSummary">Tap your current berth on the map, then tap goal types (or tap target seats).</p>
+    </div>
+  </section>
+
+  <!-- STEP 3: post -->
+  <section class="card" id="postSection" hidden>
+    <div class="eyebrow">Step 3 · Post swap request</div>
+    <div class="journey">
+      <div class="field"><label>Booking ref (PNR / e-ticket)</label><input id="pnr" placeholder="10-digit train PNR · 6-char flight PNR"/></div>
+      <div class="field"><label>Display name</label><input id="pname" placeholder="e.g. Priya · family of 3"/></div>
+      <div class="field"><label>Note for swappers</label><input id="pnote" placeholder="Kids in B3, want same bay 🙏"/></div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn primary" id="postBtn">Post swap request</button>
+      <button class="btn ghost" id="previewBtn">Preview match score</button>
+      <span class="fine">PNR is hashed on-device in this demo · OTP login mocked · mutual consent required.</span>
+    </div>
+  </section>
+
+  <div class="adslot" data-ad="leaderboard">— Ad slot · leaderboard (plug <code>adsenseClient</code> in js/monetize.js to go live) —</div>
+
+  <!-- MARKETPLACE -->
+  <section id="market">
+    <div class="sec-head"><div class="eyebrow">Live marketplace</div><h2>Who wants what you have?</h2>
+    <p class="muted">Compatibility = same coach/bay proximity + berth-type match + verified. Requesters pay a small fee · helpers earn credits.</p></div>
+    <div class="filters" id="filters">
+      <button data-f="all" class="on">All</button>
+      <button data-f="sameCoach">Same coach only</button>
+      <button data-f="sameBay">Same bay</button>
+      <button data-f="verified">Verified only</button>
+      <button data-f="mine">My journey</button>
+    </div>
+    <div class="swaps" id="swapList"></div>
+  </section>
+
+  <!-- PLUS / monetization -->
+  <section class="card" id="plus">
+    <div class="eyebrow">Monetization · freemium that respects free swapping</div>
+    <h2 style="margin:4px 0">Free to swap. Pay to jump the queue.</h2>
+    <div id="plusPlans"></div>
+    <div class="affils" style="margin-top:12px">
+      <div class="affil"><b>🍱 IRCTC Food on Track</b><br/>Order to your berth after you swap. <a href="#" onclick="return false">Order →</a></div>
+      <div class="affil"><b>🏨 Hotels near arrival</b><br/>Late arrival? Partner stays. <a href="#" onclick="return false">Compare →</a></div>
+      <div class="affil"><b>🧳 Luggage & insurance</b><br/>Cover the swapped journey. <a href="#" onclick="return false">Quote →</a></div>
+      <div class="affil"><b>📶 eSIM for global trips</b><br/>Eurostar / Amtrak / intl flights. <a href="#" onclick="return false">Get eSIM →</a></div>
+    </div>
+  </section>
+
+  <!-- HOW -->
+  <section id="how">
+    <div class="sec-head"><div class="eyebrow">How it works</div><h2>Verify → See → Swap</h2></div>
+    <div class="steps">
+      <div class="card step"><div class="num">01</div><h3>Verify booking</h3><p class="muted">10-digit train PNR or 6-char flight PNR. We hash it on-device; full verification is a backend plug-in.</p></div>
+      <div class="card step"><div class="num">02</div><h3>See your berth</h3><p class="muted">Coach drawn bay-by-bay from the train number. Cabin drawn row-by-row from the aircraft. Tap, don't guess.</p></div>
+      <div class="card step"><div class="num">03</div><h3>Match & swap</h3><p class="muted">Template chat → mutual consent → swap pass. TTE / crew always have final say. No payments inside swaps.</p></div>
+    </div>
+  </section>
+
+  <div class="adslot" data-ad="infeed">— Ad slot · in-feed —</div>
+
+  <section class="faq" id="faq">
+    <div class="sec-head"><div class="eyebrow">FAQ · trust</div><h2>Answers first</h2></div>
+    <details open><summary>How is this different from CoSeat / SeatBadlo / Swapr / XchangeSeat / GoodSeat?</summary><p class="muted">Those apps tell you <i>“Side Upper”</i>. SwapSeat <b>draws</b> the coach: which bay, which side, which level, how far the walk is. Flight cabins show exits, wings, lavs — from the airline's aircraft type.</p></details>
+    <details><summary>Where do train / flight layouts come from?</summary><p class="muted">Train number → coach composition table (<code>js/data.js</code>, extend with live IR / UIC APIs). Flight number → airline + aircraft → cabin template (A320neo, 737, 787…). Plug real APIs later; maps already render from data.</p></details>
+    <details><summary>Is swapping legal? Do crew approve?</summary><p class="muted">Consensual swaps coordinated with TTE / cabin crew are normal. Crew have final authority, especially exit rows & 1A cabins.</p></details>
+    <details><summary>How does money work?</summary><p class="muted">Posting a swap is free (1/mo). Requesters can pay ₹19 instant-reveal or ₹29 boost; helpers earn credits. Plus (₹99/mo) = unlimited + priority. No money changes hands <i>for the seat itself</i>.</p></details>
+    <details><summary>Does it work offline / as an app?</summary><p class="muted">Yes — installable PWA. Maps + your requests cached by the service worker; works in tunnels & flight mode.</p></details>
+  </section>
+
+  <footer id="footer-contact">SwapSeat demo PWA · inspired by CoSeat, SeatBadlo, Swapr, XchangeSeat, GoodSeat — built original, no copied assets.<br/>Not affiliated with IRCTC / Indian Railways / any airline. · <a href="#" onclick="return false">Terms</a> · <a href="#" onclick="return false">Privacy</a> · Made for travellers 🌍</footer>
+</main>
+
+<div id="modal" hidden></div>
+<div id="toast" hidden></div>
+<div class="installbar" id="installBar" hidden>
+  <div>📲 <b>Install SwapSeat</b><br/><span class="muted" style="font-size:12.5px">Maps work offline in tunnels & flight mode.</span></div>
+  <div class="spacer"></div><button class="btn primary small" id="installGo">Install</button>
+  <button class="btn ghost small" id="installNo">Later</button>
+</div>
+
+<script src="./js/data.js"></script>
+<script src="./js/seatmaps.js"></script>
+<script src="./js/monetize.js"></script>
+<script src="./js/app.js"></script>
+</body>
+</html>
