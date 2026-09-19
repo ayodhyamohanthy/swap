@@ -20,13 +20,13 @@ const Payments = (() => {
 
   function amountFor(kind, currency) {
     const p = cfg().prices;
-    const map = { single: p.single, boost: p.boost, reveal: p.reveal, plus: p.plusMonthly, plusYearly: p.plusYearly };
+    const map = { single: p.single, trip: p.single, boost: p.boost, reveal: p.reveal, plus: p.plusMonthly, plusYearly: p.plusYearly };
     const row = map[kind] || p.single;
     return currency === 'USD' ? row.USD : row.INR;
   }
   function labelFor(kind) {
     const p = cfg().prices;
-    return ({ single: p.single.label, boost: p.boost.label, reveal: p.reveal.label, plus: p.plusMonthly.label, plusYearly: p.plusYearly.label })[kind] || kind;
+    return ({ single: p.single.label, trip: 'Trip pass (group)', boost: p.boost.label, reveal: p.reveal.label, plus: p.plusMonthly.label, plusYearly: p.plusYearly.label })[kind] || kind;
   }
 
   /* ---------- backend helpers (optional but required for live verify/hosted pages) ---------- */

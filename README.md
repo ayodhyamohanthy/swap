@@ -28,6 +28,21 @@ Install as app: Chrome/Edge → Install (service worker + manifest give offline 
 - `js/seatmaps.js` — `renderTrainCoach` (top-view bays, doors, toilets), `renderCompartmentZoom` (side-elevation levels), `renderFlightCabin` (fuselage, exits, wings).
 - Extend with live APIs: IR/UIC coach APIs → `TRAINS`; airline/aircraft APIs → `FLIGHTS`.
 
+## Tests
+
+```bash
+node tests/geometry.test.js   # data layer: templates, positions, gains, seeds
+node tests/e2e-smoke.js       # browser: service isolation, preview, lifecycle, offline
+```
+Critical gates: different dates never cross-match · expired requests can't be accepted · maps never invent seats (seeds resolve through geometry or are dropped).
+
+## Honesty rules (product contract)
+
+- Matching is per service instance (mode + number + date + segment) or nothing.
+- Agreement in-app is coordination, never a reassignment — crew decides.
+- Confidence on every map: Verified / Expected / Illustrative. Unknown seats render as unknown, never as free.
+- Free forever: maps, listings, requests, accepts, chat. Paid: trip pass (groups), boost (highlight, no guarantees, unused credit refunded), Plus (unlimited listings, saved prefs, alerts).
+
 ## Payments — Razorpay + PayPal + Chargebee
 
 | What | Gateway | Where |
@@ -42,6 +57,6 @@ Checkout sheet (`Payments.openCheckout(kind)`) picks the gateway: Razorpay 🇮�
 2. **Go live:** `npm i express razorpay @paypal/checkout-server-sdk chargebee && node server/example-server.js` with env `RAZORPAY_KEY_ID/SECRET`, `PAYPAL_CLIENT_ID/SECRET`, `CHARGEBEE_SITE/API_KEY`. Implements `/api/razorpay/order+verify`, `/api/paypal/capture`, `/api/chargebee/checkout+portal+webhook`.
 3. Prices in `js/payments-config.js` (`single ₹19/$0.49`, `boost ₹29/$0.69`, `plusMonthly ₹99/$2.99`, `plusYearly ₹999/$29`).
 
-## Monetization (demo checkout, plug keys to go live)
+## Monetization (honest freemium)
 
-- Free: 1 swap/mo · Pay-per-swap · Plus Monthly/Yearly unlimited + priority + badge · Boost 24h · requester-pays / helper-earns-credits (Swapr model) · ad slots + affiliates (food, hotels, eSIM).
+- Free forever: maps, listings (5 active), requests, accepts, chat. Paid: trip pass (group listings), boost (24h highlight, no match guarantee, credit refund), Plus/Plus Yearly (unlimited listings, saved household prefs, alerts). No seat selling, no paywalled responses.

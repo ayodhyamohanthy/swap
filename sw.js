@@ -1,5 +1,5 @@
 /* SwapSeat service worker — offline-first PWA (payment SDKs stay network-only) */
-const VERSION = 'swapseat-v1.1.0';
+const VERSION = 'swapseat-v1.2.0';
 const CORE = [
   './',
   './index.html',

@@ -44,11 +44,16 @@
     <div class="eyebrow">Step 1 · Your journey</div>
     <h2 style="margin:4px 0">Find your train / flight</h2>
     <div class="journey" id="journeyForm">
-      <div class="field" id="numField"><label>Train number</label><input id="journeyNo" inputmode="numeric" placeholder="e.g. 12951 Rajdhani" value="12951"/></div>
-      <div class="field"><label>Travel date</label><input id="journeyDate" type="date"/></div>
+      <div class="field" id="numField"><label for="journeyNo">Train number</label><input id="journeyNo" inputmode="numeric" placeholder="e.g. 12951 Rajdhani" value="12951"/></div>
+      <div class="field"><label for="journeyDate">Travel date</label><input id="journeyDate" type="date"/></div>
       <div class="field"><label>&nbsp;</label><button class="btn primary" id="lookupBtn" style="width:100%">Draw seat map →</button></div>
     </div>
-    <p class="fine">Try: trains <code>12951</code> <code>12002</code> <code>22436</code> <code>9010</code>(Eurostar) <code>170</code>(Amtrak) · flights <code>6E2031</code> <code>AI202</code> <code>EK507</code> <code>BA178</code>. Unknown numbers fall back to generic maps.</p>
+    <div class="journey" style="grid-template-columns:1fr 1fr;margin-top:10px">
+      <div class="field"><label for="segFrom">Boarding station (optional)</label><input id="segFrom" placeholder="e.g. MMCT" style="text-transform:uppercase"/></div>
+      <div class="field"><label for="segTo">Destination station (optional)</label><input id="segTo" placeholder="e.g. NDLS" style="text-transform:uppercase"/></div>
+    </div>
+    <p class="fine">Matching is per <b>service instance</b>: same train/flight, same date, same segment. Different dates never match. Passenger coordination — not an official booking change.</p>
+    <p class="fine">Try: trains <code>12951</code> <code>12002</code> <code>22436</code> <code>9010</code>(Eurostar) <code>170</code>(Amtrak) · flights <code>6E2031</code> <code>AI202</code> <code>EK507</code> <code>SQ422</code>. Unknown numbers fall back to generic maps.</p>
     <div id="journeyCard"></div>
   </section>
 
@@ -59,6 +64,7 @@
     <div class="legend" id="mapLegend"></div>
     <div class="coach-pills" id="coachPills"></div>
     <div id="seatmap" style="margin-top:10px"></div>
+    <details class="maplist" id="mapList" style="margin-top:10px"><summary>Text list of seats</summary></details>
     <div class="zoombox" id="zoombox" hidden></div>
     <div style="margin-top:12px">
       <div class="eyebrow">What do you want?</div>
@@ -71,14 +77,15 @@
   <section class="card" id="postSection" hidden>
     <div class="eyebrow">Step 3 · Post swap request</div>
     <div class="journey">
-      <div class="field"><label>Booking ref (PNR / e-ticket)</label><input id="pnr" placeholder="10-digit train PNR · 6-char flight PNR"/></div>
-      <div class="field"><label>Display name</label><input id="pname" placeholder="e.g. Priya · family of 3"/></div>
-      <div class="field"><label>Note for swappers</label><input id="pnote" placeholder="Kids in B3, want same bay 🙏"/></div>
+      <div class="field"><label for="pnr">Booking ref (PNR / e-ticket)</label><input id="pnr" placeholder="10-digit train PNR · 6-char flight PNR"/></div>
+      <div class="field"><label for="pname">Display name</label><input id="pname" placeholder="e.g. Priya · family of 3"/></div>
+      <div class="field"><label for="pnote">Note for swappers</label><input id="pnote" placeholder="Kids in B3, want same bay 🙏"/></div>
+      <div class="field"><label for="pgroup">Travellers in this request</label><input id="pgroup" type="number" min="1" max="6" value="1"/></div>
     </div>
     <div class="row" style="margin-top:12px">
-      <button class="btn primary" id="postBtn">Post swap request</button>
+      <button class="btn primary" id="postBtn" data-online>Post swap request · free</button>
       <button class="btn ghost" id="previewBtn">Preview match score</button>
-      <span class="fine">PNR is hashed on-device in this demo · OTP login mocked · mutual consent required.</span>
+      <span class="fine">Groups of 2+ need a Trip pass · PNR stays on-device, never shown to travellers · mutual consent required.</span>
     </div>
   </section>
 
@@ -86,22 +93,31 @@
 
   <!-- MARKETPLACE -->
   <section id="market">
-    <div class="sec-head"><div class="eyebrow">Live marketplace</div><h2>Who wants what you have?</h2>
-    <p class="muted">Compatibility = same coach/bay proximity + berth-type match + verified. Requesters pay a small fee · helpers earn credits.</p></div>
+    <div class="sec-head"><div class="eyebrow">Matches · same service only</div><h2>Who wants what you have?</h2>
+    <p class="muted">Only travellers on your exact train/flight, date and segment appear here. <span class="fine" id="marketStamp"></span></p></div>
     <div class="filters" id="filters">
       <button data-f="all" class="on">All</button>
       <button data-f="sameCoach">Same coach only</button>
       <button data-f="sameBay">Same bay</button>
       <button data-f="verified">Verified only</button>
-      <button data-f="mine">My journey</button>
     </div>
     <div class="swaps" id="swapList"></div>
   </section>
 
+  <!-- INBOX -->
+  <section id="inbox">
+    <div class="sec-head"><div class="eyebrow">Inbox</div><h2>Your listings & requests</h2>
+    <p class="muted">Requests expire after 24h. Agreement here is coordination — crew approval still decides.</p></div>
+    <h3>My listings</h3>
+    <div class="swaps" id="myPosts"></div>
+    <h3 style="margin-top:14px">My requests</h3>
+    <div class="swaps" id="myReqs"></div>
+  </section>
+
   <!-- PLUS / monetization -->
   <section class="card" id="plus">
-    <div class="eyebrow">Monetization · freemium that respects free swapping</div>
-    <h2 style="margin:4px 0">Free to swap. Pay to jump the queue.</h2>
+    <div class="eyebrow">Profile & billing · convenience, never seats</div>
+    <h2 style="margin:4px 0">Free matching. Paid convenience.</h2>
     <div id="plusPlans"></div>
     <div class="affils" style="margin-top:12px">
       <div class="affil"><b>🍱 IRCTC Food on Track</b><br/>Order to your berth after you swap. <a href="#" onclick="return false">Order →</a></div>
@@ -128,12 +144,17 @@
     <details open><summary>How is this different from CoSeat / SeatBadlo / Swapr / XchangeSeat / GoodSeat?</summary><p class="muted">Those apps tell you <i>“Side Upper”</i>. SwapSeat <b>draws</b> the coach: which bay, which side, which level, how far the walk is. Flight cabins show exits, wings, lavs — from the airline's aircraft type.</p></details>
     <details><summary>Where do train / flight layouts come from?</summary><p class="muted">Train number → coach composition table (<code>js/data.js</code>, extend with live IR / UIC APIs). Flight number → airline + aircraft → cabin template (A320neo, 737, 787…). Plug real APIs later; maps already render from data.</p></details>
     <details><summary>Is swapping legal? Do crew approve?</summary><p class="muted">Consensual swaps coordinated with TTE / cabin crew are normal. Crew have final authority, especially exit rows & 1A cabins.</p></details>
-    <details><summary>How does money work?</summary><p class="muted">Posting a swap is free (1/mo). One-time unlocks via <b>Razorpay</b> (UPI/cards, India) or <b>PayPal</b> (global). <b>Plus Monthly ₹99 / $2.99</b> and <b>Yearly</b> are recurring via <b>Chargebee</b> with invoices + self-serve cancel in the portal. No money changes hands <i>for the seat itself</i>. Add keys in Billing → Keys; live verify needs the example backend in <code>server/</code>.</p></details>
-    <details><summary>Does it work offline / as an app?</summary><p class="muted">Yes — installable PWA. Maps + your requests cached by the service worker; works in tunnels & flight mode.</p></details>
+    <details><summary>How does money work?</summary><p class="muted">Maps, listings, requests, accepts and chat are <b>free</b>. Paid extras: <b>Trip pass</b> for group listings, <b>Boost</b> (24h highlight — can't create a match, unused time refunded as credit), <b>Plus</b> (unlimited listings, saved preferences, alerts) via <b>Razorpay</b> / <b>PayPal</b> / <b>Chargebee</b>. No money changes hands <i>for the seat itself</i>. Add keys in Billing → Keys; live verify needs the example backend in <code>server/</code>.</p></details>
+    <details><summary>Does it work offline / as an app?</summary><p class="muted">Yes — installable PWA. Cached maps open offline with a clear offline banner. Publishing, requesting, chatting and payments need a connection, and an offline tap is never shown as confirmed.</p></details>
   </section>
 
-  <footer id="footer-contact">SwapSeat demo PWA · inspired by CoSeat, SeatBadlo, Swapr, XchangeSeat, GoodSeat — built original, no copied assets.<br/>Not affiliated with IRCTC / Indian Railways / any airline. · <a href="#" onclick="return false">Terms</a> · <a href="#" onclick="return false">Privacy</a> · Made for travellers 🌍</footer>
+  <footer id="footer-contact">SwapSeat demo PWA · coordination, not a booking change · agreement here is never a reassignment.<br/>Not affiliated with IRCTC / Indian Railways / any airline. · <a href="#" onclick="return false">Terms</a> · <a href="#" onclick="return false">Privacy</a> · <a href="#" onclick="return false">Refunds</a> · Made for travellers 🌍<br/><span class="fine" id="metricsLine"></span></footer>
 </main>
+
+<div id="offlineBar" hidden>📴 Offline — cached maps only. Listings, requests and payments need a connection.</div>
+<nav class="tabbar" aria-label="Primary">
+  <a href="#swap">🧭 Journey</a><a href="#mapSection">🗺️ Map</a><a href="#market">🤝 Matches</a><a href="#inbox">📥 Inbox</a><a href="#plus">👤 Profile</a>
+</nav>
 
 <div id="modal" hidden></div>
 <div id="toast" hidden></div>
