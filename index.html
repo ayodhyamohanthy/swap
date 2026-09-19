@@ -3,7 +3,11 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<meta name="theme-color" content="#070b19"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)"/>
+<meta name="theme-color" content="#ffffff"/>
 <title>SwapSeat — Global Train & Flight Seat Swap PWA</title>
 <meta name="description" content="See your exact berth in the compartment. Swap train berths & flight seats visually with co-passengers. Train number → coach map. Flight → cabin map. Global PWA, offline-ready."/>
 <link rel="manifest" href="./manifest.webmanifest"/>
@@ -11,8 +15,6 @@
 <link rel="apple-touch-icon" href="./icons/icon-192.png"/>
 <meta property="og:title" content="SwapSeat — See it. Swap it."/>
 <meta property="og:description" content="Visual train compartment + flight cabin seat swap. Global PWA."/>
-<link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700&family=Outfit:wght@700;900&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="./styles.css"/>
 </head>
 <body>
@@ -28,9 +30,8 @@
 
 <main class="wrap" id="top">
   <div class="hero">
-    <span class="pill">🚂 Trains · ✈️ Flights · 🚌 Buses · 🎪 Events — <b>&nbsp;global, offline-ready</b></span>
     <h1>Don't read <span class="grad">“Side Upper”.</span><br/>See where you sleep.</h1>
-    <p class="muted">Enter a <b>train number</b> → we draw the real coach & compartment. Enter a <b>flight number</b> → we draw the real cabin. Tap your berth, tap what you want, match visually.</p>
+    <p class="muted">Train number → coach map. Flight number → cabin map. Tap your seat, match, swap.</p>
     <div class="mode-tabs" role="tablist">
       <button data-mode="train" class="on">🚂 Train</button>
       <button data-mode="flight">✈️ Flight</button>
@@ -48,7 +49,7 @@
       <div class="field"><label for="journeyDate">Travel date</label><input id="journeyDate" type="date"/></div>
       <div class="field"><label>&nbsp;</label><button class="btn primary" id="lookupBtn" style="width:100%">Draw seat map →</button></div>
     </div>
-    <div class="journey" style="grid-template-columns:1fr 1fr;margin-top:10px">
+    <div class="journey seg-row" style="margin-top:10px">
       <div class="field"><label for="segFrom">Boarding station (optional)</label><input id="segFrom" placeholder="e.g. MMCT" style="text-transform:uppercase"/></div>
       <div class="field"><label for="segTo">Destination station (optional)</label><input id="segTo" placeholder="e.g. NDLS" style="text-transform:uppercase"/></div>
     </div>
@@ -94,9 +95,7 @@
     </div>
   </section>
 
-  <div class="adslot" data-ad="leaderboard">— Ad slot · leaderboard (plug <code>adsenseClient</code> in js/monetize.js to go live) —</div>
-
-  <!-- MARKETPLACE -->
+  <!-- MATCHES -->
   <section id="market">
     <div class="sec-head"><div class="eyebrow">Matches · same service only</div><h2>Who wants what you have?</h2>
     <p class="muted">Only travellers on your exact train/flight, date and segment appear here. <span class="fine" id="marketStamp"></span></p></div>
@@ -125,33 +124,18 @@
     <h2 style="margin:4px 0">Free matching. Paid convenience.</h2>
     <div id="plusPlans"></div>
     <div id="funnel" style="margin-top:12px"></div>
-    <div class="affils" style="margin-top:12px">
-      <div class="affil"><b>🍱 IRCTC Food on Track</b><br/>Order to your berth after you swap. <a href="#" onclick="return false">Order →</a></div>
-      <div class="affil"><b>🏨 Hotels near arrival</b><br/>Late arrival? Partner stays. <a href="#" onclick="return false">Compare →</a></div>
-      <div class="affil"><b>🧳 Luggage & insurance</b><br/>Cover the swapped journey. <a href="#" onclick="return false">Quote →</a></div>
-      <div class="affil"><b>📶 eSIM for global trips</b><br/>Eurostar / Amtrak / intl flights. <a href="#" onclick="return false">Get eSIM →</a></div>
-    </div>
   </section>
 
   <!-- HOW -->
   <section id="how">
-    <div class="sec-head"><div class="eyebrow">How it works</div><h2>Verify → See → Swap</h2></div>
-    <div class="steps">
-      <div class="card step"><div class="num">01</div><h3>Verify booking</h3><p class="muted">10-digit train PNR or 6-char flight PNR. We hash it on-device; full verification is a backend plug-in.</p></div>
-      <div class="card step"><div class="num">02</div><h3>See your berth</h3><p class="muted">Coach drawn bay-by-bay from the train number. Cabin drawn row-by-row from the aircraft. Tap, don't guess.</p></div>
-      <div class="card step"><div class="num">03</div><h3>Match & swap</h3><p class="muted">Template chat → mutual consent → swap pass. TTE / crew always have final say. No payments inside swaps.</p></div>
-    </div>
+    <p class="muted" style="text-align:center">Verify booking → see your seat → agree mutually. TTE / crew always decide.</p>
   </section>
-
-  <div class="adslot" data-ad="infeed">— Ad slot · in-feed —</div>
 
   <section class="faq" id="faq">
     <div class="sec-head"><div class="eyebrow">FAQ · trust</div><h2>Answers first</h2></div>
-    <details open><summary>How is this different from CoSeat / SeatBadlo / Swapr / XchangeSeat / GoodSeat?</summary><p class="muted">Those apps tell you <i>“Side Upper”</i>. SwapSeat <b>draws</b> the coach: which bay, which side, which level, how far the walk is. Flight cabins show exits, wings, lavs — from the airline's aircraft type.</p></details>
-    <details><summary>Where do train / flight layouts come from?</summary><p class="muted">Train number → coach composition table (<code>js/data.js</code>, extend with live IR / UIC APIs). Flight number → airline + aircraft → cabin template (A320neo, 737, 787…). Plug real APIs later; maps already render from data.</p></details>
-    <details><summary>Is swapping legal? Do crew approve?</summary><p class="muted">Consensual swaps coordinated with TTE / cabin crew are normal. Crew have final authority, especially exit rows & 1A cabins.</p></details>
-    <details><summary>How does money work?</summary><p class="muted">Maps, listings, requests, accepts and chat are <b>free</b>. Paid extras: <b>Trip pass</b> for group listings, <b>Boost</b> (24h highlight — can't create a match, unused time refunded as credit), <b>Plus</b> (unlimited listings, saved preferences, alerts) via <b>Razorpay</b> / <b>PayPal</b> / <b>Chargebee</b>. No money changes hands <i>for the seat itself</i>. Add keys in Billing → Keys; live verify needs the example backend in <code>server/</code>.</p></details>
-    <details><summary>Does it work offline / as an app?</summary><p class="muted">Yes — installable PWA. Cached maps open offline with a clear offline banner. Publishing, requesting, chatting and payments need a connection, and an offline tap is never shown as confirmed.</p></details>
+    <details open><summary>How is this different?</summary><p class="muted">Others tell you <i>“Side Upper”</i>. SwapSeat <b>draws</b> the coach — bay, side, level, walking distance. Flights show exits, wings, lavs.</p></details>
+    <details><summary>How does money work?</summary><p class="muted">Maps, listings, requests and chat are <b>free</b>. Trip pass (groups), Boost (highlight, no guarantees), Plus (unlimited, preferences, alerts).</p></details>
+    <details><summary>Does it work offline?</summary><p class="muted">Cached maps open offline. Publishing, requests and payments need a connection — an offline tap is never shown as confirmed.</p></details>
   </section>
 
   <section id="admin">
@@ -163,7 +147,7 @@
     <div class="swaps" id="layoutList"></div>
   </section>
 
-  <footer id="footer-contact">SwapSeat demo PWA · coordination, not a booking change · agreement here is never a reassignment.<br/>Not affiliated with IRCTC / Indian Railways / any airline. · <a href="#" onclick="return false">Terms</a> · <a href="#" onclick="return false">Privacy</a> · <a href="#" onclick="return false">Refunds</a> · <a href="#admin">Admin</a> · Made for travellers 🌍<br/><span class="fine" id="metricsLine"></span></footer>
+  <footer id="footer-contact">SwapSeat · coordination, not a booking change.<br/><a href="#" onclick="return false">Terms</a> · <a href="#" onclick="return false">Privacy</a> · <a href="#admin">Admin</a><br/><span class="fine" id="metricsLine"></span></footer>
 </main>
 
 <div id="offlineBar" hidden>📴 Offline — cached maps only. Listings, requests and payments need a connection.</div>
