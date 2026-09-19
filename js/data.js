@@ -95,15 +95,19 @@ const COACH_SPECS = {
   '3ALHB': berthSpec('3ALHB', { label: 'AC 3-Tier (LHB)', short: '3A', rake: 'LHB', family: 'berth', bays: 9,
                            pattern: ['LB', 'MB', 'UB', 'LB', 'MB', 'UB', 'SL', 'SU'],
                            pitch: '~1.85 m berth', desc: 'Curtains + bedding. 9 bays × 8 berths.' }),
-  '3E':  berthSpec('3E', { label: 'AC 3-Tier Economy', short: '3E', rake: 'LHB', family: 'berth', bays: 9,
+  '3E':  berthSpec('3E', { label: 'AC 3-Tier Economy', short: '3E', rake: 'LHB', family: 'berth', bays: 10,
+                           pattern: ['LB', 'MB', 'UB', 'LB', 'MB', 'UB', 'SL', 'SU'],
+                           end: ['LB', 'MB', 'UB'],
+                           pitch: '~1.85 m berth', desc: '10 bays × 8 + end triple = 83. No side-middle (verified vs etrain.info 3E diagram).' }),
+  GRB:  berthSpec('GRB', { label: 'AC 3-Tier (Garib Rath)', short: '3A', rake: 'IR', family: 'berth', bays: 9,
                            pattern: ['LB', 'MB', 'UB', 'LB', 'MB', 'UB', 'SL', 'SM', 'SU'],
-                           pitch: '~1.85 m berth', desc: '9 berths per bay — the extra is the side-middle.' }),
+                           pitch: '~1.85 m berth', desc: '9 berths per bay — the extra is the side-middle. 81 total (verified vs etrain.info diagram).' }),
   '2A':  berthSpec('2A', { label: 'AC 2-Tier (LHB)', short: '2A', rake: 'LHB', family: 'berth', bays: 9,
                            pattern: ['LB', 'UB', 'LB', 'UB', 'SL', 'SU'],
                            pitch: '~1.85 m berth', desc: 'No middle berth. 9 bays × 6 berths.' }),
   '2AI': berthSpec('2AI', { label: 'AC 2-Tier (ICF)', short: '2A', rake: 'ICF', family: 'berth', bays: 7,
-                           pattern: ['LB', 'UB', 'LB', 'UB', 'SL', 'SU'], end: ['LB', 'UB', 'LB', 'UB'],
-                           pitch: '~1.85 m berth', desc: '7 full bays + a short end cabin.' }),
+                           pattern: ['LB', 'UB', 'LB', 'UB', 'SL', 'SU'], end: ['LB', 'UB', 'SL', 'SU'],
+                           pitch: '~1.85 m berth', desc: '7 full bays + a short end bay with side berths. 46 total (verified vs etrain.info diagram).' }),
   '1A':  berthSpec('1A', { label: 'AC First (LHB)', short: '1A', rake: 'LHB', family: 'berth', bays: 4,
                            pattern: ['LB', 'UB', 'LB', 'UB'],
                            end: ['LB', 'UB', 'LB', 'UB', 'LB', 'UB', 'LB', 'UB'], cabin: true,
@@ -112,12 +116,16 @@ const COACH_SPECS = {
                            pattern: ['LB', 'UB', 'LB', 'UB'], end: ['LB', 'UB', 'LB', 'UB', 'LB', 'UB'], cabin: true,
                            pitch: 'cabin / coupe', desc: '4 cabins of 4 + 3 two-berth coupes.' }),
 
-  /* ---------- IR chair cars ---------- */
-  CC:    chairSpec('CC', { label: 'AC Chair Car', short: 'CC', groups: [3, 3], seats: 78,
-                          pitch: '~1,000 mm', desc: '3+3 pushback, day trains (Shatabdi, Jan Shatabdi).' }),
+  /* ---------- IR chair cars (verified vs etrain.info diagrams) ---------- */
+  CC:    chairSpec('CC', { label: 'AC Chair Car (ICF)', short: 'CC', groups: [3, 2], seats: 73,
+                          pitch: '~1,000 mm', desc: '3+2, 73 seats (Shatabdi ICF). Facing bay pairs numbered in opposition.' }),
+  CC_LHB: chairSpec('CC_LHB', { label: 'AC Chair Car (LHB)', short: 'CC', groups: [3, 3], seats: 78,
+                          pitch: '~1,000 mm', desc: '3+3 pushback, 78 seats (Tejas / Jan Shatabdi LHB).' }),
   CCVB:  chairSpec('CCVB', { label: 'Chair Car (Vande Bharat)', short: 'CC', groups: [3, 2], seats: 78,
                           pitch: '~1,040 mm', desc: '3+2 seating, fixed forward/backward, charging point per seat.' }),
-  EC:    chairSpec('EC', { label: 'Executive Chair Car', short: 'EC', groups: [2, 2], seats: 56,
+  EC:    chairSpec('EC', { label: 'Executive Chair Car (ICF)', short: 'EC', groups: [2, 2], seats: 46,
+                          pitch: '~1,200 mm', desc: '2+2 with pantry taking the end — 46 seats (Shatabdi ICF).' }),
+  EC_LHB: chairSpec('EC_LHB', { label: 'Executive Chair Car (LHB)', short: 'EC', groups: [2, 2], seats: 56,
                           pitch: '~1,200 mm', desc: '2+2 LHB executive. Wider seat, deeper recline.' }),
   ECVB:  chairSpec('ECVB', { label: 'Executive Class (Vande Bharat)', short: 'EC', groups: [2, 2], seats: 52,
                           pitch: '~1,270 mm', rotate: true, desc: '2+2 rotating seats — the pair turns to face travel.' }),
@@ -146,20 +154,22 @@ const COACH_SPECS = {
 };
 
 const CLASS_TO_SPEC = {
-  LHB: { '1A': '1A', '2A': '2A', '3A': '3ALHB', '3E': '3E', SL: 'SLLHB', CC: 'CC', EC: 'EC', '2S': '2S' },
+  LHB: { '1A': '1A', '2A': '2A', '3A': '3ALHB', '3E': '3E', SL: 'SLLHB', CC: 'CC_LHB', EC: 'EC_LHB', '2S': '2S' },
   ICF: { '1A': '1AI', '2A': '2AI', '3A': '3A', '3E': '3E', SL: 'SL', CC: 'CC', EC: 'EC', '2S': '2S' },
+  GRB: { '1A': '1AI', '2A': '2AI', '3A': 'GRB', '3E': 'GRB', SL: 'SL', CC: 'CC', EC: 'EC', '2S': '2S' },
   VB:  { EC: 'ECVB', CC: 'CCVB', SL: 'SLLHB', '2S': '2S' },
   EU:  { '1A': 'ICE_1ST', '2A': 'ICE_2ND', '3A': 'ICE_2ND', SL: 'CN_2ND', CC: 'TGV_2ND', EC: 'ICE_1ST', '2S': 'TGV_2ND' },
   JP:  { '1A': 'SHINK_GREEN', '2A': 'SHINK_RES', '3A': 'SHINK_RES', SL: 'SHINK_FREE', CC: 'SHINK_RES', EC: 'SHINK_GREEN', '2S': 'SHINK_FREE' },
   US:  { '1A': 'AMTK_ROOM', '2A': 'AMTK_BIZ', '3A': 'AMTK_COACH', SL: 'AMTK_ROOM', CC: 'AMTK_COACH', EC: 'AMTK_BIZ', '2S': 'AMTK_COACH' },
 };
 
-/* Coach code prefix → class. 'GS' (general second sitting) is the exception. */
+/* Coach code prefix → class. Garib Rath runs under coach code G (class 3A);
+   3E economy under coach code M. GS (general second sitting) is the exception. */
 function coachClassFromCoachCode(code) {
   const raw = String(code || '').toUpperCase();
   if (raw === 'GS' || raw === 'GEN') return '2S';
   const p = raw.replace(/[^A-Z]/g, '').charAt(0);
-  return ({ H: '1A', A: '2A', B: '3A', G: '3E', S: 'SL', C: 'CC', E: 'EC', D: '2S', P: '3A', L: 'CC', M: 'CC', R: 'EC', V: '3A', W: 'CC' })[p] || 'SL';
+  return ({ H: '1A', A: '2A', B: '3A', G: '3A', M: '3E', S: 'SL', C: 'CC', E: 'EC', D: '2S', P: '3A', L: 'CC', R: 'EC', V: '3A', W: 'CC' })[p] || 'SL';
 }
 
 /* Resolve the spec key for one coach of one train.

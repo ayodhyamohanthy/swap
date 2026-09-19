@@ -28,6 +28,7 @@ Install as app: Chrome/Edge → Install (service worker + manifest give offline 
 - `js/flights.js` — display meta (`seatDisplay`, `chairSeatInfo`, `flightSeatMeta`) and peer-state scoring helpers.
 - `js/seatmaps.js` — `renderTrainCoach` (top-view bays, doors, toilets), `renderCompartmentZoom` (level lists), `renderBerthElevation` (true cross-section), `renderFlightCabin` (fuselage, exits, wings), `trainConfBadge` / `flightConfBadge` (source + version + last-checked), `stateLegendHTML` (icon + text, `unknown` spelled out).
 - Extend with live APIs: IR/UIC coach APIs → `TRAINS`; airline/aircraft APIs → `FLIGHTS`.
+- IR geometry cross-checked berth-by-berth against etrain.info's coach diagrams: SL 72, 3A 64, 2A 46 (end bay LB/UB/SL/SU), 1A 22, CC 73 (3+2), EC 46 (pantry end), 3E 83 (no side-middle), Garib Rath 81 (side-middle). Where etrain serves duplicate placeholders (all LHB/composite variants), templates follow documented LHB capacities instead.
 
 ## Tests
 
