@@ -101,6 +101,13 @@ section{padding:26px 0} .sec-head{text-align:center;margin-bottom:14px} .sec-hea
 .affils{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
 .affil{border:1px solid var(--line);border-radius:14px;padding:12px;font-size:13px;color:var(--mut)}
 .affil b{color:#fff}
+/* checkout gateways */
+.gwlist{display:flex;flex-direction:column;gap:8px;margin:12px 0}
+.gw{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:1px solid var(--line);background:#0b1530;color:#fff;border-radius:14px;padding:12px 14px;cursor:pointer}
+.gw:hover{border-color:var(--cyan)} .gw-ic{font-size:22px}
+.gw b{display:block;font-size:14.5px} .gw small{color:var(--mut);font-size:12px} .gw-go{margin-left:auto;color:var(--cyan);font-weight:900}
+.pw-badge{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--violet);border:1px solid rgba(176,38,255,.5);border-radius:999px;padding:4px 10px;margin-bottom:6px}
+.plans{grid-template-columns:repeat(4,1fr)} @media(max-width:900px){.plans{grid-template-columns:1fr 1fr}} @media(max-width:560px){.plans{grid-template-columns:1fr}}
 /* modal/toast/install */
 #modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:99;padding:16px}
 #modal[hidden]{display:none}.sheet{background:#0d1527;border:1px solid var(--line);border-radius:18px;padding:20px;max-width:520px;width:100%;max-height:88vh;overflow:auto}

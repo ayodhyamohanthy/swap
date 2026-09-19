@@ -28,8 +28,20 @@ Install as app: Chrome/Edge → Install (service worker + manifest give offline 
 - `js/seatmaps.js` — `renderTrainCoach` (top-view bays, doors, toilets), `renderCompartmentZoom` (side-elevation levels), `renderFlightCabin` (fuselage, exits, wings).
 - Extend with live APIs: IR/UIC coach APIs → `TRAINS`; airline/aircraft APIs → `FLIGHTS`.
 
+## Payments — Razorpay + PayPal + Chargebee
+
+| What | Gateway | Where |
+|---|---|---|
+| One-time UPI/cards/netbanking (India, ₹) | **Razorpay Checkout** | `js/payments.js` → `payRazorpay()` |
+| One-time global ($, buyer protection) | **PayPal Buttons** | `js/payments.js` → `renderPayPal()` |
+| Recurring Plus Monthly/Yearly + invoices + cancel portal | **Chargebee hosted pages** | `js/payments.js` → `subscribeChargebee()` / `openPortal()` |
+
+Checkout sheet (`Payments.openCheckout(kind)`) picks the gateway: Razorpay 🇮🇳 · PayPal 🌍 · Chargebee 🔁. With no keys it falls back to the mock UPI sheet so the PWA always works offline.
+
+1. **Frontend only (test clicks):** open app → Billing → **⚙ Billing keys** → paste Razorpay Key ID / PayPal Client ID / Chargebee site+publishable key + backend URL. Stored in localStorage. Or bake into `js/payments-config.js`.
+2. **Go live:** `npm i express razorpay @paypal/checkout-server-sdk chargebee && node server/example-server.js` with env `RAZORPAY_KEY_ID/SECRET`, `PAYPAL_CLIENT_ID/SECRET`, `CHARGEBEE_SITE/API_KEY`. Implements `/api/razorpay/order+verify`, `/api/paypal/capture`, `/api/chargebee/checkout+portal+webhook`.
+3. Prices in `js/payments-config.js` (`single ₹19/$0.49`, `boost ₹29/$0.69`, `plusMonthly ₹99/$2.99`, `plusYearly ₹999/$29`).
+
 ## Monetization (demo checkout, plug keys to go live)
 
-`js/monetize.js` → set `adsenseClient` + `razorpayKey`.
-
-- Free: 1 swap/mo · Pay-per-swap ₹19 · Plus ₹99/mo unlimited + priority + badge · Boost ₹29 · requester-pays / helper-earns-credits (Swapr model) · ad slots + affiliates (food, hotels, eSIM).
+- Free: 1 swap/mo · Pay-per-swap · Plus Monthly/Yearly unlimited + priority + badge · Boost 24h · requester-pays / helper-earns-credits (Swapr model) · ad slots + affiliates (food, hotels, eSIM).

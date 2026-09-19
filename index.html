@@ -128,7 +128,7 @@
     <details open><summary>How is this different from CoSeat / SeatBadlo / Swapr / XchangeSeat / GoodSeat?</summary><p class="muted">Those apps tell you <i>“Side Upper”</i>. SwapSeat <b>draws</b> the coach: which bay, which side, which level, how far the walk is. Flight cabins show exits, wings, lavs — from the airline's aircraft type.</p></details>
     <details><summary>Where do train / flight layouts come from?</summary><p class="muted">Train number → coach composition table (<code>js/data.js</code>, extend with live IR / UIC APIs). Flight number → airline + aircraft → cabin template (A320neo, 737, 787…). Plug real APIs later; maps already render from data.</p></details>
     <details><summary>Is swapping legal? Do crew approve?</summary><p class="muted">Consensual swaps coordinated with TTE / cabin crew are normal. Crew have final authority, especially exit rows & 1A cabins.</p></details>
-    <details><summary>How does money work?</summary><p class="muted">Posting a swap is free (1/mo). Requesters can pay ₹19 instant-reveal or ₹29 boost; helpers earn credits. Plus (₹99/mo) = unlimited + priority. No money changes hands <i>for the seat itself</i>.</p></details>
+    <details><summary>How does money work?</summary><p class="muted">Posting a swap is free (1/mo). One-time unlocks via <b>Razorpay</b> (UPI/cards, India) or <b>PayPal</b> (global). <b>Plus Monthly ₹99 / $2.99</b> and <b>Yearly</b> are recurring via <b>Chargebee</b> with invoices + self-serve cancel in the portal. No money changes hands <i>for the seat itself</i>. Add keys in Billing → Keys; live verify needs the example backend in <code>server/</code>.</p></details>
     <details><summary>Does it work offline / as an app?</summary><p class="muted">Yes — installable PWA. Maps + your requests cached by the service worker; works in tunnels & flight mode.</p></details>
   </section>
 
@@ -144,8 +144,11 @@
 </div>
 
 <script src="./js/data.js"></script>
+<script src="./js/flights.js"></script>
 <script src="./js/seatmaps.js"></script>
 <script src="./js/monetize.js"></script>
+<script src="./js/payments-config.js"></script>
+<script src="./js/payments.js"></script>
 <script src="./js/app.js"></script>
 </body>
 </html>
