@@ -20,12 +20,13 @@ Install as app: Chrome/Edge → Install (service worker + manifest give offline 
 
 - Trains: `12951` Rajdhani · `12002` Shatabdi · `22436` Vande Bharat · `9010` Eurostar · `170` Amtrak
 - Flights: `6E2031` A320neo · `AI202` / `BA178` 787 · `EK507` 737
-- Tap your berth → bay zooms into TOP/MID/FLOOR levels → tap target berths → Post → Marketplace scores by same-bay proximity.
+- Tap your berth → the bay opens as a **cross-section** (TOP/MID/FLOOR rows × two facing benches + corridor side) → tap target berths → Post → Marketplace scores by same-bay proximity.
 
 ## Layout engine
 
-- `js/data.js` — train numbers → coach composition; flight numbers → airline + aircraft; `COACH_SPECS` (SL/3A/3E/2A/1A/CC/2S/EC/GEN) + `AIRCRAFT` (A20N/B738/A21N/B788/AT72); berth-type math.
-- `js/seatmaps.js` — `renderTrainCoach` (top-view bays, doors, toilets), `renderCompartmentZoom` (side-elevation levels), `renderFlightCabin` (fuselage, exits, wings).
+- `js/data.js` — train numbers → coach composition; flight numbers → airline + aircraft; `COACH_SPECS` (SL/3A/3E/2A/1A/CC/2S/EC + global) + `AIRCRAFT` (15 types, 55 flights); berth-type math; **confidence vocabulary** (`verified` / `expected` / `illustrative`).
+- `js/flights.js` — display meta (`seatDisplay`, `chairSeatInfo`, `flightSeatMeta`) and peer-state scoring helpers.
+- `js/seatmaps.js` — `renderTrainCoach` (top-view bays, doors, toilets), `renderCompartmentZoom` (level lists), `renderBerthElevation` (true cross-section), `renderFlightCabin` (fuselage, exits, wings), `trainConfBadge` / `flightConfBadge` (source + version + last-checked), `stateLegendHTML` (icon + text, `unknown` spelled out).
 - Extend with live APIs: IR/UIC coach APIs → `TRAINS`; airline/aircraft APIs → `FLIGHTS`.
 
 ## Tests
@@ -33,6 +34,7 @@ Install as app: Chrome/Edge → Install (service worker + manifest give offline 
 ```bash
 node tests/geometry.test.js   # data layer: templates, positions, gains, seeds
 node tests/e2e-smoke.js       # browser: service isolation, preview, lifecycle, offline
+node tests/e2e-flows.js       # browser: invites, watchlist, reports+admin, funnel
 ```
 Critical gates: different dates never cross-match · expired requests can't be accepted · maps never invent seats (seeds resolve through geometry or are dropped).
 

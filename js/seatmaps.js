@@ -34,8 +34,16 @@ function renderTrainCoach(el, { train, coach, mine = null, wanted = [], peerSeat
       const nums = []; for (let n = start; n <= end; n++) nums.push(n);
       const hasMine = mine && mine >= start && mine <= end;
       html += `<div class="bay ${highlightBay === b ? 'zoom' : ''} ${hasMine ? 'has-mine' : ''}" title="Bay ${b} · berths ${start}–${end}">`;
+      /* Order within a block is geometry: entries render left→right, top→bottom, so the
+         facing bench pairs must be interleaved (A1/B1, A2/B2) rather than grouped,
+         otherwise berth 1 would appear to "face" berth 2 when it faces the far bench. */
+      const main = nums.filter(n => !BERTH_TYPES[spec.layout[n - 1]].side);
+      const half = main.length / 2;
+      const benchA = main.slice(0, half), benchB = main.slice(half);
+      const inter = [];
+      for (let i = 0; i < half; i++) { inter.push(benchA[i]); if (benchB[i] != null) inter.push(benchB[i]); }
       html += `<div class="bay-label">BAY ${b}</div><div class="sleeper-grid"><div class="main-block">`;
-      nums.filter(n => !BERTH_TYPES[spec.layout[n - 1]].side).forEach(n => { html += seatBtn(spec, n, mine, wanted, peerSeats); });
+      inter.forEach(n => { html += seatBtn(spec, n, mine, wanted, peerSeats); });
       html += `</div><div class="aisle"><span></span></div><div class="side-block">`;
       nums.filter(n => BERTH_TYPES[spec.layout[n - 1]].side).forEach(n => { html += seatBtn(spec, n, mine, wanted, peerSeats); });
       html += `</div></div><div class="bay-range">${start}–${end}</div></div>`;

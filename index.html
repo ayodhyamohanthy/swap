@@ -63,6 +63,11 @@
     <h2 style="margin:4px 0" id="mapTitle">Pick your seat</h2>
     <div class="legend" id="mapLegend"></div>
     <div class="coach-pills" id="coachPills"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn small ghost" id="inviteBtn">🔗 Invite group</button>
+      <button class="btn small ghost" id="watchBtn">🔔 Watch service</button>
+      <button class="btn small ghost" id="layoutBtn">⚑ Map looks wrong</button>
+    </div>
     <div id="seatmap" style="margin-top:10px"></div>
     <details class="maplist" id="mapList" style="margin-top:10px"><summary>Text list of seats</summary></details>
     <div class="zoombox" id="zoombox" hidden></div>
@@ -119,6 +124,7 @@
     <div class="eyebrow">Profile & billing · convenience, never seats</div>
     <h2 style="margin:4px 0">Free matching. Paid convenience.</h2>
     <div id="plusPlans"></div>
+    <div id="funnel" style="margin-top:12px"></div>
     <div class="affils" style="margin-top:12px">
       <div class="affil"><b>🍱 IRCTC Food on Track</b><br/>Order to your berth after you swap. <a href="#" onclick="return false">Order →</a></div>
       <div class="affil"><b>🏨 Hotels near arrival</b><br/>Late arrival? Partner stays. <a href="#" onclick="return false">Compare →</a></div>
@@ -148,7 +154,16 @@
     <details><summary>Does it work offline / as an app?</summary><p class="muted">Yes — installable PWA. Cached maps open offline with a clear offline banner. Publishing, requesting, chatting and payments need a connection, and an offline tap is never shown as confirmed.</p></details>
   </section>
 
-  <footer id="footer-contact">SwapSeat demo PWA · coordination, not a booking change · agreement here is never a reassignment.<br/>Not affiliated with IRCTC / Indian Railways / any airline. · <a href="#" onclick="return false">Terms</a> · <a href="#" onclick="return false">Privacy</a> · <a href="#" onclick="return false">Refunds</a> · Made for travellers 🌍<br/><span class="fine" id="metricsLine"></span></footer>
+  <section id="admin">
+    <div class="sec-head"><div class="eyebrow">Admin · demo on this device</div><h2>Moderation queue</h2>
+    <p class="muted">Reports and layout corrections queue here. A production build sends these to a moderation backend instead.</p></div>
+    <h3>Listing reports</h3>
+    <div class="swaps" id="reportList"></div>
+    <h3 style="margin-top:14px">Layout corrections</h3>
+    <div class="swaps" id="layoutList"></div>
+  </section>
+
+  <footer id="footer-contact">SwapSeat demo PWA · coordination, not a booking change · agreement here is never a reassignment.<br/>Not affiliated with IRCTC / Indian Railways / any airline. · <a href="#" onclick="return false">Terms</a> · <a href="#" onclick="return false">Privacy</a> · <a href="#" onclick="return false">Refunds</a> · <a href="#admin">Admin</a> · Made for travellers 🌍<br/><span class="fine" id="metricsLine"></span></footer>
 </main>
 
 <div id="offlineBar" hidden>📴 Offline — cached maps only. Listings, requests and payments need a connection.</div>

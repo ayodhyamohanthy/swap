@@ -173,11 +173,11 @@ function findTrain(q) {
 }
 
 function findFlight(no) {
-  if (FLIGHT_INDEX[no]) return FLIGHT_INDEX[no];
+  if (FLIGHT_INDEX[no]) return { ...FLIGHT_INDEX[no], resolved: true };
   const pre = (no.match(/^[A-Z0-9]+/) || [''])[0];
   const hit = (typeof AIRLINE_PREFIX !== 'undefined') && (AIRLINE_PREFIX[pre.slice(0, 2)] || AIRLINE_PREFIX[pre]);
-  if (hit) return { no, airline: hit.airline, from: '···', to: '···', craft: hit.craft, country: 'GLOBAL', illustrative: true };
-  return { no: no || 'XX000', airline: 'Custom airline', from: '···', to: '···', craft: 'A20N', country: 'GLOBAL', illustrative: true };
+  if (hit) return { no, airline: hit.airline, from: '···', to: '···', craft: hit.craft, country: 'GLOBAL', illustrative: true, resolved: false };
+  return { no: no || 'XX000', airline: 'Custom airline', from: '···', to: '···', craft: 'A20N', country: 'GLOBAL', illustrative: true, resolved: false };
 }
 
 $('#lookupBtn').addEventListener('click', () => {
@@ -187,6 +187,7 @@ $('#lookupBtn').addEventListener('click', () => {
     const f = findFlight(no);
     state.journey = { kind: 'flight', flight: f, date };
     state.craft = f.craft; state.mineFlight = null; state.wantTypes = ['W'];
+    Metrics.log('lookup'); Metrics.log(f.resolved ? 'resolved' : 'generic');
   } else if (state.mode === 'train') {
     const t = findTrain(no) || { ...GENERIC_TRAIN, no: no || '00000' };
     state.journey = { kind: 'train', train: t, date };
@@ -204,6 +205,11 @@ $('#lookupBtn').addEventListener('click', () => {
   } else {
     state.journey = { kind: state.mode, custom: no, date };
     state.coach = 'C1'; state.mine = null; state.wantTypes = ['W']; state.wantSeats = [];
+    Metrics.log('lookup'); Metrics.log('generic');
+  }
+  if (state.journey.kind === 'train') {
+    Metrics.log('lookup');
+    Metrics.log(state.journey.train.operator === 'Unknown operator' ? 'generic' : 'resolved');
   }
   Metrics.log('map');
   renderJourney(); renderGoals(); renderMap();
@@ -320,6 +326,7 @@ function renderMap() {
     } else zb.hidden = true;
   }
   updateSummary();
+  syncWatchBtn();
 }
 
 function renderGoals() {
@@ -520,8 +527,10 @@ function renderMarket() {
   wireCards($('#swapList'));
   const el = $('#marketStamp');
   if (el) { el.dataset.ts = Date.now(); el.textContent = 'updated just now'; }
-  const m = scoreAll().length;
-  if (m > 0) Metrics.log('match');
+  Metrics.log('market');
+  if (rows.length > 0) Metrics.log('covered');
+  checkWatches(rows.map(r => r.s.id));
+  renderFunnel();
 }
 
 function wireCards(root) {
@@ -591,7 +600,7 @@ function openReport(id) {
   modal.querySelectorAll('[data-r]').forEach(b => b.onclick = () => {
     const arr = blocks(); arr.unshift({ id, reason: b.dataset.r, ts: Date.now() });
     localStorage.setItem('swapseat_blocks', JSON.stringify(arr.slice(0, 100)));
-    modal.hidden = true; renderMarket(); toast('Hidden. Thanks — report logged.');
+    modal.hidden = true; renderMarket(); renderAdmin(); toast('Hidden. Thanks — report logged.');
   });
 }
 
@@ -652,6 +661,149 @@ function renderInbox() {
   updateOnlineUI();
 }
 
+/* ---------- invites, watches, layout reports, admin, funnel ---------- */
+function buildInvite() {
+  const j = state.journey;
+  if (!j || j.kind === 'bus' || j.kind === 'event') return null;
+  const no = j.kind === 'train' ? j.train.no : j.flight.no;
+  const segm = j.kind === 'train' ? state.coach : state.craft;
+  return `${location.origin}${location.pathname}#j=${j.kind}|${no}|${j.date}|${segm}|${encodeURIComponent(currentSeg())}`;
+}
+
+function parseInvite() {
+  const m = (location.hash || '').match(/^#j=(train|flight)\|([^|]+)\|(\d{4}-\d{2}-\d{2})\|([^|]*)\|?(.*)$/);
+  if (!m) return false;
+  const [, kind, no, date, segm, seg] = m;
+  document.querySelector(`.mode-tabs button[data-mode="${kind}"]`)?.click();
+  $('#journeyNo').value = no;
+  $('#journeyDate').value = date;
+  if (seg) {
+    const [f, t] = decodeURIComponent(seg).split('→');
+    if (f) $('#segFrom').value = f;
+    if (t) $('#segTo').value = t;
+  }
+  $('#lookupBtn').click();
+  if (kind === 'train' && segm) {
+    const btn = document.querySelector(`#coachPills button[data-c="${segm}"]`);
+    if (btn) btn.click();
+  }
+  if (kind === 'flight' && segm && AIRCRAFT[segm]) { state.craft = segm; renderMap(); }
+  setTimeout(() => $('#mapSection').scrollIntoView({ behavior: 'smooth' }), 300);
+  return true;
+}
+
+$('#inviteBtn').addEventListener('click', async () => {
+  const url = buildInvite();
+  if (!url) return toast('Look up a train or flight first.');
+  const text = `Join me on ${state.journey.kind === 'train' ? state.journey.train.no : state.journey.flight.no} — open to swap seats: ${url}`;
+  try {
+    if (navigator.share) { await navigator.share({ title: 'SwapSeat invite', text, url }); return; }
+    await navigator.clipboard.writeText(text);
+    toast('🔗 Invite copied — no names or PNRs inside.');
+  } catch {
+    const modal = $('#modal');
+    modal.innerHTML = `<div class="sheet"><h3>🔗 Invite link</h3><p class="muted">Share privately. It carries only service + date + segment — never names or booking refs.</p><div class="upi-box" style="word-break:break-all">${url}</div><div class="row"><button class="btn ghost" onclick="document.getElementById('modal').hidden=true">Close</button></div></div>`;
+    modal.hidden = false;
+  }
+});
+
+function getWatches() { try { return JSON.parse(localStorage.getItem('swapseat_watches') || '[]'); } catch { return []; } }
+function setWatches(w) { localStorage.setItem('swapseat_watches', JSON.stringify(w.slice(0, 20))); }
+function syncWatchBtn() {
+  const b = $('#watchBtn');
+  if (!b) return;
+  const svc = myService();
+  const on = !!(svc && getWatches().some(w => w.service === svc));
+  b.innerHTML = on ? '🔔 Watching ✓' : '🔔 Watch service';
+  b.classList.toggle('on', on);
+}
+$('#watchBtn').addEventListener('click', () => {
+  const svc = myService();
+  if (!svc) return toast('Look up your journey first.');
+  const ws = getWatches();
+  const i = ws.findIndex(w => w.service === svc);
+  if (i >= 0) { ws.splice(i, 1); toast('Watch removed.'); }
+  else {
+    ws.unshift({ service: svc, want: [...state.wantTypes], seen: scoreAll().map(r => r.s.id), ts: Date.now() });
+    toast('🔔 Watching — we’ll flag new travellers on this service here.');
+  }
+  setWatches(ws); syncWatchBtn();
+});
+function checkWatches(ids) {
+  const svc = myService();
+  if (!svc) return;
+  const ws = getWatches();
+  const w = ws.find(x => x.service === svc);
+  if (!w) return;
+  const fresh = ids.filter(id => !w.seen.includes(id));
+  if (w.seen.length && fresh.length) toast(`🔔 ${fresh.length} new traveller${fresh.length > 1 ? 's' : ''} on your watched service`);
+  w.seen = ids; setWatches(ws);
+}
+
+function layoutReports() { try { return JSON.parse(localStorage.getItem('swapseat_layout_reports') || '[]'); } catch { return []; } }
+$('#layoutBtn').addEventListener('click', () => {
+  const j = state.journey;
+  if (!j) return toast('Look up your journey first.');
+  const modal = $('#modal');
+  modal.innerHTML = `<div class="sheet"><h3>⚑ Report inaccurate layout</h3>
+    <p class="muted">${j.kind === 'train' ? `${j.train.no} · coach ${state.coach}` : `${j.flight.no} · ${state.craft}`} — what’s wrong?</p>
+    <div class="field"><label for="layoutNote">What did you see on board?</label><input id="layoutNote" placeholder="e.g. Bay 5 has no side berths in this coach"/></div>
+    <div class="row" style="margin-top:10px"><button class="btn primary" id="layoutSend">Send correction</button>
+    <button class="btn ghost" onclick="document.getElementById('modal').hidden=true">Cancel</button></div></div>`;
+  modal.hidden = false;
+  document.getElementById('layoutSend').onclick = () => {
+    const note = ($('#layoutNote').value || '').trim();
+    if (!note) return toast('Describe what’s wrong first.');
+    const arr = layoutReports();
+    arr.unshift({ service: myService(), coach: state.coach || state.craft, note, ts: Date.now() });
+    localStorage.setItem('swapseat_layout_reports', JSON.stringify(arr.slice(0, 50)));
+    modal.hidden = true; renderAdmin(); toast('Thanks — correction queued for review.');
+  };
+});
+
+function renderAdmin() {
+  const reps = blocks();
+  const lays = layoutReports();
+  $('#reportList').innerHTML = reps.length ? reps.map((b, i) => {
+    const s = store.all().find(x => x.id === b.id);
+    return `<div class="swap"><div class="top"><b>${s ? `${s.name} · ${(s.trainNo || s.flightNo)} ${s.coach || s.seat || ''}` : b.id}</b><span class="badge">${b.reason}</span></div>
+      <div class="fine">${ago(b.ts)}</div>
+      <div class="row"><button class="btn small ghost" data-unblock="${i}">Dismiss · unhide</button></div></div>`;
+  }).join('') : '<p class="muted">No listing reports.</p>';
+  $('#layoutList').innerHTML = lays.length ? lays.map((l, i) => {
+    return `<div class="swap"><div class="top"><b>${l.service || ''} · ${l.coach || ''}</b></div>
+      <p class="muted" style="font-size:13px">${l.note}</p><div class="fine">${ago(l.ts)}</div>
+      <div class="row"><button class="btn small ghost" data-dlay="${i}">Dismiss</button></div></div>`;
+  }).join('') : '<p class="muted">No layout corrections.</p>';
+  $('#reportList').querySelectorAll('[data-unblock]').forEach(b => b.onclick = () => {
+    const arr = blocks(); arr.splice(parseInt(b.dataset.unblock, 10), 1);
+    localStorage.setItem('swapseat_blocks', JSON.stringify(arr));
+    renderAdmin(); renderMarket(); toast('Report dismissed.');
+  });
+  $('#layoutList').querySelectorAll('[data-dlay]').forEach(b => b.onclick = () => {
+    const arr = layoutReports(); arr.splice(parseInt(b.dataset.dlay, 10), 1);
+    localStorage.setItem('swapseat_layout_reports', JSON.stringify(arr));
+    renderAdmin(); toast('Correction dismissed.');
+  });
+}
+
+function renderFunnel() {
+  const el = $('#funnel');
+  if (!el) return;
+  let m = {};
+  try { m = JSON.parse(localStorage.getItem('swapseat_metrics') || '{}'); } catch {}
+  const pct = (a, b) => b ? Math.round(100 * a / b) + '%' : '—';
+  const rows = [
+    ['Map resolution', `${m.resolved || 0}/${m.lookup || 0} resolved`, pct(m.resolved || 0, m.lookup || 0)],
+    ['Activation', `${m.activate || 0} listings`, ''],
+    ['Match coverage', `${m.covered || 0}/${m.market || 0} with a match`, pct(m.covered || 0, m.market || 0)],
+    ['Requests', `${m.request || 0} sent`, ''],
+    ['Completion', `${m.complete || 0} completed`, pct(m.complete || 0, m.request || 0)],
+  ];
+  el.innerHTML = `<div class="eyebrow">Matching funnel · this device</div><div class="affils">`
+    + rows.map(r => `<div class="affil"><b>${r[0]}</b><br/>${r[1]}${r[2] ? ' · ' + r[2] : ''}</div>`).join('') + `</div>`;
+}
+
 /* ---------- monetization UI ---------- */
 function refreshWallet() {
   const w = Wallet.get();
@@ -668,6 +820,7 @@ function refreshWallet() {
       </div>
       <p class="fine">${Metrics.line()}</p>`;
   bindPayButtons();
+  renderFunnel();
   const hh = w.household;
   if (w.plan === 'plus' && hh) {
     if (!$('#pname').value) $('#pname').value = hh.name || '';
@@ -713,7 +866,8 @@ if ('serviceWorker' in navigator) window.addEventListener('load', () => navigato
 /* ---------- init ---------- */
 $('#journeyDate').value = new Date().toISOString().slice(0, 10);
 expireSweep();
-refreshWallet(); renderMarket(); renderInbox(); updateOnlineUI();
+refreshWallet(); renderMarket(); renderInbox(); renderAdmin(); updateOnlineUI();
+if (!parseInvite()) { /* default view */ }
 setInterval(() => { const el = $('#marketStamp'); if (el?.dataset.ts) el.textContent = 'updated ' + ago(parseInt(el.dataset.ts, 10)); }, 30000);
 $('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal') e.target.hidden = true; });
 
