@@ -130,12 +130,12 @@ const Bookings = (() => {
     return b;
   }
   function remember(b) {
-    const refs = refs().filter((r) => r.pnrHash !== b.pnrHash);
-    refs.unshift({ pnrHash: b.pnrHash, pnrMasked: b.pnrMasked, mode: b.mode, no: b.no,
+    const existing = refs().filter((r) => r.pnrHash !== b.pnrHash);
+    existing.unshift({ pnrHash: b.pnrHash, pnrMasked: b.pnrMasked, mode: b.mode, no: b.no,
       carrier: b.carrier, from: b.from, to: b.to, date: b.date, seat: b.primary && b.primary.seat,
       seatLabel: b.primary && b.primary.seatLabel, coach: b.coach || b.deck, classCode: b.classCode,
       ts: Date.now() });
-    saveRefs(refs);
+    saveRefs(existing);
   }
 
   /* ---------- which seats am I willing to swap from ---------- */
