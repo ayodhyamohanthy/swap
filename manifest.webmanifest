@@ -6,9 +6,13 @@
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#070b19",
-  "theme_color": "#070b19",
-  "categories": ["travel", "navigation", "social"],
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "categories": [
+    "travel",
+    "navigation",
+    "social"
+  ],
   "lang": "en",
   "dir": "ltr",
   "icons": [
@@ -41,6 +45,16 @@
       "name": "Marketplace",
       "url": "./index.html#market",
       "description": "Browse live swap requests"
+    },
+    {
+      "name": "History",
+      "url": "./index.html?screen=history",
+      "description": "Your local swap ledger"
     }
+  ],
+  "id": "./index.html",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
   ]
 }

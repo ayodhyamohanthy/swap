@@ -743,7 +743,16 @@ function requestSwap(id) {
     return toast('🔍 Activate matching first (₹49 search fee).');
   }
   if (reqStore.forSwap(id)) return toast('Already requested — see Inbox.');
-  reqStore.add({ id: 'r' + Date.now(), swapId: id, snap: { name: s.name, seat: s.seat, coach: s.coach, mode: s.mode, no: serviceNoOf(s) }, state: 'requested', ts: Date.now(), expires: Date.now() + REQ_TTL, upd: Date.now() });
+  const rec = { id: 'r' + Date.now(), swapId: id, snap: { name: s.name, seat: s.seat, coach: s.coach, mode: s.mode, no: serviceNoOf(s) }, state: 'requested', ts: Date.now(), expires: Date.now() + REQ_TTL, upd: Date.now() };
+  reqStore.add(rec);
+  if (typeof SwapLedger !== 'undefined') {
+    SwapLedger.upsert({
+      sourceId: 'req:' + rec.id, mode: s.mode, serviceNumber: serviceNoOf(s),
+      travelDate: s.date || dayOfTs(Date.now()), coachOrCabin: s.coach || '—',
+      ownSeat: (state.mine || 'you'), targetSeat: s.seat || '—', status: 'pending',
+      quoteSummary: 'swap request', createdAt: new Date(rec.ts).toISOString(),
+    });
+  }
   Metrics.log('request');
   Metrics.log('swap_request_created');
   renderMarket(); renderInbox();

@@ -165,7 +165,9 @@
           <div class="fsub">Option A · You're also looking to swap</div>
           <div class="checklist"><div class="ck"><i class="cki">✓</i>No payment needed!</div>
             <div class="ck"><i class="cki">✓</i>Since you're already looking to swap and have paid the search fee, you can accept without any additional payment.</div></div>
-          <button type="button" class="fbtn block ${rule.option === 'A' ? '' : 'ghost'}" data-confirm="${esc(x.id)}" ${rule.option === 'A' ? '' : 'aria-disabled="true"'}>Confirm Acceptance</button>
+          <button type="button" class="fbtn block ${rule.option === 'A' ? '' : 'ghost'}" data-confirm="${esc(x.id)}" data-option="${rule.option}"
+            ${rule.option === 'A' ? '' : 'aria-disabled="true" disabled title="Not applicable — this request needs the one-sided swap payment."'}>Confirm Acceptance</button>
+          ${rule.option === 'A' ? '' : '<p class="fine">Not applicable for this request — use Option B below.</p>'}
         </div>
         <div class="fcard">
           <div class="fsub">Option B · You're not looking to swap</div>
@@ -182,7 +184,22 @@
       const x = incomingById(Flow.ctx.incomingId);
       root.querySelectorAll('[data-confirm]').forEach((b) => b.addEventListener('click', () => {
         if (!online()) { toast('📴 Reconnect to confirm — an offline acceptance is never final.'); return; }
+        /* The fee gate is decided by Policy, never by markup: Option A is only
+           valid when the accepter is already searching this service. */
+        const gate = confirmationRule(x);
+        if (gate.option !== 'A') {
+          toast('This request needs the one-sided swap payment (Option B).');
+          return;
+        }
         Bookings.setIncoming(x.id, { confirmedAt: Date.now() });
+        if (typeof SwapLedger !== 'undefined') {
+          SwapLedger.upsert({
+            sourceId: 'req:' + x.id, mode: x.mode, serviceNumber: x.serviceNo, travelDate: x.date,
+            coachOrCabin: (x.theirCoach || x.coach || '—'), ownSeat: (x.theirSeat || '—'), targetSeat: 'your seat',
+            status: 'accepted', quoteSummary: 'option A · no additional fee',
+            createdAt: x.ts ? new Date(x.ts).toISOString() : undefined,
+          });
+        }
         Metrics.log('swap_request_accepted');
         toast('🤝 Agreed by both — crew/operator approval still applies.');
         Flow.show('accepted');
