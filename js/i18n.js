@@ -1,0 +1,147 @@
+/* SwapSeat i18n — English + Hindi at launch (spec §2.7, §15 a11y).
+   Chrome strings (nav, headers, labels, primary CTAs) are fully translated.
+   Long-form help copy and match/request screens follow in the next pass.
+   Persisted in localStorage; flow screens re-render on toggle. */
+const I18n = (() => {
+  const KEY = 'swapseat_lang';
+  const STR = {
+    en: {
+      'nav.home': 'Home', 'nav.trips': 'My Trips', 'nav.wallet': 'Wallet', 'nav.profile': 'Profile',
+      'app.tagline': 'Journeys are better together.',
+      'app.promise': 'See your berth. Find a better fit. Coordinate safely.',
+      'mode.train': 'Trains', 'mode.bus': 'Buses', 'mode.flight': 'Flights',
+      'home.recent': 'Recent journeys',
+      'home.recent.empty': 'Your recent journeys will appear here.',
+      'home.sample': 'Explore sample coach map',
+      'home.sample.sub': '12951 · AC 3 Tier · no booking needed',
+      'home.find': 'Find your booking',
+      'home.find.sub': 'Enter your PNR to see your seat on the map and find better matches.',
+      'home.getstarted': 'Get started',
+      'home.choose': 'Choose seats to swap', 'home.setprefs': 'Set preferences', 'home.searchnow': 'Search for matches',
+      'home.pending': 'swap requests waiting', 'home.review': 'Review now',
+      'home.sample.title': 'Try a sample map',
+      'home.group': 'Travelling as a group?',
+      'home.group.sub': 'Invite your group to see everyone on one map — no names or booking refs shared.',
+      'home.manual': 'Add a journey manually',
+      'home.safety': 'Passenger coordination — not an official booking change. The crew or operator always decides. We never share your PNR, ticket, or exact seat until you choose to.',
+      'trust.verified': 'Verified travellers', 'trust.safe': 'Safe & secure', 'trust.same': 'Same service, same people',
+      'trust.searchfee': 'to search · only when needed', 'trust.noleak': 'No leakage · fair for everyone',
+      'booking.eyebrow': 'Step 1 · Your booking', 'booking.title': 'Find Your Booking',
+      'booking.bypnr': 'By PNR', 'booking.byid': 'By Booking ID',
+      'booking.pnr': 'PNR / Booking reference', 'booking.surname': 'Passenger surname (as on ticket)',
+      'booking.fetch': 'Fetch booking', 'booking.busy': 'Looking up…',
+      'booking.manual': 'Add journey manually instead',
+      'booking.lock': 'We read your booking to find your seat. We never store or share your PNR.',
+      'seats.eyebrow': 'Step 3 · Your seat', 'seats.title': 'Select Your Seat(s)',
+      'seats.frombooking': 'from your booking',
+      'seats.legend.mine': 'Your seat', 'seats.legend.swap': 'Willing to swap', 'seats.legend.other': 'Other seats',
+      'seats.hint': 'Tap the seat(s) you\u2019re willing to swap from. Your booked seat is highlighted. Tap a highlighted seat for details.',
+      'seats.continue': 'Continue',
+      'seats.confidence': 'Layout status',
+      'seats.list': 'Text list of these berths',
+      'prefs.eyebrow': 'Step 4 · Preferences', 'prefs.title': 'Set Your Preferences',
+      'prefs.sub': 'What kind of seat are you open to?',
+      'prefs.kinds': 'Seat kind', 'prefs.where': 'Preferred location', 'prefs.extra': 'Other preferences (optional)',
+      'prefs.note': 'Note for swappers (optional)', 'prefs.flex': 'More flexible preferences give better matches. Nothing here is shared until you send a request.',
+      'search.eyebrow': 'Step 5 · Activate matching', 'search.title': 'Search for Matches',
+      'search.fee1': 'one-time search fee', 'search.pay': 'Pay',
+      'search.walletline': 'wallet credit if no matches found',
+      'search.c1.train': "We'll find the best matches on your train",
+      'search.c1.bus': "We'll find the best matches on your bus",
+      'search.c1.flight': "We'll find the best matches on your flight",
+      'search.c2': 'Matching seat preferences',
+      'search.c3': 'Verified travellers only', 'search.c5': 'No extra payment unless needed',
+      'search.terms': 'By continuing, you agree to our Terms & Privacy Policy.',
+      'search.findmine': 'Find my matches',
+      'modeword.train': 'train', 'modeword.bus': 'bus', 'modeword.flight': 'flight',
+      'sheet.close': 'Close', 'sheet.keep': 'Keep', 'sheet.remove': 'Remove',
+      'sheet.setmine': 'Set as my berth', 'sheet.report': 'Report wrong spot',
+      'sheet.reported': 'Thanks — position report queued.',
+      'sheet.youarehere': 'You are here',
+      'common.continue': 'Continue', 'common.close': 'Close', 'common.back': 'Back',
+      'common.cancel': 'Cancel', 'common.confirm': 'Confirm',
+      'a11y.skip': 'Skip to content',
+    },
+    hi: {
+      'nav.home': 'होम', 'nav.trips': 'मेरी यात्राएं', 'nav.wallet': 'वॉलेट', 'nav.profile': 'प्रोफ़ाइल',
+      'app.tagline': 'यात्राएं साथ में बेहतर।',
+      'app.promise': 'अपनी बर्थ देखें। बेहतर सीट पाएं। सुरक्षित समन्वय करें।',
+      'mode.train': 'ट्रेनें', 'mode.bus': 'बसें', 'mode.flight': 'फ़्लाइटें',
+      'home.recent': 'हाल की यात्राएं',
+      'home.recent.empty': 'आपकी हाल की यात्राएं यहां दिखेंगी।',
+      'home.sample': 'नमूना कोच मानचित्र देखें',
+      'home.sample.sub': '12951 · AC 3 टियर · बुकिंग की ज़रूरत नहीं',
+      'home.find': 'अपनी बुकिंग खोजें',
+      'home.find.sub': 'मानचित्र पर अपनी सीट देखने और बेहतर मिलान पाने के लिए PNR दर्ज करें।',
+      'home.getstarted': 'शुरू करें',
+      'home.choose': 'बदलने वाली सीटें चुनें', 'home.setprefs': 'प्राथमिकताएं तय करें', 'home.searchnow': 'मिलान खोजें',
+      'home.pending': 'स्वैप अनुरोध प्रतीक्षारत', 'home.review': 'अभी देखें',
+      'home.sample.title': 'नमूना मानचित्र आज़माएं',
+      'home.group': 'समूह के साथ यात्रा कर रहे हैं?',
+      'home.group.sub': 'सबको एक मानचित्र पर देखने के लिए समूह को आमंत्रित करें — नाम या बुकिंग जानकारी साझा नहीं होती।',
+      'home.manual': 'यात्रा manually जोड़ें',
+      'home.safety': 'यात्री समन्वय — आधिकारिक बुकिंग परिवर्तन नहीं। क्रू या ऑपरेटर ही अंतिम निर्णय लेता है। आपकी पसंद के बिना PNR, टिकट या सटीक सीट कभी साझा नहीं होती।',
+      'trust.verified': 'सत्यापित यात्री', 'trust.safe': 'सुरक्षित', 'trust.same': 'वही सेवा, वही लोग',
+      'trust.searchfee': 'खोजने के लिए · केवल ज़रूरत पर', 'trust.noleak': 'कोई लीक नहीं · सबके लिए निष्पक्ष',
+      'booking.eyebrow': 'चरण 1 · आपकी बुकिंग', 'booking.title': 'बुकिंग खोजें',
+      'booking.bypnr': 'PNR से', 'booking.byid': 'बुकिंग ID से',
+      'booking.pnr': 'PNR / बुकिंग संदर्भ', 'booking.surname': 'यात्री उपनाम (टिकट के अनुसार)',
+      'booking.fetch': 'बुकिंग लाएं', 'booking.busy': 'खोज रहे हैं…',
+      'booking.manual': 'इसके बजाय यात्रा manually जोड़ें',
+      'booking.lock': 'आपकी सीट खोजने के लिए बुकिंग पढ़ते हैं। PNR कभी संग्रहीत या साझा नहीं होता।',
+      'seats.eyebrow': 'चरण 3 · आपकी सीट', 'seats.title': 'अपनी सीट चुनें',
+      'seats.frombooking': 'आपकी बुकिंग से',
+      'seats.legend.mine': 'आपकी सीट', 'seats.legend.swap': 'बदलने को तैयार', 'seats.legend.other': 'अन्य सीटें',
+      'seats.hint': 'जिन सीटों से बदलना चाहते हैं उन्हें टैप करें। आपकी बुक सीट हाइलाइट है। विवरण के लिए हाइलाइट सीट टैप करें।',
+      'seats.continue': 'जारी रखें',
+      'seats.confidence': 'लेआउट स्थिति',
+      'seats.list': 'इन बर्थों की टेक्स्ट सूची',
+      'prefs.eyebrow': 'चरण 4 · प्राथमिकताएं', 'prefs.title': 'प्राथमिकताएं तय करें',
+      'prefs.sub': 'किस तरह की सीट चलेगी?',
+      'prefs.kinds': 'सीट का प्रकार', 'prefs.where': 'पसंदीदा स्थान', 'prefs.extra': 'अन्य प्राथमिकताएं (वैकल्पिक)',
+      'prefs.note': 'बदलने वालों के लिए नोट (वैकल्पिक)', 'prefs.flex': 'लचीली प्राथमिकताओं से बेहतर मिलान मिलता है। अनुरोध भेजने तक कुछ साझा नहीं होता।',
+      'search.eyebrow': 'चरण 5 · मिलान सक्रिय करें', 'search.title': 'मिलान खोजें',
+      'search.fee1': 'एकमुश्त खोज शुल्क', 'search.pay': 'भुगतान करें',
+      'search.walletline': 'मिलान न मिलने पर वॉलेट क्रेडिट',
+      'search.c1.train': 'आपकी ट्रेन पर सर्वोत्तम मिलान खोजेंगे',
+      'search.c1.bus': 'आपकी बस पर सर्वोत्तम मिलान खोजेंगे',
+      'search.c1.flight': 'आपकी फ़्लाइट पर सर्वोत्तम मिलान खोजेंगे',
+      'search.c2': 'सीट प्राथमिकता मिलान',
+      'search.c3': 'केवल सत्यापित यात्री', 'search.c5': 'ज़रूरत के बिना अतिरिक्त भुगतान नहीं',
+      'search.terms': 'जारी रखकर आप नियम व गोपनीयता नीति स्वीकार करते हैं।',
+      'search.findmine': 'मेरे मिलान खोजें',
+      'modeword.train': 'ट्रेन', 'modeword.bus': 'बस', 'modeword.flight': 'फ़्लाइट',
+      'sheet.close': 'बंद करें', 'sheet.keep': 'रखें', 'sheet.remove': 'हटाएं',
+      'sheet.setmine': 'मेरी बर्थ बनाएं', 'sheet.report': 'गलत स्थान बताएं',
+      'sheet.reported': 'धन्यवाद — रिपोर्ट दर्ज हो गई।',
+      'sheet.youarehere': 'आप यहां हैं',
+      'common.continue': 'जारी रखें', 'common.close': 'बंद करें', 'common.back': 'पीछे',
+      'common.cancel': 'रद्द करें', 'common.confirm': 'पुष्टि करें',
+      'a11y.skip': 'सामग्री पर जाएं',
+    },
+  };
+  /* Preference value chips (spec: visual, mode-specific, bilingual labels). */
+  const PREF_HI = {
+    'Lower berth': 'निचली बर्थ', 'Side berth': 'साइड बर्थ', 'Upper berth': 'ऊपरी बर्थ', 'Same coach': 'वही कोच',
+    'Window seat': 'खिड़की वाली सीट', 'Aisle seat': 'गलियारे वाली सीट', 'Middle seat': 'बीच वाली सीट',
+    'Lower deck': 'निचला डेक', 'Upper deck': 'ऊपरी डेक',
+    'Front rows': 'आगे की पंक्तियां', 'Middle rows': 'बीच की पंक्तियां', 'Back rows': 'पीछे की पंक्तियां',
+    'Exit / legroom rows': 'एग्ज़िट / लेगरूम पंक्तियां',
+    'Same bay': 'वही बे', 'Away from toilet': 'शौचालय से दूर', 'Away from door': 'दरवाज़े से दूर',
+    'Travelling with family': 'परिवार के साथ यात्रा', 'Quiet environment': 'शांत वातावरण', 'More legroom': 'अधिक लेगरूम',
+  };
+  function lang() { try { return localStorage.getItem(KEY) === 'hi' ? 'hi' : 'en'; } catch { return 'en'; } }
+  function setLang(l) { try { localStorage.setItem(KEY, l === 'hi' ? 'hi' : 'en'); } catch {} }
+  function t(k) { const l = lang(); return (STR[l] && STR[l][k]) || STR.en[k] || k; }
+  function prefLabel(v) { return lang() === 'hi' ? (PREF_HI[v] || v) : v; }
+  /* Static shell chrome in index.html carries data-i18n="key". */
+  function applyStatic(root) {
+    (root || document).querySelectorAll('[data-i18n]').forEach((el) => {
+      const v = t(el.getAttribute('data-i18n'));
+      if (v) el.textContent = v;
+    });
+    try { document.documentElement.lang = lang() === 'hi' ? 'hi' : 'en'; } catch {}
+  }
+  return { lang, setLang, t, prefLabel, applyStatic };
+}
+function T(k) { return I18n.t(k); }

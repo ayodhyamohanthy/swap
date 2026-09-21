@@ -350,6 +350,7 @@ function renderMap() {
         state.zoomBay = isBerthSpec(spec) ? bayOfSpec(spec, n) : null;
         renderMap(); updateSummary();
         renderMarket();          // re-rank: now we know where you actually are
+        openBerthSheet(train, state.coach, n);
       }
     });
     $('#mapList').innerHTML = mapListHTML(train, state.coach, null);
@@ -367,6 +368,7 @@ function renderMap() {
             const i = state.wantSeats.indexOf(n);
             if (i >= 0) state.wantSeats.splice(i, 1); else state.wantSeats.push(n);
             renderMap(); updateSummary();
+            openBerthSheet(train, state.coach, n);
           },
         });
       }
@@ -375,6 +377,7 @@ function renderMap() {
         const i = state.wantSeats.indexOf(n);
         if (i >= 0) state.wantSeats.splice(i, 1); else state.wantSeats.push(n);
         renderMap(); updateSummary();
+        if (train) openBerthSheet(train, state.coach, n);
       });
     } else zb.hidden = true;
   }
@@ -676,6 +679,54 @@ function wireCards(root) {
     if (Wallet.useBoost()) { toast('⬆ Boosted for 24h (1 credit used)'); renderMarket(); }
     else checkout('boost', () => renderMarket());
   });
+}
+
+/* ---------- berth detail bottom sheet (spec §4/§15): tap → details + actions ---------- */
+function openBerthSheet(train, coach, n) {
+  const spec = specOf(train, coach);
+  const pos = trainPosition(train, coach, n);
+  if (!pos) return;
+  const peers = peersForJourney();
+  const isMine = state.mine === n;
+  const isWant = state.wantSeats.includes(n);
+  const isPeer = peers.includes(n);
+  const stateLabel = isMine ? 'Your berth' : isWant ? 'Seat you want' : isPeer ? 'Passenger may be open to a swap' : 'No information — not shown as available';
+  const conf = trainConfidence(train);
+  const me = myPosition();
+  const cmp = (me && !isMine && state.mine) ? swapGain(me, pos) : null;
+  const modal = $('#modal');
+  modal.innerHTML = `<div class="sheet" role="dialog" aria-label="Berth ${n} details">
+    <div class="eyebrow">${pos.title}</div>
+    <h3>Berth ${n} · ${isBerthSpec(spec) ? `Bay ${pos.bay} · Coach ${coach}` : `Row ${pos.row} · Coach ${coach}`}</h3>
+    <p class="muted" style="font-size:13.5px">${pos.blurb || ''}</p>
+    <p class="fine">Status: <b>${stateLabel}</b> · ${conf.icon} ${conf.label}</p>
+    ${cmp && cmp.why.length ? `<ul class="gains"><li>↔ vs yours: ${cmp.why[0]}</li></ul>` : ''}
+    <div class="row" style="margin-top:8px">
+      ${isMine ? '' : `<button class="btn primary small" id="bsMine">Set as my berth</button>`}
+      <button class="btn ghost small" id="bsWant">${isWant ? 'Remove want' : 'Want this seat'}</button>
+      <button class="btn ghost small" id="bsReport">Report wrong spot</button>
+      <button class="btn ghost small" id="bsClose">Close</button>
+    </div></div>`;
+  modal.hidden = false;
+  const close = () => { modal.hidden = true; };
+  document.getElementById('bsClose').onclick = close;
+  const mb = document.getElementById('bsMine');
+  if (mb) mb.onclick = () => {
+    state.mine = n;
+    state.zoomBay = isBerthSpec(spec) ? bayOfSpec(spec, n) : null;
+    renderMap(); updateSummary(); renderMarket(); close();
+  };
+  document.getElementById('bsWant').onclick = () => {
+    const i = state.wantSeats.indexOf(n);
+    if (i >= 0) state.wantSeats.splice(i, 1); else state.wantSeats.push(n);
+    renderMap(); updateSummary(); close();
+  };
+  document.getElementById('bsReport').onclick = () => {
+    const arr = layoutReports();
+    arr.unshift({ service: myService(), coach, note: `Berth ${n} reported in the wrong spot`, ts: Date.now() });
+    try { localStorage.setItem('swapseat_layout_reports', JSON.stringify(arr.slice(0, 50))); } catch {}
+    renderAdmin(); close(); toast('Thanks — position report queued.');
+  };
 }
 
 /* ---------- swap preview: approximate until protected, exact after ---------- */

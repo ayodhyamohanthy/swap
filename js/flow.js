@@ -214,19 +214,25 @@ const Flow = (() => {
       return `
       <div class="fs-head fs-head--home">
         <div class="brand-row"><span class="brand-mark" aria-hidden="true">${modeIcon('flight')}</span>
-          <div><h1>SwapSeat</h1><p class="fmuted">Journeys are better together.</p></div></div>
-        <p class="tagline">See your berth. Find a better fit. Coordinate safely.</p>
+          <div><h1>SwapSeat</h1><p class="fmuted">${T('app.tagline')}</p></div></div>
+        <p class="tagline">${T('app.promise')}</p>
         <div class="mode-tabs mode-tabs--flow" role="tablist" aria-label="Transport mode">
-          ${['train', 'bus', 'flight'].map((m) => `<button type="button" data-mode="${m}" role="tab" class="${ctx.mode === m ? 'on' : ''}" aria-selected="${ctx.mode === m}">${modeIcon(m)}<span>${m === 'train' ? 'Trains' : m === 'bus' ? 'Buses' : 'Flights'}</span></button>`).join('')}
+          ${['train', 'bus', 'flight'].map((m) => `<button type="button" data-mode="${m}" role="tab" class="${ctx.mode === m ? 'on' : ''}" aria-selected="${ctx.mode === m}">${modeIcon(m)}<span>${T('mode.' + m)}</span></button>`).join('')}
         </div>
       </div>
       <div class="fs-body">
         <div class="trust-row" role="list">
-          <span role="listitem">🛡️ Verified travellers</span>
-          <span role="listitem">🔒 Safe &amp; secure</span>
-          <span role="listitem">🔁 Same service, same people</span>
-          <span role="listitem">💰 ₹${money().SEARCH_FEE} to search · only when needed</span>
-          <span role="listitem">🚫 No leakage · fair for everyone</span>
+          <span role="listitem">🛡️ ${T('trust.verified')}</span>
+          <span role="listitem">🔒 ${T('trust.safe')}</span>
+          <span role="listitem">🔁 ${T('trust.same')}</span>
+          <span role="listitem">💰 ₹${money().SEARCH_FEE} ${T('trust.searchfee')}</span>
+          <span role="listitem">🚫 ${T('trust.noleak')}</span>
+        </div>
+        ${recentHTML()}
+        <div class="fcard fcard--ghost">
+          <div class="frow"><b>🗺️ ${T('home.sample.title')}</b></div>
+          <p class="fmuted">${T('home.sample.sub')}</p>
+          <button type="button" class="fbtn ghost block" data-sample>${T('home.sample')}</button>
         </div>
 
         ${b ? `
@@ -234,32 +240,32 @@ const Flow = (() => {
           <div class="frow"><b>${bookingLine(b)}</b></div>
           <p class="fmuted">${esc(b.dur)} · ${esc(b.stops)} · ${esc(b.classCode)} · your seat <b>${esc(seatLabel(b))}</b></p>
           <div class="chips">
-            <button type="button" class="chip" data-go-scr="seats">Choose seats to swap</button>
-            <button type="button" class="chip" data-go-scr="prefs">Set preferences</button>
-            <button type="button" class="chip" data-go-scr="search">Search for matches</button>
+            <button type="button" class="chip" data-go-scr="seats">${T('home.choose')}</button>
+            <button type="button" class="chip" data-go-scr="prefs">${T('home.setprefs')}</button>
+            <button type="button" class="chip" data-go-scr="search">${T('home.searchnow')}</button>
           </div>
         </div>` : ''}
 
         ${pending ? `
         <div class="fcard fcard--notif">
-          <div class="frow"><b>🔔 ${pending} swap request${pending > 1 ? 's' : ''} waiting</b></div>
+          <div class="frow"><b>🔔 ${pending} ${T('home.pending')}</b></div>
           <p class="fmuted">Someone on your ${ctx.mode === 'flight' ? 'flight' : ctx.mode === 'bus' ? 'bus' : 'train'} wants your seat.</p>
-          <button type="button" class="fbtn block" data-go-scr="notif">Review now</button>
+          <button type="button" class="fbtn block" data-go-scr="notif">${T('home.review')}</button>
         </div>` : ''}
 
         <div class="fcard">
-          <div class="frow"><b>Find your booking</b></div>
-          <p class="fmuted">Enter your PNR to see your seat on the map and find better matches.</p>
-          <button type="button" class="fbtn block" data-go-scr="booking">Get started</button>
+          <div class="frow"><b>${T('home.find')}</b></div>
+          <p class="fmuted">${T('home.find.sub')}</p>
+          <button type="button" class="fbtn block" data-go-scr="booking">${T('home.getstarted')}</button>
         </div>
 
         <div class="fcard fcard--ghost">
-          <div class="frow"><b>👥 Travelling as a group?</b></div>
-          <p class="fmuted">Invite your group to see everyone on one map — no names or booking refs shared.</p>
-          <button type="button" class="fbtn ghost block" data-go-scr="manual">Add a journey manually</button>
+          <div class="frow"><b>👥 ${T('home.group')}</b></div>
+          <p class="fmuted">${T('home.group.sub')}</p>
+          <button type="button" class="fbtn ghost block" data-go-scr="manual">${T('home.manual')}</button>
         </div>
 
-        <p class="safe-note">Passenger coordination — not an official booking change. The crew or operator always decides. We never share your PNR, ticket, or exact seat until you choose to.</p>
+        <p class="safe-note">${T('home.safety')}</p>
       </div>`;
     },
     wire(root) {

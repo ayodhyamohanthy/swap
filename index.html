@@ -26,14 +26,15 @@ if (location.search.indexOf('legacy=1') < 0) document.documentElement.className 
   <header class="fs-top">
     <button type="button" class="fs-back" id="fsBack" hidden aria-label="Go back">←</button>
     <b id="fsTitle">SwapSeat</b>
+    <button type="button" class="flang" id="fsLang" aria-label="Switch language / भाषा बदलें">EN·हिं</button>
     <span class="fpill" id="fsPill">👛 ₹0</span>
   </header>
   <div id="flowScreen" class="fs-screen" aria-live="polite"></div>
   <nav class="tabbar tabbar--flow" id="flowNav" aria-label="Primary">
-    <button type="button" data-go="home" aria-current="page">🏠<span>Home</span></button>
-    <button type="button" data-go="trips">🧳<span>My Trips</span></button>
-    <button type="button" data-go="wallet">👛<span>Wallet</span></button>
-    <button type="button" data-go="profile">👤<span>Profile</span></button>
+    <button type="button" data-go="home" aria-current="page">🏠<span data-i18n="nav.home">Home</span></button>
+    <button type="button" data-go="trips">🧳<span data-i18n="nav.trips">My Trips</span></button>
+    <button type="button" data-go="wallet">👛<span data-i18n="nav.wallet">Wallet</span></button>
+    <button type="button" data-go="profile">👤<span data-i18n="nav.profile">Profile</span></button>
   </nav>
 </div>
 
@@ -190,6 +191,7 @@ if (location.search.indexOf('legacy=1') < 0) document.documentElement.className 
 </div>
 
 <script src="./js/data.js"></script>
+<script src="./js/i18n.js"></script>
 <script src="./js/flights.js"></script>
 <script src="./js/seatmaps.js"></script>
 <script src="./js/monetize.js"></script>
