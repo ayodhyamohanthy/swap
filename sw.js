@@ -1,5 +1,5 @@
 /* SwapSeat service worker — offline-first PWA (payment SDKs stay network-only) */
-const VERSION = 'swapseat-v2.0.0';
+const VERSION = 'swapseat-v2.1.0';
 const CORE = [
   './',
   './index.html',
@@ -16,6 +16,7 @@ const CORE = [
   './js/flow2.js',
   './js/accept.js',
   './js/journey.js',
+  './js/auth.js',
   './js/app.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
@@ -39,6 +40,10 @@ self.addEventListener('fetch', (e) => {
   const { request } = e;
   if (request.method !== 'GET') return;
   if (NEVER_CACHE.some(h => request.url.includes(h))) return; // payment SDKs: always network
+  /* Live coordination data (identity, the journey board) is network-only:
+     caching it would show stale listings and could resurrect a taken swap.
+     The offline shell still serves from CORE; only the API stays live. */
+  if (new URL(request.url).pathname.indexOf('/api/') === 0) return;
   e.respondWith(
     caches.match(request, { ignoreSearch: false }).then((hit) => {
       if (hit) return hit;
