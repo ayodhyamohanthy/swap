@@ -1,0 +1,4 @@
+# audit artefacts (regenerate with tests/mobile-audit.js / tests/a11y-audit.js)
+.audit/
+node_modules/
+.DS_Store

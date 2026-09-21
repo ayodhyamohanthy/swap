@@ -32,12 +32,23 @@ const Payments = (() => {
   }
 
   /* ---------- backend helpers (optional but required for live verify/hosted pages) ---------- */
-  async function api(path, body) {
+  async function api(path, body, ms) {
     const b = backend();
     if (!b) return null;
-    const r = await fetch(b + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
-    if (!r.ok) throw new Error('Backend ' + r.status);
-    return r.json();
+    /* Bounded: a payment/backend call must never hang the UI. */
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = ctl ? setTimeout(() => ctl.abort(), ms || 12000) : null;
+    try {
+      const r = await fetch(b + path, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {}), signal: ctl ? ctl.signal : undefined,
+      });
+      if (!r.ok) throw new Error('Backend ' + r.status);
+      return r.json();
+    } catch (e) {
+      if (e && (e.name === 'AbortError' || /abort/i.test(String(e.message || '')))) throw new Error('timeout');
+      throw e;
+    } finally { if (timer) clearTimeout(timer); }
   }
 
   /* ---------- Razorpay ---------- */
@@ -158,8 +169,14 @@ const Payments = (() => {
     modal.querySelectorAll('[data-gw]').forEach(b => b.onclick = () => {
       const gw = b.dataset.gw;
       if (gw === 'razorpay') payRazorpay(kind, (r) => { modal.hidden = true; toast('✅ Payment verified'); onSuccess && onSuccess({ gateway: 'razorpay', ...r }); }, (e) => {
-        if (String(e?.message || e) === 'no-key') mockCheckout(labelFor(kind), inr, onSuccess);
-        else toast('⚠️ ' + (e?.message || 'Payment failed'));
+        const msg = String((e && e.message) || e || 'Payment failed');
+        if (msg === 'no-key') { mockCheckout(labelFor(kind), inr, onSuccess); return; }
+        modal.hidden = true;
+        toast('⚠️ Payment not completed — nothing was charged.');
+        if (window.SwapSeatStates) {
+          window.SwapSeatStates.fail(msg === 'timeout' ? 'timeout' : 'gateway',
+            { back: 'home', detail: msg === 'timeout' ? 'The gateway did not answer within 12 seconds.' : 'Gateway said: ' + msg });
+        }
       });
       if (gw === 'paypal') {
         toast('Select a PayPal button below 👇');

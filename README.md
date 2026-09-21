@@ -6,21 +6,50 @@ Concept synthesized from CoSeat, SeatBadlo, Swapr, XchangeSeat, GoodSeat — all
 
 ## Run
 
-No build. Any static server:
+No build, no dependencies. Any static server:
 
 ```bash
-cd swap
+cd <repository root>   # the folder containing index.html
 python3 -m http.server 8099
-# open http://localhost:8099
+# open http://localhost:8099/index.html
 ```
 
-Install as app: Chrome/Edge → Install (service worker + manifest give offline maps).
+* Default surface is the **mobile-first flow** (bottom tab bar: Home · My Trips ·
+  Wallet · Profile, plus **History** for the on-device swap ledger).
+* `?legacy=1` opens the classic map/marketplace desk.
+* `?screen=history` deep-links to the ledger.
+
+Install as app: open the app, then use the in-app **Install** button
+(`beforeinstallprompt`), or Chrome/Edge → Install. On iOS Safari use
+Share → Add to Home Screen — the app shows that hint itself.
+
+Service worker + manifest give offline maps, a dedicated offline document, an
+“Update ready — reload” prompt, and an offline banner that states what is
+paused. Payments and booking lookups are never cached.
 
 ## Try
 
 - Trains: `12951` Rajdhani · `12002` Shatabdi · `22436` Vande Bharat · `9010` Eurostar · `170` Amtrak
 - Flights: `6E2031` A320neo · `AI202` / `BA178` 787 · `EK507` 737
 - Tap your berth → the bay opens as a **cross-section** (TOP/MID/FLOOR rows × two facing benches + corridor side) → tap target berths → Post → Marketplace scores by same-bay proximity.
+
+## Mobile-first PWA layer
+
+* **Mobile-first CSS** from 320px up: seat rows scroll inside their own
+  container, every control is at least 44x44 CSS px, inputs stay at 16px so
+  mobile browsers do not zoom, and the flow header/tab bar respect safe-area
+  insets.
+* **State handling** covers validation, loading, success, failure, timeout,
+  offline, stale quote, rejected confirmation and unsupported browser — with a
+  retry action in every terminal state and no indefinite spinner.
+* **Swap ledger** (`js/ledger.js`, schema v1) records every attempted and
+  completed swap on the device, shows it in **History** with timestamp, seats and
+  status, supports re-open/retry and export, and is erased by
+  “Sign out & erase local data”.
+* **In-progress drafts** survive a reload on reconnect — never for PNR, surname
+  or contact fields.
+* Full details, including the never-cache list and the rollback procedure:
+  [`docs/PWA.md`](./docs/PWA.md).
 
 ## Layout engine
 
@@ -33,11 +62,32 @@ Install as app: Chrome/Edge → Install (service worker + manifest give offline 
 ## Tests
 
 ```bash
+tests/run-all.sh              # everything below, with the right env + flags
+```
+
+Individual suites:
+
+```bash
 node tests/geometry.test.js   # data layer: templates, positions, gains, seeds
+node tests/pwa.test.js        # PWA layer: precache list, offline doc, manifest, icon sizes, docs
+node tests/ledger.test.js     # ledger schema, migration from older records, erase
 node tests/e2e-smoke.js       # browser: service isolation, preview, lifecycle, offline
 node tests/e2e-flows.js       # browser: invites, watchlist, reports+admin, funnel
 node tests/e2e-v2.js          # browser: bus engine, search gate, seat privacy, wallet, lifecycle
 ```
+
+The three browser suites need a static server on `:8099` and drive the **classic**
+engine, so they must be pointed at `?legacy=1` now that the mobile flow is the
+default surface:
+
+```bash
+PLAYWRIGHT_CORE="$HOME/node_modules/playwright-core" \
+CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+BASE="http://localhost:8099/index.html?legacy=1" node tests/e2e-smoke.js
+```
+
+`tests/run-all.sh` does that automatically. See `docs/PWA.md` for the PWA
+behaviour, the local storage schema, deployment and rollback.
 Critical gates: different dates never cross-match · expired requests can't be accepted · maps never invent seats (seeds resolve through geometry or are dropped).
 
 ## Honesty rules (product contract)

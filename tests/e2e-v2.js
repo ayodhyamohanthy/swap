@@ -24,7 +24,7 @@ const ls = (page, k) => page.evaluate((k) => localStorage.getItem(k), k);
   await page.evaluate(() => localStorage.clear());
   await page.goto('about:blank');
   await page.goto(BASE, { waitUntil: 'networkidle' });
-  await page.click('.mode-tabs button[data-mode="bus"]');
+  await page.click('#classicShell .mode-tabs button[data-mode="bus"]');
   await page.fill('#busOp', 'VRL');
   await page.fill('#journeyNo', 'HYD42');
   await page.fill('#segFrom', 'HYD');
@@ -41,7 +41,7 @@ const ls = (page, k) => page.evaluate((k) => localStorage.getItem(k), k);
   ok(await page.evaluate(() => !!document.querySelector('#coachPills button[data-c="L"]')), 'sleeper offers Lower/Upper decks');
 
   console.log('== search gate + seat privacy ==');
-  await page.click('.mode-tabs button[data-mode="train"]');
+  await page.click('#classicShell .mode-tabs button[data-mode="train"]');
   await page.click('#lookupBtn');
   await page.waitForSelector('#paySearch', { timeout: 8000 });
   ok(true, 'market locked behind ₹49 search fee');

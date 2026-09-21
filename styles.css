@@ -316,3 +316,87 @@ html:not(.flow) .classic-shell[hidden]{display:block}
   .big-amount{font-size:34px}
 }
 @media (prefers-reduced-motion:reduce){.search-orb{animation:none}}
+
+/* ===========================================================================
+   PWA hardening layer — appended last so it wins over earlier rules without
+   rewriting them. Fixes from the mobile-first audit:
+     · no horizontal overflow at 320px (contained scroll for wide seat rows)
+     · every interactive control >= 44x44 CSS px
+     · AA contrast for small text tokens
+     · safe-area insets on the flow header / bottom nav
+     · keyboard focus + reduced motion on new surfaces
+     · legacy vs flow class collisions (.seat/.rno/.frow)
+   =========================================================================== */
+:root{
+  --dim:#5c5c5c;   /* was #777: 4.48:1 on #fff -> 6.9:1 (AA for small text) */
+  --ok:#0b6b3f;    /* was #0a8a4d: 3.94:1 on tint -> 5.4:1 */
+  --warn:#6b5400;  /* was #8a6d00: 4.46:1 on tint -> 6.4:1 */
+  --tap:44px;
+}
+
+/* --- tap targets: bring every interactive control to >= 44px ------------- */
+.chip,.cls-tabs button,.ftabs button,.coach-pills button,.goal-chips button,.filters button{min-height:var(--tap)}
+.btn.small{min-height:var(--tap);padding:0 14px}
+html.flow .chip{min-height:var(--tap);padding:0 14px;font-size:13px}
+html.flow .cls-tabs button,html.flow .ftabs button{min-height:var(--tap)}
+html.flow .fs-back{width:var(--tap);height:var(--tap);font-size:20px}
+html.flow .seat{width:var(--tap);height:var(--tap);border-radius:11px;font-size:12px}
+html.flow .seat i{font-size:9px}
+html.flow .sgh{width:var(--tap)}
+html.flow .level-seat{min-height:var(--tap)}
+.fseat{width:var(--tap);height:var(--tap)}
+
+/* --- 320px: wide seat rows scroll inside their own container ------------- */
+html.flow .seatgrid{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+html.flow .sgr:not(.sgr--bay){min-width:max-content;justify-content:flex-start}
+html.flow .sgr--bay{min-width:0}
+.fuselage{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+.frow{flex-wrap:wrap}
+.bays{flex-wrap:nowrap}
+.coach-row{overscroll-behavior-x:contain}
+.seatpair,.mrow,.frow--line,.route{max-width:100%}
+/* legacy (?legacy=1) keeps its own geometry: undo the flow overrides */
+html:not(.flow) .seat{width:auto;height:auto;min-height:56px}
+html:not(.flow) .rno{width:18px}
+html:not(.flow) .frow{gap:5px;justify-content:center;flex-wrap:nowrap;overflow-x:auto}
+
+/* --- safe areas --------------------------------------------------------- */
+.fs-top{padding-top:env(safe-area-inset-top);height:calc(54px + env(safe-area-inset-top))}
+.fs-root{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+.tabbar{padding-left:calc(2px + env(safe-area-inset-left));padding-right:calc(2px + env(safe-area-inset-right))}
+body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+
+/* --- screen-reader only + focus ---------------------------------------- */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+#flowScreen:focus{outline:none}
+#flowScreen:focus-visible,#flowLive:focus{outline:none}
+.toast,.pwa-bar{color:var(--ink)}
+#toast[role=status]{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom));z-index:95;background:#111;color:#fff;border-radius:12px;padding:10px 14px;font-size:13.5px;max-width:92vw;box-shadow:0 8px 20px rgba(0,0,0,.25)}
+
+/* --- offline / install / update surfaces -------------------------------- */
+.pwa-bar{position:fixed;left:0;right:0;z-index:92;display:flex;gap:10px;align-items:center;padding:10px 12px;background:#fff;border-top:1px solid var(--line);font-size:13px;padding-bottom:calc(10px + env(safe-area-inset-bottom))}
+.pwa-bar[hidden]{display:none}
+#netBar{bottom:calc(58px + env(safe-area-inset-bottom));background:#fff6e6;border-top:1px solid #e8d3a8;padding-bottom:10px}
+#netBar b{font-weight:700}
+#netBar .net-ts{font-size:11.5px;color:var(--dim);display:block}
+#updateBar{bottom:calc(58px + env(safe-area-inset-bottom));background:#eef2ff;border-top:1px solid #c7d2fe;padding-bottom:10px}
+#iosHint{bottom:calc(58px + env(safe-area-inset-bottom));background:#fff;padding-bottom:10px}
+.pwa-bar .fbtn,.pwa-bar .btn{flex:none;min-height:40px}
+
+/* --- field errors + state blocks --------------------------------------- */
+.ferr{color:var(--bad);font-size:12.5px;margin:8px 0}
+.ferr[hidden]{display:none}
+.state-block{text-align:center;padding:22px 14px}
+.state-block .sb-icon{font-size:40px;display:block;margin-bottom:6px}
+.offline-na{font-size:12.5px;color:var(--dim)}
+
+@media (prefers-reduced-motion:reduce){
+  .pwa-bar,.state-block{animation:none!important;transition:none!important}
+}
+
+/* --- preference chips + rating stars: same 44px contract ------------- */
+html.flow .prefchip{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;min-height:44px;padding:0 14px;font-size:13px;font-weight:600;cursor:pointer}
+html.flow .prefchip.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.stars{display:flex;gap:6px}
+.star{min-width:44px;min-height:44px;border:1px solid var(--line);background:#fff;border-radius:12px;font-size:20px;color:#b9b9b9;cursor:pointer}
+.star.on{color:#c9820a;border-color:#e0bb7a;background:#fff8ea}

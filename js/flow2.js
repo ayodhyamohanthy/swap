@@ -35,6 +35,7 @@
           </div>`).join('') : ''}
         ${b && !inc.length && !myReqs.length ? `<div class="fcard fcard--ghost"><p class="fmuted">No requests yet. Search for matches to send one.</p><button type="button" class="fbtn ghost block" data-go-scr="search">Search matches</button></div>` : ''}
         ${b ? `<button type="button" class="fbtn ghost block" data-go-scr="track">Track current journey</button>` : ''}
+        <button type="button" class="fbtn ghost block" data-go-scr="history">History &amp; saved swaps</button>
       </div>`;
     },
     wire(root) {
@@ -87,6 +88,14 @@
           </div>
         </div>
         <div class="fcard">
+          <div class="frow"><b>Your data on this device</b></div>
+          <p class="fmuted">Swap history, drafts, preferences and wallet credits live in this browser only — never uploaded. Erasing is exactly what signing out does on a shared device.</p>
+          <div class="chips">
+            <button type="button" class="chip" data-go-scr="history">History</button>
+            <button type="button" class="chip" id="wipeLocal">Sign out &amp; erase local data</button>
+          </div>
+        </div>
+        <div class="fcard">
           <div class="frow"><b>Safety</b></div>
           <p class="fmuted">Crew/operator approval is always required. Agreement here is coordination, not a reassignment.</p>
           <div class="chips"><button type="button" class="chip" data-go-scr="home">Safety guide</button><button type="button" class="chip" data-go-scr="home">Privacy</button></div>
@@ -106,6 +115,14 @@
       });
       const keys = root.querySelector('#goKeys');
       if (keys) keys.addEventListener('click', () => { if (typeof Payments !== 'undefined' && Payments.openKeySettings) Payments.openKeySettings(); });
+      const wipe = root.querySelector('#wipeLocal');
+      if (wipe) wipe.addEventListener('click', () => {
+        const n = (typeof SwapLedger !== 'undefined') ? SwapLedger.onAccountSwitch() : 0;
+        if (typeof Bookings !== 'undefined') Bookings.setCurrent(null);
+        Flow.ctx.booking = null;
+        toast('Signed out — erased ' + n + ' ledger record' + (n === 1 ? '' : 's') + ' and all local data.');
+        Flow.show('home');
+      });
     },
   });
 

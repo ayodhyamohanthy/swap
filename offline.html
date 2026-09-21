@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#ffffff"/>
+<title>Offline · SwapSeat</title>
+<link rel="manifest" href="./manifest.webmanifest"/>
+<link rel="icon" type="image/png" href="./icons/icon-192.png"/>
+<link rel="stylesheet" href="./styles.css"/>
+</head>
+<body>
+<!-- Explicit offline fallback document. Served by sw.js when a navigation
+     cannot be satisfied from cache. No app scripts: it must render with the
+     network down, from the precache only. -->
+<main class="wrap" id="offlineDoc" style="max-width:560px">
+  <header class="fs-head" style="padding-left:0;padding-right:0">
+    <div class="eyebrow">SwapSeat · offline</div>
+    <h1 style="font-size:26px;margin:6px 0">You're offline</h1>
+    <p class="fmuted">The app shell is cached, so maps and your local history still open. Anything that needs the network is paused — nothing is queued or shown as confirmed while you're offline.</p>
+  </header>
+
+  <section class="fcard">
+    <div class="fsub">What still works</div>
+    <div class="checklist" role="list">
+      <div class="ck" role="listitem"><i class="cki">✓</i>Seat maps already cached on this device</div>
+      <div class="ck" role="listitem"><i class="cki">✓</i>Your saved history / ledger on this device</div>
+      <div class="ck" role="listitem"><i class="cki">✓</i>Reading this offline page</div>
+    </div>
+    <div class="fsub" style="margin-top:12px">What is paused</div>
+    <div class="checklist" role="list">
+      <div class="ck" role="listitem"><i class="cki" aria-hidden="true">!</i>New searches, requests and acceptances</div>
+      <div class="ck" role="listitem"><i class="cki" aria-hidden="true">!</i>Payments and booking lookups</div>
+    </div>
+  </section>
+
+  <section class="fcard fcard--ghost">
+    <div class="frow frow--line"><span>Last updated from the network</span><b id="offlineStamp">unknown</b></div>
+    <p class="offline-na" id="offlineCacheNote">Reading the cached shell.</p>
+  </section>
+
+  <div class="fs-actions">
+    <button type="button" class="fbtn block" id="retryBtn">Retry now</button>
+    <a class="fbtn ghost block" href="./index.html?screen=history" style="text-decoration:none">Open my history</a>
+  </div>
+
+  <p class="safe-note">Offline coordination is never final: crew/operator approval and mutual consent still apply once you reconnect.</p>
+</main>
+
+<script>
+/* Self-contained: no app modules, no network. */
+(function () {
+  var stamp = document.getElementById('offlineStamp');
+  var note = document.getElementById('offlineCacheNote');
+  var raw = null;
+  try { raw = localStorage.getItem('swapseat_last_sync'); } catch (e) {}
+  if (raw) {
+    try {
+      var d = new Date(JSON.parse(raw));
+      stamp.textContent = d.toLocaleString();
+      note.textContent = 'Showing data cached on this device since the timestamp above.';
+    } catch (e) { stamp.textContent = raw; }
+  } else {
+    stamp.textContent = 'no cached sync yet';
+  }
+  var btn = document.getElementById('retryBtn');
+  btn.addEventListener('click', function () {
+    btn.disabled = true; btn.textContent = 'Retrying…';
+    fetch('./index.html', { cache: 'reload' }).then(function (r) {
+      if (r && r.ok) location.replace('./index.html');
+      else throw new Error('still offline');
+    }).catch(function () {
+      btn.disabled = false; btn.textContent = 'Retry now';
+      note.textContent = 'Still offline — the cached shell is being used.';
+    });
+  });
+  /* Announce state for assistive technology. */
+  note.setAttribute('role', 'status');
+  note.setAttribute('aria-live', 'polite');
+})();
+</script>
+</body>
+</html>

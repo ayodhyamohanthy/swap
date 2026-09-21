@@ -144,6 +144,7 @@
           <p class="fmuted" style="text-align:center">Hope you had a great journey.</p>
           <p class="fmuted" style="text-align:center">${modeIcon(b.mode)} ${esc(b.carrier)} ${esc(b.serviceNo)} · ${esc(b.from)} → ${esc(b.to)} · ${fmtDate(b.date)}</p>
           ${inc ? `<p class="fine" style="text-align:center">Coordinated with ${esc(inc.fromName)} — thanks for swapping kindly.</p>` : ''}
+          <p class="fine" style="text-align:center" id="doneLedgerNote"></p>
         </div>
         <div class="fcard">
           <div class="fsub" id="rateLabel">Rate Your Experience</div>
@@ -158,6 +159,19 @@
     },
     wire(root) {
       const b = Bookings.current();
+      /* The ledger records the outcome, not just the attempt. */
+      if (typeof SwapLedger !== 'undefined' && b) {
+        const inc = Bookings.incoming(b).find((x) => x.state === 'accepted');
+        const rec = SwapLedger.upsert({
+          sourceId: inc ? 'req:' + inc.id : 'journey:' + b.pnrHash,
+          mode: b.mode, serviceNumber: b.serviceNo, travelDate: b.date,
+          coachOrCabin: b.coach || b.deck || '—', ownSeat: (b.primary && b.primary.seat) || '—',
+          targetSeat: (inc && inc.theirSeat) || '—', status: 'accepted',
+          quoteSummary: 'journey completed',
+        });
+        const note = root.querySelector('#doneLedgerNote');
+        if (note && rec) note.textContent = 'Saved to your history on this device.';
+      }
       root.querySelectorAll('[data-go-scr]').forEach((x) => x.addEventListener('click', () => Flow.show(x.dataset.goScr)));
       root.querySelectorAll('[data-star]').forEach((s) => s.addEventListener('click', () => {
         const n = parseInt(s.dataset.star, 10);

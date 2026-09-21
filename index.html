@@ -13,6 +13,7 @@
 <link rel="manifest" href="./manifest.webmanifest"/>
 <link rel="icon" type="image/png" href="./icons/icon-192.png"/>
 <link rel="apple-touch-icon" href="./icons/icon-192.png"/>
+<meta name="apple-mobile-web-app-title" content="SwapSeat"/>
 <meta property="og:title" content="SwapSeat — See it. Swap it."/>
 <meta property="og:description" content="Visual train compartment + flight cabin seat swap. Global PWA."/>
 <link rel="stylesheet" href="./styles.css"/>
@@ -29,7 +30,8 @@ if (location.search.indexOf('legacy=1') < 0) document.documentElement.className 
     <button type="button" class="flang" id="fsLang" aria-label="Switch language / भाषा बदलें">EN·हिं</button>
     <span class="fpill" id="fsPill">👛 ₹0</span>
   </header>
-  <div id="flowScreen" class="fs-screen" aria-live="polite"></div>
+  <div id="flowScreen" class="fs-screen" tabindex="-1"></div>
+  <div id="flowLive" class="sr-only" role="status" aria-live="polite"></div>
   <nav class="tabbar tabbar--flow" id="flowNav" aria-label="Primary">
     <button type="button" data-go="home" aria-current="page">🏠<span data-i18n="nav.home">Home</span></button>
     <button type="button" data-go="trips">🧳<span data-i18n="nav.trips">My Trips</span></button>
@@ -182,8 +184,26 @@ if (location.search.indexOf('legacy=1') < 0) document.documentElement.className 
 
 <div id="offlineBar" hidden>📴 Offline — cached maps only. Listings, requests and payments need a connection.</div>
 
+<noscript>
+  <div class="pwa-bar" role="status" aria-live="polite" style="position:static">
+    ⚠️ <b>JavaScript is off.</b> SwapSeat needs JavaScript for maps, matching and the offline shell. Turn it on, or read the
+    <a href="./offline.html">offline page</a> for what still works.
+  </div>
+</noscript>
+
 <div id="modal" hidden></div>
-<div id="toast" hidden></div>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+<div id="updateBar" class="pwa-bar" hidden>
+  <span>🔄 <b>Update ready</b> — reload for the newest maps.</span>
+  <span class="spacer"></span>
+  <button type="button" class="btn primary small" id="updateGo">Reload</button>
+  <button type="button" class="btn ghost small" id="updateNo">Later</button>
+</div>
+<div id="iosHint" class="pwa-bar" hidden>
+  <span>📲 <b>Install on iPhone</b> — tap Share, then “Add to Home Screen”.</span>
+  <span class="spacer"></span>
+  <button type="button" class="btn ghost small" id="iosNo">Got it</button>
+</div>
 <div class="installbar" id="installBar" hidden>
   <div>📲 <b>Install SwapSeat</b><br/><span class="muted" style="font-size:12.5px">Maps work offline in tunnels & flight mode.</span></div>
   <div class="spacer"></div><button class="btn primary small" id="installGo">Install</button>
@@ -204,6 +224,10 @@ if (location.search.indexOf('legacy=1') < 0) document.documentElement.className 
 <script src="./js/flow2.js"></script>
 <script src="./js/accept.js"></script>
 <script src="./js/journey.js"></script>
+<script src="./js/states.js"></script>
+<script src="./js/ledger.js"></script>
+<script src="./js/history.js"></script>
+<script src="./js/pwa.js"></script>
 <script>if (typeof Flow !== 'undefined' && Flow.boot) Flow.boot();</script>
 </body>
 </html>

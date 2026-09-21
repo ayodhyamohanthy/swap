@@ -20,6 +20,7 @@ const Flow = (() => {
   };
   let currentId = null;
 
+  const SEARCH_BUDGET_MS = 10000;   /* matching must resolve or fail visibly */
   const $f = (s) => document.querySelector(s);
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -53,6 +54,16 @@ const Flow = (() => {
     if (typeof updateOnlineUI === 'function') updateOnlineUI();
     if (typeof Metrics !== 'undefined') Metrics.log('screen_' + id);
     window.scrollTo(0, 0);
+    /* a11y: the previous node is destroyed by innerHTML, so move focus to the
+       new screen and announce its title once through the polite live region. */
+    announceScreen(def, mount);
+  }
+  function announceScreen(def, mount) {
+    const title = (def && def.title) || 'SwapSeat';
+    const live = document.getElementById('flowLive');
+    if (live) live.textContent = title;
+    if (!mount || mount !== document.getElementById('flowScreen')) return;
+    try { mount.focus({ preventScroll: true }); } catch { /* older browsers */ }
   }
   function back() {
     const prev = history.pop();
@@ -378,6 +389,7 @@ const Flow = (() => {
         </div>
         <p class="fmuted">Tap the seat(s) you're willing to swap from. Your booked seat is highlighted.</p>
         <p class="fine" id="seatSummary">${sel.length ? 'Swapping from: <b>' + esc(sel.join(', ')) + '</b>' : 'Your booked seat is preselected — tap to add others.'}</p>
+        <p class="ferr" id="seatErr" role="alert" hidden></p>
         <div class="fs-actions">
           <button type="button" class="fbtn block" id="seatNext">Continue</button>
         </div>
@@ -397,7 +409,13 @@ const Flow = (() => {
         },
       });
       root.querySelector('#seatNext').addEventListener('click', () => {
-        if (!picked.length) { toast('Pick the seat(s) you are willing to swap from.'); return; }
+        const err = root.querySelector('#seatErr');
+        if (!picked.length) {
+          if (err) { err.textContent = 'Select at least one seat you are willing to swap from.'; err.hidden = false; }
+          else toast('Pick the seat(s) you are willing to swap from.');
+          return;
+        }
+        if (err) err.hidden = true;
         ctx.seats = picked.slice();
         show('prefs');
       });
@@ -518,7 +536,27 @@ const Flow = (() => {
         <p class="fine" style="text-align:center;margin-top:12px">💡 More flexible preferences give better matches.</p>
       </div>`;
     },
-    wire() { setTimeout(() => { if (currentId === 'searching') show('matches'); }, 900); },
+    wire() {
+      /* The demo match lookup resolves locally. Production work is bounded: if
+         the request has not resolved inside the budget, or the device went
+         offline mid-search, the user gets an explicit state with a retry —
+         never an indefinite spinner. */
+      clearTimeout(wire._t);
+      const started = Date.now();
+      wire._t = setTimeout(() => {
+        if (currentId !== 'searching') return;
+        const off = (typeof online === 'function') && !online();
+        if (off) { show('offline'); return; }
+        if (Date.now() - started > SEARCH_BUDGET_MS) {
+          ctx.failureReason = 'timeout';
+          ctx.failureBack = 'search';
+          ctx.failureRetry = 'searching';
+          show('failure');
+          return;
+        }
+        show('matches');
+      }, 900);
+    },
   });
 
   /* ---------- MATCHES ---------- */
