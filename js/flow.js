@@ -108,6 +108,18 @@ const Flow = (() => {
     if (!b || !b.primary) return '—';
     return b.primary.seatLabel || b.primary.seat;
   }
+
+  /* Recent journeys (privacy-safe): Bookings.remember() stores only a masked
+     reference, so Home can offer a one-tap resume without keeping the PNR. */
+  function recentHTML() {
+    const refs = (typeof Bookings !== 'undefined' && Bookings.refs ? Bookings.refs() : []).slice(0, 3);
+    if (!refs.length) return '';
+    return `<div class="fcard fcard--ghost">
+      <div class="frow"><b>🕘 ${T('home.recent')}</b></div>
+      <p class="fmuted">${T('home.recent.sub')}</p>
+      ${refs.map((r) => `<button type="button" class="chip" data-recent="${esc(r.pnrHash)}">${modeIcon(r.mode)} ${esc(r.carrier)} ${esc(r.no)} · ${esc(r.from)} → ${esc(r.to)}${r.seatLabel ? ' · ' + esc(r.seatLabel) : ''}</button>`).join(' ')}
+    </div>`;
+  }
   function myCoach(b) { return b ? (b.coach || b.deck || null) : null; }
 
   /* ---------- compact seat grid ----------
@@ -228,6 +240,22 @@ const Flow = (() => {
           <span role="listitem">💰 ₹${money().SEARCH_FEE} ${T('trust.searchfee')}</span>
           <span role="listitem">🚫 ${T('trust.noleak')}</span>
         </div>
+        ${(typeof Auth !== 'undefined' && Auth.isAvailable() !== false) ? `
+        <div class="fcard fcard--ghost" id="acctCard">
+          ${Auth.signedIn() ? `
+          <div class="frow"><b>Signed in · ${esc(Auth.user().phoneMasked)}</b></div>
+          <p class="fmuted">Your number is never shown to other travellers.</p>
+          <div class="chips">
+            <button type="button" class="chip" data-go-scr="board">Journey board</button>
+            <button type="button" class="chip" id="acctOut">Sign out</button>
+          </div>` : `
+          <div class="frow"><b>Swap for real</b></div>
+          <p class="fmuted">Sign in with a one-time code to publish your seat and accept swaps with other signed-in travellers on your journey.</p>
+          <div class="chips">
+            <button type="button" class="chip" data-go-scr="board">Journey board</button>
+            <button type="button" class="chip" data-go-scr="login">Sign in</button>
+          </div>`}
+        </div>` : ''}
         ${recentHTML()}
         <div class="fcard fcard--ghost">
           <div class="frow"><b>🗺️ ${T('home.sample.title')}</b></div>
@@ -275,6 +303,42 @@ const Flow = (() => {
         ctx.mode = b.dataset.mode;
       }));
       root.querySelectorAll('[data-go-scr]').forEach((b) => b.addEventListener('click', () => show(b.dataset.goScr)));
+      const sampleBtn = root.querySelector('[data-sample]');
+      if (sampleBtn) sampleBtn.addEventListener('click', () => {
+        /* One-tap demo journey: resolve the seeded booking through the normal
+           lookup path so hydration, geometry validation and engine sync stay
+           identical to a real PNR fetch. */
+        const demo = (Bookings.DEMO || []).find((d) => d.mode === ctx.mode);
+        if (!demo) return;
+        const res = Bookings.find(demo.mode, demo.pnr, demo.surname);
+        if (res.error) return;
+        ctx.booking = res.booking;
+        Bookings.setCurrent(res.booking);
+        Bookings.remember(res.booking);
+        Flow.syncEngine(res.booking);
+        show('flightdetails');
+      });
+      const acctOut = root.querySelector('#acctOut');
+      if (acctOut) acctOut.addEventListener('click', async () => {
+        if (typeof Auth !== 'undefined') await Auth.logout();
+        ctx.boardData = null;
+        toast('Signed out.');
+        show('home');
+      });
+      root.querySelectorAll('[data-recent]').forEach((b) => b.addEventListener('click', () => {
+        const r = (Bookings.refs ? Bookings.refs() : []).find((x) => x.pnrHash === b.dataset.recent);
+        if (!r) { show('booking'); return; }
+        /* Refs are masked; re-resolve through the normal lookup so hydration,
+           geometry validation and engine sync stay on one code path. */
+        const demo = (Bookings.DEMO || []).find((d) => d.mode === r.mode && d.no === r.no);
+        const res = demo ? Bookings.find(r.mode, demo.pnr, demo.surname) : { error: 'not found' };
+        if (res.error) { show('booking'); return; }
+        ctx.booking = res.booking;
+        Bookings.setCurrent(res.booking);
+        Bookings.remember(res.booking);
+        Flow.syncEngine(res.booking);
+        show('flightdetails');
+      }));
     },
   });
 
