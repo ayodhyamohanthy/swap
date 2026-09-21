@@ -33,6 +33,14 @@ const PAYMENTS_CONFIG = {
     plusMonthly: { INR: 99, USD: 2.99, label: 'Plus Monthly' },
     plusYearly:  { INR: 999, USD: 29.0, label: 'Plus Yearly' },
   },
+
+  /* Swap fee schedule (spec §7). Displayed AND decided through js/policy.js —
+     never hard-code these into UI logic. In production the backend owns them. */
+  fees: {
+    SEARCH_FEE: 49,       // INR: activates matching for one service instance
+    ONE_SIDED_SWAP_FEE: 99, // INR: completes a swap when the accepter never paid search
+    currency: 'INR',
+  },
 };
 
 /* localStorage overrides from Billing Settings UI */
@@ -49,6 +57,7 @@ function effectivePayConfig() {
         plans: { ...PAYMENTS_CONFIG.chargebee.plans, ...((o.chargebee || {}).plans || {}) },
       },
       prices: PAYMENTS_CONFIG.prices,
+      fees: { ...PAYMENTS_CONFIG.fees, ...((o.fees) || {}) },
     };
   } catch { return PAYMENTS_CONFIG; }
 }

@@ -19,14 +19,16 @@ const Payments = (() => {
   const backend = () => (cfg().backendBase || '').replace(/\/$/, '');
 
   function amountFor(kind, currency) {
-    const p = cfg().prices;
-    const map = { single: p.single, trip: p.single, boost: p.boost, reveal: p.reveal, plus: p.plusMonthly, plusYearly: p.plusYearly };
+    const p = cfg().prices, f = cfg().fees || { SEARCH_FEE: 49, ONE_SIDED_SWAP_FEE: 99 };
+    const feeRow = (inr) => ({ INR: inr, USD: +(inr / 83).toFixed(2) });
+    const map = { single: p.single, trip: p.single, boost: p.boost, reveal: p.reveal, plus: p.plusMonthly, plusYearly: p.plusYearly,
+      search: feeRow(f.SEARCH_FEE), completion: feeRow(f.ONE_SIDED_SWAP_FEE) };
     const row = map[kind] || p.single;
     return currency === 'USD' ? row.USD : row.INR;
   }
   function labelFor(kind) {
     const p = cfg().prices;
-    return ({ single: p.single.label, trip: 'Trip pass (group)', boost: p.boost.label, reveal: p.reveal.label, plus: p.plusMonthly.label, plusYearly: p.plusYearly.label })[kind] || kind;
+    return ({ single: p.single.label, trip: 'Trip pass (group)', boost: p.boost.label, reveal: p.reveal.label, plus: p.plusMonthly.label, plusYearly: p.plusYearly.label, search: 'Search fee (matching)', completion: 'One-sided swap fee' })[kind] || kind;
   }
 
   /* ---------- backend helpers (optional but required for live verify/hosted pages) ---------- */

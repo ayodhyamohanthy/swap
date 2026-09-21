@@ -57,7 +57,7 @@ function renderTrainCoach(el, { train, coach, mine = null, wanted = [], peerSeat
       const nums = []; for (let n = start; n <= end; n++) nums.push(n);
       const hasMine = mine && mine >= start && mine <= end;
       html += `<div class="bay ${hasMine ? 'has-mine' : ''}" title="Rows ${Math.floor((start-1)/spec.perRow)+1}–${Math.floor((end-1)/spec.perRow)+1}">`;
-      html += `<div class="bay-label">ROWS ${Math.floor((start-1)/spec.perRow)+1}–${Math.floor((end-1)/spec.perRow)+1}</div><div class="chair-grid">`;
+      html += `<div class="bay-label">ROWS ${Math.floor((start-1)/spec.perRow)+1}–${Math.floor((end-1)/spec.perRow)+1}</div><div class="chair-grid" style="grid-template-columns:repeat(${spec.perRow},minmax(0,1fr))">`;
       nums.forEach(n => { html += seatBtn(spec, n, mine, wanted, peerSeats); });
       html += `</div><div class="bay-range">${start}–${end}</div></div>`;
     }

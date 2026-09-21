@@ -86,3 +86,37 @@ function flightSeatMeta(letter, row, craft) {
   const wing = !!(a.wings && row >= a.wings[0] && row <= a.wings[1]);
   return { type, exit, wing, ...seatDisplay(type) };
 }
+
+/* Approximate public seat description — NEVER an exact number.
+   What the other traveller shows before payment conditions are met. */
+function approxSeat(s) {
+  const third = (i, n) => (n <= 1 ? 'middle' : i < n / 3 ? 'front' : i < 2 * n / 3 ? 'middle' : 'rear');
+  const comfort = (score) => `comfort ${Math.max(1, Math.round(score / 10))}/10`;
+  if (s.mode === 'flight') {
+    const p = (typeof parseFlightSeat === 'function' ? parseFlightSeat(s.seat) : null);
+    const m = flightSeatMeta(s.seat.slice(-1), parseInt(s.seat, 10), s.craft || 'A20N');
+    let sec = '';
+    try {
+      const a = AIRCRAFT[s.craft || 'A20N'];
+      const sc = p && a ? a.sections.find(x => p.row >= x.from && p.row <= x.to) : null;
+      sec = sc ? `${sc.name} · ${third(p.row - sc.from, sc.to - sc.from + 1)} section · ` : '';
+    } catch {}
+    return `${sec}${m.name}${m.exit ? ' · exit row' : ''} · ${comfort(m.score)}`;
+  }
+  const train = (typeof trainOf === 'function' ? trainOf(s) : null) || { rake: 'ICF', coaches: [], specs: {} };
+  const spec = specOf(train, s.coach);
+  const t = berthTypeOf(spec, s.seat), m = seatDisplay(t);
+  let where;
+  if (isBerthSpec(spec)) {
+    const bays = (typeof bayCount === 'function' ? bayCount(spec) : 9), b = bayOfSpec(spec, s.seat);
+    const deck = spec.code === 'BUS_SLEEP' ? ((s.seat <= 15 ? 'Lower deck' : 'Upper deck') + ' · ') : '';
+    where = `${deck}${third(b - 1, bays)} section · Bay ${b}`;
+  } else {
+    const info = chairSeatInfo(spec, s.seat);
+    const r = info ? info.row : 1;
+    where = `row ${r} of ${spec.rows} (${third(r - 1, spec.rows)})`;
+  }
+  return `${s.coach} · ${where} · ${m.name} · ${comfort(m.score)}`;
+}
+
+function confirmationId(req) { return 'SWAP-' + String(req.id || '').replace(/[^A-Za-z0-9]/g, '').slice(-6).toUpperCase(); }

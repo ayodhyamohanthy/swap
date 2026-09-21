@@ -36,6 +36,7 @@ Install as app: Chrome/Edge → Install (service worker + manifest give offline 
 node tests/geometry.test.js   # data layer: templates, positions, gains, seeds
 node tests/e2e-smoke.js       # browser: service isolation, preview, lifecycle, offline
 node tests/e2e-flows.js       # browser: invites, watchlist, reports+admin, funnel
+node tests/e2e-v2.js          # browser: bus engine, search gate, seat privacy, wallet, lifecycle
 ```
 Critical gates: different dates never cross-match · expired requests can't be accepted · maps never invent seats (seeds resolve through geometry or are dropped).
 

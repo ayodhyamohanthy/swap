@@ -27,6 +27,11 @@ const ok = (c, m) => { if (!c) { console.log('  FAIL ' + m); fail++; } else cons
   await page.waitForSelector('#seatmap .coach-shell', { timeout: 8000 });
   ok(await page.evaluate(() => document.querySelector('#coachPills button[data-c="B2"]').classList.contains('on')), 'invite preselects coach B2');
   ok((await page.inputValue('#segFrom')) === 'MMCT', 'invite fills segment');
+  await page.waitForSelector('#paySearch', { timeout: 8000 });
+  await page.click('#paySearch');
+  await page.waitForSelector('#modal:not([hidden]) #payOk', { timeout: 5000 });
+  await page.click('#payOk');
+  await page.waitForSelector('#swapList .swap', { timeout: 8000 });
   const cards = await page.$$eval('#swapList .swap', els => els.length);
   ok(cards > 0, `invite lands on matching service (${cards} cards)`);
 

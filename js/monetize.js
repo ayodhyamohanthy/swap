@@ -22,11 +22,29 @@ const Wallet = {
   get() {
     try {
       const w = JSON.parse(localStorage.getItem('swapseat_wallet') || '{}');
-      return { plan: 'free', used: 0, credits: 0, boosts: 0, household: null, alerts: false, ...w };
+      return { plan: 'free', used: 0, credits: 0, boosts: 0, household: null, alerts: false, balance: 0, ledger: [], ...w };
     }
-    catch { return { plan: 'free', used: 0, credits: 0, boosts: 0, household: null, alerts: false }; }
+    catch { return { plan: 'free', used: 0, credits: 0, boosts: 0, household: null, alerts: false, balance: 0, ledger: [] }; }
   },
   set(w) { localStorage.setItem('swapseat_wallet', JSON.stringify(w)); },
+  /* Credits-only wallet (no top-ups in v1): no-match refunds + admin grants. */
+  credit(amount, reason) {
+    const w = this.get();
+    w.balance = (w.balance || 0) + amount;
+    w.ledger = [{ ts: Date.now(), amount: +amount, reason }, ...(w.ledger || [])].slice(0, 50);
+    this.set(w);
+    return w.balance;
+  },
+  /* Spend credits. Returns false and changes nothing when the balance is short,
+     so callers must not treat a failed debit as paid. */
+  debit(amount, reason) {
+    const w = this.get();
+    if ((w.balance || 0) < amount) return false;
+    w.balance -= amount;
+    w.ledger = [{ ts: Date.now(), amount: -amount, reason }, ...(w.ledger || [])].slice(0, 50);
+    this.set(w);
+    return true;
+  },
   activeListings() {
     try {
       const cur = JSON.parse(localStorage.getItem('swapseat_swaps') || '[]');

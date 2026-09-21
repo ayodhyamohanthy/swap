@@ -1,6 +1,8 @@
 <!doctype html>
 <html lang="en">
 <head>
+<script>window.__err=[];window.onerror=function(m,s,l){window.__err.push(String(m)+' @'+l);return false;};window.addEventListener('unhandledrejection',function(e){window.__err.push('rej: '+e.reason);});</script>
+
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
 <meta name="mobile-web-app-capable" content="yes"/>
@@ -203,5 +205,22 @@ if (location.search.indexOf('legacy=1') < 0) document.documentElement.className 
 <script src="./js/accept.js"></script>
 <script src="./js/journey.js"></script>
 <script>if (typeof Flow !== 'undefined' && Flow.boot) Flow.boot();</script>
+
+<script>
+window.addEventListener('load', function(){
+  var p = document.createElement('pre'); p.id='PROBE';
+  var fs = document.getElementById('flowScreen');
+  p.textContent = JSON.stringify({
+    errors: window.__err,
+    flowBoot: typeof Flow !== 'undefined' && typeof Flow.boot === 'function',
+    screens: typeof Flow !== 'undefined' ? Object.keys(Flow.screens || {}) : null,
+    dataScreen: fs ? fs.getAttribute('data-screen') : 'no-mount',
+    htmlLen: fs ? fs.innerHTML.length : -1,
+    firstHtml: fs ? fs.innerHTML.slice(0,120) : '',
+    homeCards: document.querySelectorAll('#flowScreen .fcard').length
+  });
+  document.body.appendChild(p);
+});
+</script>
 </body>
 </html>

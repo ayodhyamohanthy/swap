@@ -151,6 +151,13 @@ const COACH_SPECS = {
                           pitch: 'roomette / bedroom', desc: 'Superliner: roomettes + family bedroom + accessible room, all private with a door.' }),
   CN_2ND:     chairSpec('CN_2ND', { label: 'Open saloon 2nd', short: '2nd', groups: [2, 2], seats: 76, pitch: '~920 mm', desc: 'Generic European / US open saloon.' }),
 
+  /* ---------- Intercity buses: decks, driver side, door end ---------- */
+  BUS_SEAT:  chairSpec('BUS_SEAT', { label: 'Bus seater 2+2', short: 'SEAT', groups: [2, 2], seats: 44,
+                          pitch: '~800 mm', desc: 'AC/non-AC seater, 11 rows. Front rows near driver + door.' }),
+  BUS_SLEEP: berthSpec('BUS_SLEEP', { label: 'Bus sleeper 2+1', short: 'SLP', family: 'berth', bays: 7,
+                           pattern: ['LB', 'UB', 'SL', 'SU'], end: ['LB', 'UB'], cabin: false, rake: 'BUS',
+                           pitch: '~1.8 m berth', desc: 'Lower deck berths 1–15, upper deck 16–30. Aisle-side berths run lengthwise.' }),
+
 };
 
 const CLASS_TO_SPEC = {
@@ -161,6 +168,7 @@ const CLASS_TO_SPEC = {
   EU:  { '1A': 'ICE_1ST', '2A': 'ICE_2ND', '3A': 'ICE_2ND', SL: 'CN_2ND', CC: 'TGV_2ND', EC: 'ICE_1ST', '2S': 'TGV_2ND' },
   JP:  { '1A': 'SHINK_GREEN', '2A': 'SHINK_RES', '3A': 'SHINK_RES', SL: 'SHINK_FREE', CC: 'SHINK_RES', EC: 'SHINK_GREEN', '2S': 'SHINK_FREE' },
   US:  { '1A': 'AMTK_ROOM', '2A': 'AMTK_BIZ', '3A': 'AMTK_COACH', SL: 'AMTK_ROOM', CC: 'AMTK_COACH', EC: 'AMTK_BIZ', '2S': 'AMTK_COACH' },
+  BUS: {},
 };
 
 /* Coach code prefix → class. Garib Rath runs under coach code G (class 3A);
@@ -197,7 +205,23 @@ function specKeyFor(train, coachCode) {
   return byClass || RAKE_DEFAULT[rake] || 'SL';
 }
 
-const RAKE_DEFAULT = { ICF: 'SL', LHB: '3ALHB', VB: 'CCVB', EU: 'CN_2ND', JP: 'SHINK_RES', US: 'AMTK_COACH' };
+const RAKE_DEFAULT = { ICF: 'SL', LHB: '3ALHB', VB: 'CCVB', EU: 'CN_2ND', JP: 'SHINK_RES', US: 'AMTK_COACH', BUS: 'BUS_SEAT' };
+
+/* Intercity buses are modelled as a pseudo-train: operator + service + vehicle
+   type resolve to a coach spec, so buses reuse the whole geometry pipeline.
+   Defined here (not in app.js) because seeds and bookings resolve at load time. */
+function busService(op, svc, type, from, to) {
+  const operator = (op || 'Bus').trim() || 'Bus';
+  const no = `${operator}:${(svc || 'GEN').trim().toUpperCase() || 'GEN'}`;
+  const sleeper = type === 'sleeper';
+  return {
+    no, name: `${operator} ${svc || ''}`.trim(), operator, rake: 'BUS',
+    coaches: sleeper ? ['L', 'U'] : ['S'],
+    specs: sleeper ? { L: 'BUS_SLEEP', U: 'BUS_SLEEP' } : { S: 'BUS_SEAT' },
+    from: (from || '···').toUpperCase(), to: (to || '···').toUpperCase(),
+    country: 'IN', busType: type,
+  };
+}
 
 function specOf(train, coachCode) {
   return COACH_SPECS[specKeyFor(train, coachCode)] || COACH_SPECS.SL;
@@ -466,6 +490,7 @@ const AIRCRAFT = {
 const FLIGHTS = [
   /* India */
   { no: '6E2031', airline: 'IndiGo', iata: '6E', from: 'DEL', to: 'BOM', craft: 'A20N', country: 'IN' },
+  { no: '6E2135', airline: 'IndiGo', iata: '6E', from: 'DEL', to: 'BLR', craft: 'A20N', country: 'IN' },
   { no: '6E5162', airline: 'IndiGo', iata: '6E', from: 'BLR', to: 'GOI', craft: 'AT76', country: 'IN' },
   { no: '6E6401', airline: 'IndiGo', iata: '6E', from: 'DEL', to: 'GAU', craft: 'A21N', country: 'IN' },
   { no: '6E1371', airline: 'IndiGo', iata: '6E', from: 'BOM', to: 'DXB', craft: 'A21N', country: 'IN' },
@@ -933,6 +958,31 @@ const SEED_PEOPLE = [
   { id: 's12', alias: 'Plover-38', mode: 'flight', serviceNo: '6E5162', seat: '16D', dateOffset: 0,
     seg: 'BLR→GOI', want: ['W'], verify: 0, plus: false, group: 1, flags: ['window'],
     note: 'Backwards-facing pair at 1D/1F confused me at booking. I have an aisle and want a window.' },
+
+  /* ---- the demo journeys in the product flow designs ----
+     6E 2135 (DEL→BLR) and the KSRTC Rajdhani sleeper (HYD→BLR). Names are
+     fictional personas; they exist so the designed screens have real matches. */
+  { id: 's13', alias: 'Nisha S.', mode: 'flight', serviceNo: '6E2135', seat: '12A', dateOffset: 0,
+    seg: 'DEL→BLR', want: ['A'], verify: 1, plus: false, group: 1, flags: ['aisle'],
+    note: 'Window at 12A. I keep getting up, so an aisle would suit me better.' },
+  { id: 's14', alias: 'Rohit K.', mode: 'flight', serviceNo: '6E2135', seat: '16E', dateOffset: 0,
+    seg: 'DEL→BLR', want: ['W'], verify: 1, plus: false, group: 1, flags: ['window'],
+    note: 'Middle of the 3-3. Any window in economy and I am happy.' },
+  { id: 's15', alias: 'Ananya P.', mode: 'flight', serviceNo: '6E2135', seat: '6F', dateOffset: 0,
+    seg: 'DEL→BLR', want: ['A'], verify: 0, plus: false, group: 1, flags: ['aisle'],
+    note: 'Front-row window. Legroom rows 12-13 would be ideal.' },
+  { id: 's16', alias: 'Priya S.', mode: 'bus', serviceNo: 'KSRTC:RAJDHANI', seat: 19, dateOffset: 0,
+    seg: 'HYD→BLR', busOp: 'KSRTC', busSvc: 'Rajdhani', busType: 'sleeper',
+    want: ['SL', 'LB'], verify: 1, plus: false, group: 1, flags: ['lower'],
+    note: 'Frequent traveller. Looking for a more comfortable seat.' },
+  { id: 's17', alias: 'Rahul K.', mode: 'bus', serviceNo: 'KSRTC:RAJDHANI', seat: 24, dateOffset: 0,
+    seg: 'HYD→BLR', busOp: 'KSRTC', busSvc: 'Rajdhani', busType: 'sleeper',
+    want: ['LB'], verify: 0, plus: false, group: 2, flags: ['lower', 'together'],
+    note: 'Two of us on the upper deck — a lower berth pair would make the night easier.' },
+  { id: 's18', alias: 'Meera J.', mode: 'bus', serviceNo: 'KSRTC:RAJDHANI', seat: 8, dateOffset: 0,
+    seg: 'HYD→BLR', busOp: 'KSRTC', busSvc: 'Rajdhani', busType: 'sleeper',
+    want: ['SU'], verify: 1, plus: false, group: 1, flags: ['private'],
+    note: 'Lower berth near the door. Happy to move upstairs for privacy.' },
 ];
 
 /* Seeds are resolved THROUGH the geometry engine, so a seed can never point at a
@@ -945,6 +995,11 @@ function buildSeedPeople() {
     if (p.mode === 'train') {
       const train = TRAIN_INDEX[p.serviceNo] || GENERIC_TRAIN;
       info = trainPosition(train, p.coach, p.seat);
+      if (!info) continue;
+      specKey = info.specKey;
+    } else if (p.mode === 'bus') {
+      const t = busService(p.busOp, p.busSvc, p.busType, (p.seg || '→').split('→')[0], (p.seg || '→').split('→')[1]);
+      info = trainPosition(t, p.coach || (p.busType === 'sleeper' ? 'L' : 'S'), p.seat);
       if (!info) continue;
       specKey = info.specKey;
     } else {

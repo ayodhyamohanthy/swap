@@ -1,5 +1,5 @@
 /* SwapSeat service worker — offline-first PWA (payment SDKs stay network-only) */
-const VERSION = 'swapseat-v1.4.0';
+const VERSION = 'swapseat-v2.0.0';
 const CORE = [
   './',
   './index.html',
@@ -10,6 +10,12 @@ const CORE = [
   './js/monetize.js',
   './js/payments-config.js',
   './js/payments.js',
+  './js/policy.js',
+  './js/booking.js',
+  './js/flow.js',
+  './js/flow2.js',
+  './js/accept.js',
+  './js/journey.js',
   './js/app.js',
   './manifest.webmanifest',
   './icons/icon-192.png',

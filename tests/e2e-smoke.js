@@ -32,6 +32,12 @@ const ok = (c, m) => { if (!c) { console.log('  FAIL ' + m); fail++; } else cons
   await page.click('#lookupBtn');
   await page.waitForSelector('#seatmap .coach-shell', { timeout: 8000 });
   ok(true, 'coach map draws for 12951');
+  await page.waitForSelector('#paySearch', { timeout: 8000 });
+  await page.click('#paySearch');
+  await page.waitForSelector('#modal:not([hidden]) #payOk', { timeout: 5000 });
+  await page.click('#payOk');
+  await page.waitForSelector('#swapList .swap', { timeout: 8000 });
+  ok(true, '₹49 search fee unlocks matching');
   await page.click('#coachPills button[data-c="B2"]');
   await page.waitForTimeout(400);
   await page.click('#seatmap [data-seat="22"]');
@@ -48,7 +54,11 @@ const ok = (c, m) => { if (!c) { console.log('  FAIL ' + m); fail++; } else cons
   const tomorrow = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
   await page.fill('#journeyDate', tomorrow);
   await page.click('#lookupBtn');
-  await page.waitForTimeout(600);
+  await page.waitForSelector('#paySearch', { timeout: 8000 });
+  await page.click('#paySearch');
+  await page.waitForSelector('#modal:not([hidden]) #payOk', { timeout: 5000 });
+  await page.click('#payOk');
+  await page.waitForSelector('#swapList .swap', { timeout: 8000 });
   const tmCards = await page.$$eval('#swapList .swap .top b', els => els.map(e => e.textContent));
   ok(!tmCards.some(t => /Falcon-31|Kestrel-08/.test(t)), 'tomorrow: today’s seeds gone (no cross-date match)');
   ok(tmCards.some(t => /Lark-72/.test(t)), 'tomorrow: dateOffset+1 seed appears');
