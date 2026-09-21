@@ -16,6 +16,19 @@ python3 -m http.server 8099
 
 Install as app: Chrome/Edge → Install (service worker + manifest give offline maps).
 
+## Sign-in + real swaps (Milestone 2 slice)
+
+`server/dev-server.js` is a zero-dependency Node server that serves the PWA and adds phone-OTP identity plus the journey board — the first real two-party coordination:
+
+```bash
+node server/dev-server.js     # http://localhost:8100
+```
+
+- **Auth**: `POST /api/auth/request-otp` → `POST /api/auth/verify-otp` → Bearer session (rotation on re-login). Outside production the OTP is returned in the response (`devCode`) so the demo and tests need no SMS provider; `NODE_ENV=production` disables that forever. Resend throttling, attempt lockout, 10-minute expiry.
+- **Board**: travellers on the same journey publish, accept and complete swaps (`/api/swap-requests…`). Privacy is enforced server-side: phone numbers never leave the server (other travellers see `Traveller ··34`), and exact seat numbers are hidden until the owner completes an accepted swap. Acceptance is one-shot — no double-commit — and only the owner completes or cancels.
+- The PWA works fully without the server: every identity surface degrades to an honest note, and the service worker never caches `/api/` (live coordination stays live; the offline contract is unchanged).
+- Data persists to `server/data/swap-data.json` (override with `SWAP_DATA`).
+
 ## Try
 
 - Trains: `12951` Rajdhani · `12002` Shatabdi · `22436` Vande Bharat · `9010` Eurostar · `170` Amtrak
