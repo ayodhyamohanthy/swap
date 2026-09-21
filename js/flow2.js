@@ -78,6 +78,15 @@
             <div><b>${esc((b && b.primary && b.primary.name) || 'Guest traveller')}</b><br/>
             <span class="fmuted">${w.plan === 'plus' ? '💎 Plus member' : 'Free · ' + left + ' listings'}</span></div></div>
         </div>
+        ${(typeof Auth !== 'undefined' && Auth.isAvailable() !== false) ? `
+        <div class="fcard">
+          <div class="frow"><b>Account</b></div>
+          ${Auth.signedIn() ? `
+          <p class="fmuted">Signed in as ${esc(Auth.user().phoneMasked)} - your number is never shown to other travellers.</p>
+          <div class="chips"><button type="button" class="chip" id="profOut">Sign out</button></div>` : `
+          <p class="fmuted">Sign in with a one-time code to publish swaps and coordinate with other travellers for real.</p>
+          <div class="chips"><button type="button" class="chip" data-go-scr="login">Sign in</button></div>`}
+        </div>` : ''}
         <div class="fcard">
           <div class="frow"><b>Billing</b></div>
           <p class="fmuted">Search ₹${inr.SEARCH_FEE} · one-sided swap ₹${inr.ONE_SIDED_SWAP_FEE} · Boost ₹29 · Plus ₹99/mo.</p>
@@ -95,6 +104,13 @@
     },
     wire(root) {
       root.querySelectorAll('[data-go-scr]').forEach((x) => x.addEventListener('click', () => Flow.show(x.dataset.goScr)));
+      const profOut = root.querySelector('#profOut');
+      if (profOut) profOut.addEventListener('click', async () => {
+        if (typeof Auth !== 'undefined') await Auth.logout();
+        Flow.ctx.boardData = null;
+        toast('Signed out.');
+        Flow.show('profile');
+      });
       const plus = root.querySelector('#goPlus');
       if (plus) plus.addEventListener('click', () => {
         if (typeof paywallHTML === 'function') {
