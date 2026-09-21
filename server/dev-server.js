@@ -30,6 +30,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const exchange = require('./exchange.js');
 
 const ROOT = path.join(__dirname, '..');
 const PORT = Number(process.env.PORT || 8100);
@@ -45,7 +46,7 @@ const REQ_TTL_MS = Number(process.env.SWAP_REQ_TTL_MS || 24 * 60 * 60 * 1000);
 
 /* ---------- store ---------- */
 const otps = new Map(); // phone -> {code, exp, attempts, lastSentAt, sentWindow:[]}
-let db = { users: {}, sessions: {}, requests: {} };
+let db = { users: {}, sessions: {}, requests: {}, journeys: {}, quotes: {}, payments: {}, entitlements: {}, exchangeRequests: {} };
 try { db = { ...db, ...JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')) }; } catch (_) {}
 function save() {
   try { fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true }); fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2)); } catch (e) { console.error('[store] save failed:', e.message); }
@@ -122,7 +123,7 @@ function sweepExpired() {
 
 /* ---------- API ---------- */
 async function api(req, res, url) {
-  const body = req.method === 'POST' ? await readBody(req) : {};
+  const body = (req.method === 'POST' || req.method === 'PUT') ? await readBody(req) : {};
 
   if (url.pathname === '/api/health') return send(res, 200, { ok: true, dev: DEV });
 
@@ -248,6 +249,12 @@ async function api(req, res, url) {
       r.state = 'cancelled'; save();
       return send(res, 200, { ok: true });
     }
+  }
+
+  /* ----- M3 exchange module: journeys, matches, quotes, payments, entitlements ----- */
+  {
+    const handled = await exchange.handle(req, res, url, body, { db, save, send, uid, clean, authUser, travellerLabel });
+    if (handled !== false) return;
   }
 
   return send(res, 404, { error: 'not found' });
