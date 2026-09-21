@@ -305,7 +305,7 @@ html:not(.flow) #flow{display:none!important}
 .sp--swap{flex:none;width:44px;background:var(--blue);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;border:0}
 /* tabs in flow screens */
 .steps-bar{display:flex;gap:4px;justify-content:center;margin:4px 0}
-.steps-bar span{width:22px;height:4px;border-radius:2px;background:var(--line)}
+.steps-bar span{width:22px;height:4px;border-radius:2px;background:var(--line);font-size:0;overflow:hidden}
 .steps-bar span.on{background:var(--blue)}
 /* legacy shell hidden by default in flow mode */
 .classic-shell[hidden]{display:none}
@@ -316,3 +316,14 @@ html:not(.flow) .classic-shell[hidden]{display:block}
   .big-amount{font-size:34px}
 }
 @media (prefers-reduced-motion:reduce){.search-orb{animation:none}}
+
+
+/* M3 exchange screens */
+.xp-fit { height: 8px; border-radius: 999px; background: #e8e2d5; overflow: hidden; margin: 8px 0 4px; }
+.xp-fitbar { height: 100%; background: #1f7a4d; border-radius: 999px; }
+.xp-why { background: none; border: none; color: #1f7a4d; font: inherit; text-decoration: underline; cursor: pointer; padding: 0 2px; }
+.xp-whylist { border-top: 1px dashed #d8d2c5; margin-top: 6px; padding-top: 6px; }
+.xp-w { color: #6b6557; font-size: 0.85em; }
+.xp-sandbox { background: #b3541e; color: #fff; border-radius: 6px; padding: 2px 8px; font-size: 0.72rem; letter-spacing: 0.06em; }
+.xp-searching { color: #1f7a4d; font-size: 0.85rem; }
+.fgrid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
