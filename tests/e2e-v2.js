@@ -15,8 +15,10 @@ const ls = (page, k) => page.evaluate((k) => localStorage.getItem(k), k);
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push('PAGEERROR: ' + e.message));
-  page.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE: ' + m.text()); });
-  page.on('response', r => { if (r.status() >= 400) errors.push(r.status() + ' ' + r.url()); });
+  /* The identity probe (/api/health) 404s by design on a static-only host;
+     that is the expected serverless degradation, not an app error. */
+  page.on('console', m => { const u = String((m.location() || {}).url || ''); if (m.type() === 'error' && !u.includes('/api/health')) errors.push('CONSOLE: ' + m.text()); });
+  page.on('response', r => { if (r.status() >= 400 && !r.url().includes('/api/health')) errors.push(r.status() + ' ' + r.url()); });
   const today = new Date().toISOString().slice(0, 10);
 
   console.log('== bus engine ==');
@@ -24,7 +26,7 @@ const ls = (page, k) => page.evaluate((k) => localStorage.getItem(k), k);
   await page.evaluate(() => localStorage.clear());
   await page.goto('about:blank');
   await page.goto(BASE, { waitUntil: 'networkidle' });
-  await page.click('.mode-tabs button[data-mode="bus"]');
+  await page.click('.mode-tabs button[data-mode="bus"]:visible');
   await page.fill('#busOp', 'VRL');
   await page.fill('#journeyNo', 'HYD42');
   await page.fill('#segFrom', 'HYD');
@@ -35,13 +37,15 @@ const ls = (page, k) => page.evaluate((k) => localStorage.getItem(k), k);
   await page.click('#seatmap [data-seat="5"]');
   const bsum = await page.textContent('#pickSummary');
   ok(/S · 5/.test(bsum), 'bus seat pickable: ' + bsum.slice(0, 60));
+  await page.click('#bsClose'); // dismiss the seat-details sheet, as a user would
+  await page.waitForSelector('#modal[hidden]', { state: 'attached', timeout: 5000 });
   await page.click('#busTypeRow button[data-bt="sleeper"]');
   await page.click('#lookupBtn');
   await page.waitForTimeout(500);
   ok(await page.evaluate(() => !!document.querySelector('#coachPills button[data-c="L"]')), 'sleeper offers Lower/Upper decks');
 
   console.log('== search gate + seat privacy ==');
-  await page.click('.mode-tabs button[data-mode="train"]');
+  await page.click('.mode-tabs button[data-mode="train"]:visible');
   await page.click('#lookupBtn');
   await page.waitForSelector('#paySearch', { timeout: 8000 });
   ok(true, 'market locked behind ₹49 search fee');
@@ -56,6 +60,8 @@ const ls = (page, k) => page.evaluate((k) => localStorage.getItem(k), k);
   await page.waitForTimeout(400);
   await page.click('#seatmap [data-seat="22"]');
   await page.waitForTimeout(400);
+  await page.click('#bsClose'); // dismiss the seat-details sheet before the market card
+  await page.waitForSelector('#modal[hidden]', { state: 'attached', timeout: 5000 });
   await page.click('#swapList .swap:has-text("Kestrel") [data-preview]');
   await page.waitForSelector('#modal:not([hidden]) #pvReq', { timeout: 5000 });
   const pv = await page.textContent('#modal');
