@@ -1095,7 +1095,12 @@ if ('serviceWorker' in navigator) window.addEventListener('load', () => navigato
 /* ---------- init ---------- */
 $('#journeyDate').value = new Date().toISOString().slice(0, 10);
 expireSweep();
-refreshWallet(); renderMarket(); renderInbox(); renderAdmin(); updateOnlineUI();
+/* First paint must not wait on the classic shell's marketplace/inbox/admin
+   renders (hidden in flow mode): schedule them as a macrotask so the static
+   shell paints, then the desks fill in. renderMarket is re-run by the network
+   handlers, so nothing depends on it running synchronously here. */
+refreshWallet(); updateOnlineUI();
+setTimeout(() => { renderMarket(); renderInbox(); renderAdmin(); }, 0);
 if (!parseInvite()) { /* default view */ }
 setInterval(() => { const el = $('#marketStamp'); if (el?.dataset.ts) el.textContent = 'updated ' + ago(parseInt(el.dataset.ts, 10)); }, 30000);
 $('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal') e.target.hidden = true; });

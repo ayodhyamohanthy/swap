@@ -17,6 +17,7 @@
 <meta property="og:title" content="SwapSeat — See it. Swap it."/>
 <meta property="og:description" content="Visual train compartment + flight cabin seat swap. Global PWA."/>
 <link rel="stylesheet" href="./styles.css"/>
+<noscript><link rel="stylesheet" href="./styles.css"/></noscript>
 </head>
 <body>
 <script>/* Flow is the default mobile experience; `?legacy=1` keeps the full map desk for tests/power users. */
@@ -29,7 +30,40 @@ if (location.search.indexOf('legacy=1') < 0) document.documentElement.className 
     <b id="fsTitle">SwapSeat</b>
     <span class="fpill" id="fsPill">👛 ₹0</span>
   </header>
-  <div id="flowScreen" class="fs-screen" tabindex="-1"></div>
+    <!-- PRERENDERED HOME SCREEN — must stay in sync with the default state of
+         Flow screen "home" in js/flow.js (tests/mobile-audit.js diffs them).
+         Boot wires this markup in place instead of repainting it, so the
+         largest contentful paint happens at first paint on a slow phone; with
+         JavaScript off it doubles as a readable, honest landing state. -->
+  <div id="flowScreen" class="fs-screen" tabindex="-1" data-screen="home" data-static="1">    <div class="fs-head fs-head--home">
+      <div class="brand-row"><span class="brand-mark" aria-hidden="true">✈️</span>
+        <div><h1>SwapSeat</h1><p class="fmuted">Journeys are better together.</p></div></div>
+      <p class="tagline">See your berth. Find a better fit. Coordinate safely.</p>
+      <div class="mode-tabs mode-tabs--flow" role="tablist" aria-label="Transport mode">
+        <button type="button" data-mode="train" role="tab" class="" aria-selected="false">🚂<span>Trains</span></button><button type="button" data-mode="bus" role="tab" class="" aria-selected="false">🚌<span>Buses</span></button><button type="button" data-mode="flight" role="tab" class="on" aria-selected="true">✈️<span>Flights</span></button>
+      </div>
+    </div>
+    <div class="fs-body">
+      <div class="trust-row" role="list">
+        <span role="listitem">🛡️ Verified travellers</span>
+        <span role="listitem">🔒 Safe &amp; secure</span>
+        <span role="listitem">🔁 Same service, same people</span>
+        <span role="listitem">💰 ₹49 to search · only when needed</span>
+        <span role="listitem">🚫 No leakage · fair for everyone</span>
+      </div>
+      <div class="fcard">
+        <div class="frow"><b>Find your booking</b></div>
+        <p class="fmuted">Enter your PNR to see your seat on the map and find better matches.</p>
+        <button type="button" class="fbtn block" data-go-scr="booking">Get started</button>
+      </div>
+      <div class="fcard fcard--ghost">
+        <div class="frow"><b>👥 Travelling as a group?</b></div>
+        <p class="fmuted">Invite your group to see everyone on one map — no names or booking refs shared.</p>
+        <button type="button" class="fbtn ghost block" data-go-scr="manual">Add a journey manually</button>
+      </div>
+      <p class="safe-note">Passenger coordination — not an official booking change. The crew or operator always decides. We never share your PNR, ticket, or exact seat until you choose to.</p>
+    </div>
+  </div>
   <div id="flowLive" class="sr-only" role="status" aria-live="polite"></div>
   <nav class="tabbar tabbar--flow" id="flowNav" aria-label="Primary">
     <button type="button" data-go="home" aria-current="page">🏠<span>Home</span></button>
@@ -209,23 +243,29 @@ if (location.search.indexOf('legacy=1') < 0) document.documentElement.className 
   <button class="btn ghost small" id="installNo">Later</button>
 </div>
 
-<script src="./js/data.js"></script>
-<script src="./js/flights.js"></script>
-<script src="./js/seatmaps.js"></script>
-<script src="./js/monetize.js"></script>
-<script src="./js/payments-config.js"></script>
-<script src="./js/payments.js"></script>
-<script src="./js/policy.js"></script>
-<script src="./js/booking.js"></script>
-<script src="./js/app.js"></script>
-<script src="./js/flow.js"></script>
-<script src="./js/flow2.js"></script>
-<script src="./js/accept.js"></script>
-<script src="./js/journey.js"></script>
-<script src="./js/states.js"></script>
-<script src="./js/ledger.js"></script>
-<script src="./js/history.js"></script>
-<script src="./js/pwa.js"></script>
-<script>if (typeof Flow !== 'undefined' && Flow.boot) Flow.boot();</script>
+<script src="./js/data.js" defer></script>
+<script src="./js/flights.js" defer></script>
+<script src="./js/seatmaps.js" defer></script>
+<script src="./js/monetize.js" defer></script>
+<script src="./js/payments-config.js" defer></script>
+<script src="./js/payments.js" defer></script>
+<script src="./js/policy.js" defer></script>
+<script src="./js/booking.js" defer></script>
+<script src="./js/app.js" defer></script>
+<script src="./js/flow.js" defer></script>
+<script src="./js/flow2.js" defer></script>
+<script src="./js/accept.js" defer></script>
+<script src="./js/journey.js" defer></script>
+<script src="./js/states.js" defer></script>
+<script src="./js/ledger.js" defer></script>
+<script src="./js/history.js" defer></script>
+<script src="./js/pwa.js" defer></script>
+<script>
+/* Deferred modules execute before DOMContentLoaded; boot after them so the
+   router exists, without blocking first paint. */
+document.addEventListener('DOMContentLoaded', function () {
+  if (typeof Flow !== 'undefined' && Flow.boot) Flow.boot();
+});
+</script>
 </body>
 </html>

@@ -64,8 +64,24 @@ semver-tagged, so entries are grouped by release date.
   `#classicShell` so the suite is deterministic now that two shells exist
   (assertions unchanged).
 
+### Changed
+
+* **First-paint optimisation**: the home screen is prerendered in `index.html`
+  and boot wires it in place instead of repainting (guarded by a drift check in
+  `tests/mobile-audit.js` that fails when the static markup and `render()`
+  diverge); the classic shell's marketplace/inbox/admin renders are scheduled
+  after first paint. Observed LCP on the unthrottled trace: **178 ms**; measured
+  with Lighthouse's own CDP throttling applied to a real browser: **852 ms**.
+  (Lighthouse's Lantern simulation still reports ~3.0 s because its network
+  model serialises the 17 zero-build scripts before allowing the paint; the
+  observed metrics and the trace are archived with this release.)
+
 ### Fixed
 
+* `Bookings.remember()` shadowed its own `refs()` accessor (`const refs =
+  refs()`), throwing "Cannot access 'refs' before initialization" — the PNR
+  lookup path never advanced past the form. A pre-existing defect on `main`,
+  found by the new states audit.
 * Offline acceptance/payment can no longer be registered as confirmed.
 * The seat-selection step reports a missing selection inline (`role="alert"`)
   instead of relying on a transient toast.

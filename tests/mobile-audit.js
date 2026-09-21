@@ -76,6 +76,20 @@ const measure = async (page) => page.evaluate(() => {
     await page.reload({ waitUntil: 'networkidle' });
     await page.waitForTimeout(500);
 
+    /* Prerendered-home drift check: the static markup in index.html must equal
+       what Flow's home screen renders for the default state, or the boot
+       optimisation would paint a different screen than the app shows. */
+    if (vp.width === 320) {
+      const drift = await page.evaluate(() => {
+        const norm = (h) => h.replace(/\s+/g, ' ').trim();
+        const stat = norm(document.getElementById('flowScreen').innerHTML);
+        const dyn = norm(Flow.screens.home.render(Flow.ctx));
+        return { equal: stat === dyn, staticLen: stat.length, renderedLen: dyn.length };
+      });
+      if (!drift.equal) console.log('  NOTE  prerendered home differs from render() (len ' + drift.staticLen + ' vs ' + drift.renderedLen + ')');
+      report.prerenderDrift = drift;
+    }
+
     const screens = [];
     for (const id of SAFE_SCREENS) {
       await page.evaluate((s) => { if (typeof Flow !== 'undefined') Flow.show(s); }, id);

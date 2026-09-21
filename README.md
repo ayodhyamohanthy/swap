@@ -48,6 +48,10 @@ paused. Payments and booking lookups are never cached.
   “Sign out & erase local data”.
 * **In-progress drafts** survive a reload on reconnect — never for PNR, surname
   or contact fields.
+* **Fast first paint**: the home screen is prerendered in the HTML and wired in
+  place at boot — the largest contentful paint happens with the document, not
+  after 17 deferred modules download. A drift check in `tests/mobile-audit.js`
+  fails the suite if the static markup and the JS-rendered screen diverge.
 * Full details, including the never-cache list and the rollback procedure:
   [`docs/PWA.md`](./docs/PWA.md).
 

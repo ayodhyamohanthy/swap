@@ -21,6 +21,7 @@ const Flow = (() => {
   let currentId = null;
 
   const SEARCH_BUDGET_MS = 10000;   /* matching must resolve or fail visibly */
+  let searchTimer = null;          /* one in-flight interstitial at a time */
   const $f = (s) => document.querySelector(s);
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -38,10 +39,32 @@ const Flow = (() => {
 
     const mount = document.getElementById('flowScreen');
     if (!mount) return;
+    /* Prerendered home shell (index.html): when the first screen is Home and
+       there is no stored journey/notifications to show, the static markup IS
+       the home screen — wire it in place instead of repainting, so the largest
+       contentful paint stays at first paint. data-static is dropped either way,
+       so every later navigation renders normally. */
+    let prerendered = false;
+    if (id === 'home' && mount.getAttribute('data-static') === '1') {
+      mount.removeAttribute('data-static');
+      let hasState = false;
+      try {
+        const b = (typeof Bookings !== 'undefined') && Bookings.current();
+        if (b) hasState = true;
+        else if (typeof Bookings !== 'undefined') {
+          const pending = Bookings.incoming(null).filter((x) => x.state === 'pending').length;
+          hasState = pending > 0;
+        }
+      } catch (e) { hasState = true; }
+      prerendered = !hasState;
+      window.__flowPrerendered = prerendered;   // observable for tests/audits
+    } else {
+      mount.removeAttribute('data-static');
+    }
+    if (!prerendered) mount.innerHTML = def.render(ctx) || '';
     mount.setAttribute('data-screen', id);
     mount.setAttribute('role', def.role || 'group');
     mount.setAttribute('aria-label', def.title || 'SwapSeat');
-    mount.innerHTML = def.render(ctx) || '';
 
     const title = document.getElementById('fsTitle');
     if (title) title.textContent = def.title || 'SwapSeat';
@@ -535,9 +558,9 @@ const Flow = (() => {
          the request has not resolved inside the budget, or the device went
          offline mid-search, the user gets an explicit state with a retry —
          never an indefinite spinner. */
-      clearTimeout(wire._t);
+      clearTimeout(searchTimer);
       const started = Date.now();
-      wire._t = setTimeout(() => {
+      searchTimer = setTimeout(() => {
         if (currentId !== 'searching') return;
         const off = (typeof online === 'function') && !online();
         if (off) { show('offline'); return; }
