@@ -246,6 +246,7 @@ const Flow = (() => {
           <div class="frow"><b>Signed in · ${esc(Auth.user().phoneMasked)}</b></div>
           <p class="fmuted">Your number is never shown to other travellers.</p>
           <div class="chips">
+            <button type="button" class="chip" data-go-scr="x-journey">🚆 Start a real exchange</button>
             <button type="button" class="chip" data-go-scr="board">Journey board</button>
             <button type="button" class="chip" id="acctOut">Sign out</button>
           </div>` : `

@@ -143,5 +143,5 @@ const I18n = (() => {
     try { document.documentElement.lang = lang() === 'hi' ? 'hi' : 'en'; } catch {}
   }
   return { lang, setLang, t, prefLabel, applyStatic };
-}
+})();
 function T(k) { return I18n.t(k); }
