@@ -58,6 +58,13 @@ const Bookings = (() => {
       stops: 'Non-stop', classCode: '3A', coach: 'B2',
       passengers: [{ name: 'Ayodhya R. Mohanty', seat: 22, classCode: '3A' }],
     },
+    {
+      id: 'b-train-vb', mode: 'train', pnr: '6532198745', surname: 'MOHANTY',
+      carrier: 'Indian Railways', serviceNo: '20833', no: '20833',
+      from: 'VSKP', to: 'HYB', dateOffset: 0, depMin: 240, durMin: 510,
+      stops: 'Vijayawada · Rajahmundry', classCode: 'CC', coach: 'B2',
+      passengers: [{ name: 'Ayodhya R. Mohanty', seat: 37, seatLabel: 'B2-37', classCode: 'CC' }],
+    },
   ];
 
   const hhmm = (d) => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');

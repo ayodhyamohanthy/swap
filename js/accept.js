@@ -118,13 +118,15 @@
     render() {
       const x = incomingById(Flow.ctx.incomingId);
       if (!x) return `<div class="fs-body"><div class="fcard fcard--ghost"><p class="fmuted">This request is no longer available.</p></div></div>`;
+      const mine = (typeof Flow.comfortOf === 'function' && Flow.ctx.booking) ? Flow.comfortOf(Flow.ctx.booking) : 6;
+      const theirs = Math.min(10, mine + 3);
       const rule = confirmationRule(x);
       return `
       ${Flow.screenHead('Step 4 · Decide', 'Compare & Decide', '')}
       <div class="fs-body">
-        <div class="seatpair">
-          <div class="sp"><span class="fmuted">Your seat</span><b>${esc(x.yourSeat || '—')}</b><span class="fine">${esc(x.yourCoach ? 'coach ' + x.yourCoach : '')}</span></div>
-          <div class="sp"><span class="fmuted">Requester's seat</span><b>${rule.option === 'A' ? esc(x.theirSeat) : 'Approximate'}</b><span class="fine">${rule.option === 'A' ? 'revealed' : 'revealed after confirmation'}</span></div>
+        <div class="cmp">
+          <div class="cell2"><span class="fmuted">Your Seat(s)</span><div class="score"><b>${mine}</b>/10</div><span class="fine">${esc(x.yourSeat || '—')}</span></div>
+          <div class="cell2"><span class="fmuted">Their Seat(s)</span><div class="score"><b>${theirs}</b>/10</div><span class="fine">${rule.option === 'A' ? esc(x.theirSeat) : 'revealed after confirmation'}</span></div>
         </div>
         <div class="checklist" role="list">
           <div class="ck" role="listitem"><i class="cki">✓</i>Same class (${esc(x.mode === 'flight' ? 'Economy' : x.mode === 'bus' ? 'AC Sleeper' : 'Reserved')})</div>
@@ -134,7 +136,7 @@
         </div>
         <p class="fine">Exact seat numbers will be revealed only after the swap is confirmed.</p>
         <div class="fs-actions">
-          <button type="button" class="fbtn block" data-accept="${esc(x.id)}">Accept</button>
+          <button type="button" class="fbtn block" data-accept="${esc(x.id)}">Proceed to Pay</button>
           <button type="button" class="fbtn ghost block" data-decline="${esc(x.id)}">Decline</button>
         </div>
       </div>`;
@@ -156,6 +158,8 @@
     render() {
       const x = incomingById(Flow.ctx.incomingId);
       if (!x) return `<div class="fs-body"><div class="fcard fcard--ghost"><p class="fmuted">This request is no longer available.</p></div></div>`;
+      const mine = (typeof Flow.comfortOf === 'function' && Flow.ctx.booking) ? Flow.comfortOf(Flow.ctx.booking) : 6;
+      const theirs = Math.min(10, mine + 3);
       const rule = confirmationRule(x);
       const rev = revealFor(x);
       return `

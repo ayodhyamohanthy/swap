@@ -6,11 +6,14 @@
 
   /* ---------- MY TRIPS ---------- */
   Flow.register({
-    id: 'trips', title: 'My Trips',
+    id: 'trips', title: 'My Requests',
     render() {
       const b = Bookings.current();
       const inc = Bookings.incoming(b).filter((x) => x.state !== 'declined');
       const myReqs = reqStore.all().filter((r) => ['requested', 'accepted', 'crew'].includes(r.state));
+      const tab = Flow.ctx.tripsTab || 'active';
+      const sel = (Flow.ctx.seats || []).map(String);
+      const cur = b ? (b.coach || b.deck) : null;
       const card = (x) => `
         <div class="fcard" role="group" aria-label="${esc(x.fromName || 'Traveller')} request">
           <div class="frow"><span class="avatar" aria-hidden="true">${esc((x.fromName || 'T')[0])}</span>
@@ -24,21 +27,33 @@
           </div>
         </div>`;
       return `
-      ${Flow.screenHead('Home', 'My Trips', b ? Flow.bookingLine(b) : 'Find your booking to get started')}
+      ${Flow.screenHead('Track', 'My Requests', b ? Flow.bookingLine(b) : 'All your requests')}
       <div class="fs-body">
-        ${!b ? `<div class="fcard fcard--ghost"><p class="fmuted">No active journey yet.</p><button type="button" class="fbtn block" data-go-scr="booking">Find your booking</button></div>` : ''}
+        <div class="ttabs" role="tablist" aria-label="Request status">
+          <button type="button" data-ttab="active" class="${tab === 'active' ? 'on' : ''}" role="tab" aria-selected="${tab === 'active'}">Active (${inc.length + myReqs.length || 1})</button>
+          <button type="button" data-ttab="done" class="${tab === 'done' ? 'on' : ''}" role="tab" aria-selected="${tab === 'done'}">Completed (0)</button>
+        </div>
+        ${!b ? `<div class="fcard fcard--ghost"><p class="fmuted">No active journey yet.</p><button type="button" class="fbtn block" data-go-scr="booking">Find your booking</button></div>` : `
+        <div class="fcard">
+          <div class="frow"><b>${esc(b.carrier)} (${esc(b.no)})</b><span class="statuspill live">● Active</span></div>
+          <p class="fmuted">${esc(b.from)} → ${esc(b.to)} · ${fmtDate(b.date)}</p>
+          <p class="fmuted">${sel.length || 1} seat${sel.length === 1 ? '' : 's'}: ${esc(sel.map((s) => (cur ? cur + '-' + s : s)).join(', ') || Flow.seatLabel(b))} · Looking for: Lower berth</p>
+          <p class="fine">Status: Searching for matches…</p>
+          <button type="button" class="fbtn ghost block" data-go-scr="track">View Details</button>
+        </div>`}
         ${inc.map(card).join('')}
         ${myReqs.length ? myReqs.map((r) => `
           <div class="fcard" role="group" aria-label="My request">
             <div class="frow"><b>Request · ${esc(r.snap && r.snap.name)}</b> <span class="fpill">${esc(r.state)}</span></div>
             <p class="fmuted">${modeIcon(r.snap && r.snap.mode)} ${esc(r.snap && r.snap.no)} · ${leftIn(r.expires)}</p>
           </div>`).join('') : ''}
-        ${b && !inc.length && !myReqs.length ? `<div class="fcard fcard--ghost"><p class="fmuted">No requests yet. Search for matches to send one.</p><button type="button" class="fbtn ghost block" data-go-scr="search">Search matches</button></div>` : ''}
+        ${b && !inc.length && !myReqs.length ? `<p class="fine" style="text-align:center">No requests yet. Search for matches to send one.</p>` : ''}
         ${b ? `<button type="button" class="fbtn ghost block" data-go-scr="track">Track current journey</button>` : ''}
       </div>`;
     },
     wire(root) {
       root.querySelectorAll('[data-go-scr]').forEach((x) => x.addEventListener('click', () => Flow.show(x.dataset.goScr)));
+      root.querySelectorAll('[data-ttab]').forEach((t) => t.addEventListener('click', () => { Flow.ctx.tripsTab = t.dataset.ttab; Flow.show('trips'); }));
       root.querySelectorAll('[data-view]').forEach((x) => x.addEventListener('click', () => Flow.show('request', { incomingId: x.dataset.view })));
       root.querySelectorAll('[data-dec]').forEach((x) => x.addEventListener('click', () => { Bookings.declineIncoming(x.dataset.dec); Flow.show('trips'); }));
       root.querySelectorAll('[data-ok]').forEach((x) => x.addEventListener('click', () => { Flow.ctx.incomingId = x.dataset.ok; Flow.show('accepted'); }));
