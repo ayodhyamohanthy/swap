@@ -1,0 +1,114 @@
+/* SeatSwap styles — Build Plan step 1 (Foundation).
+   Tokens come straight from docs/07-DESIGN-SYSTEM.md: deep-green primary,
+   saffron accent, cream background, ink text, 16px cards, 14px buttons, very
+   soft shadows. Components only use these semantic tokens (never raw hex).
+
+   Fonts are self-hosted (offline-first PWA, no third-party request):
+   Plus Jakarta Sans 700 for headings, Inter 400/500 for body,
+   Noto Sans Devanagari for Hindi. Each @font-face carries a unicode-range, so a
+   phone downloads only the subsets it actually renders. */
+
+@import 'tailwindcss';
+@import '@fontsource-variable/plus-jakarta-sans/wght.css';
+@import '@fontsource-variable/inter/wght.css';
+@import '@fontsource/noto-sans-devanagari/400.css';
+@import '@fontsource/noto-sans-devanagari/500.css';
+@import '@fontsource/noto-sans-devanagari/700.css';
+
+@theme {
+  /* Colour */
+  --color-primary: #1f6b45;
+  --color-primary-ink: #ffffff;
+  --color-accent: #f2a33a;
+  --color-accent-soft: #fdf0dc;
+  --color-background: #faf6ee;
+  --color-card: #ffffff;
+  --color-ink: #1d2a22;
+  --color-muted: #6b746d;
+  --color-line: rgba(29, 42, 34, 0.14);
+  --color-wash: rgba(31, 107, 69, 0.08);
+  --color-danger: #c2410c;
+  --color-danger-soft: #fdece5;
+
+  /* Shape */
+  --radius-card: 16px;
+  --radius-btn: 14px;
+  --shadow-soft: 0 1px 2px rgba(29, 42, 34, 0.06);
+
+  /* Type */
+  --font-head: 'Plus Jakarta Sans Variable', 'Noto Sans Devanagari', system-ui, sans-serif;
+  --font-body: 'Inter Variable', 'Noto Sans Devanagari', system-ui, -apple-system, sans-serif;
+  --text-title: 1.625rem; /* 26px */
+  --text-title--line-height: 1.25;
+  --text-title--font-weight: 700;
+  --text-section: 1.0625rem; /* 17px */
+  --text-section--line-height: 1.35;
+  --text-section--font-weight: 700;
+  --text-body: 0.9375rem; /* 15px */
+  --text-body--line-height: 1.5;
+  --text-caption: 0.75rem; /* 12px */
+  --text-caption--line-height: 1.45;
+}
+
+/* Easy mode: everything is rem-based, so one root size bump scales the app. */
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  background-color: var(--color-background);
+}
+html[data-easy='true'] {
+  font-size: 18.4px; /* ×1.15 */
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background-color: var(--color-background);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+b,
+strong {
+  font-family: var(--font-head);
+  letter-spacing: -0.01em;
+}
+
+/* Phone-first: the app column never gets wider than a comfortable card. */
+.app-column {
+  margin-inline: auto;
+  max-width: 34rem;
+}
+
+.tap {
+  min-height: 3rem;
+  min-width: 3rem;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Chip rows scroll sideways on a 360px phone instead of wrapping. */
+.chip-row {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

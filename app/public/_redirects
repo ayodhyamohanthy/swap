@@ -1,0 +1,4 @@
+# Netlify-style rewrite: every path serves the SPA shell, live data stays live.
+/_serverFn/* /_serverFn/:splat 200
+/api/* /api/:splat 200
+/* /index.html 200

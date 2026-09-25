@@ -1,0 +1,74 @@
+import { fileURLToPath } from 'node:url'
+import { defineConfig } from 'vite'
+import { tanstackStart } from '@tanstack/react-start/plugin/vite'
+import viteReact from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+import { VitePWA } from 'vite-plugin-pwa'
+
+import { workboxOptions } from './pwa.workbox.mjs'
+
+/* SeatSwap — Build Plan step 1 (Foundation) + step 2 (Trips).
+   - TanStack Start v1 (React 19, Vite 7), TypeScript strict, Tailwind CSS v4.
+   - SPA build: the PWA ships static files (works on any static host, and the
+     offline cache can serve "My trips" without a server).
+   - PWA: manifest + generateSW service worker. NetworkFirst for pages,
+     CacheFirst for hashed assets, payment SDKs are never cached.
+     The worker options live in pwa.workbox.mjs and the worker file is written
+     by scripts/postbuild.mjs (see the note in that module).
+     The service worker is registered by hand in src/routes/__root.tsx so it is
+     never registered in dev/preview/iframe and supports the ?sw=off kill switch. */
+export default defineConfig({
+  server: { port: 5173 },
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
+  plugins: [
+    tanstackStart({
+      // Static PWA shell. /index.html so any static host serves the app at `/`.
+      spa: {
+        enabled: true,
+        prerender: { outputPath: '/index.html' },
+      },
+    }),
+    // react's vite plugin must come after start's vite plugin
+    viteReact(),
+    tailwindcss(),
+    VitePWA({
+      strategies: 'generateSW',
+      registerType: 'autoUpdate',
+      injectRegister: false,
+      filename: 'sw.js',
+      // Never register the service worker in dev or preview (docs/08).
+      devOptions: { enabled: false },
+      includeAssets: [
+        'icons/icon-192.png',
+        'icons/icon-512.png',
+        'icons/maskable-512.png',
+      ],
+      manifest: {
+        name: 'SeatSwap',
+        short_name: 'SeatSwap',
+        description:
+          'Tell us what berth you want. We find people on your train who want to swap. You pay ₹99 only when someone says yes.',
+        start_url: '/',
+        scope: '/',
+        display: 'standalone',
+        orientation: 'portrait',
+        background_color: '#FAF6EE',
+        theme_color: '#1F6B45',
+        lang: 'en',
+        dir: 'ltr',
+        categories: ['travel'],
+        icons: [
+          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+      // Shared with scripts/postbuild.mjs, which writes sw.js after the build.
+      workbox: workboxOptions,
+    }),
+  ],
+})

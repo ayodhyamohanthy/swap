@@ -1,6 +1,6 @@
 {
   "meta": { "lang": "en", "name": "English", "dir": "ltr" },
-  "brand": { "wordmark": "SeatSwap" },
+  "brand": { "wordmark": "SeatSwap", "tagline": "A more comfortable journey together" },
   "nav": { "home": "Home", "swaps": "Swaps", "profile": "Profile" },
   "first": {
     "title": "Where's your train taking you?",
@@ -18,6 +18,10 @@
   "note": {
     "title": "Before you start",
     "body": "SeatSwap is a convenience app. A swap happens only if both of you agree. Keep your original ticket and ID with you.",
+    "c1": "SeatSwap is a convenience app",
+    "c2": "Swaps happen only if both of you agree",
+    "c3": "Keep your original ticket and ID with you",
+    "got": "Got it",
     "continue": "Continue"
   },
   "alerts": {
@@ -28,6 +32,14 @@
   },
   "privacy": {
     "title": "Your privacy",
+    "sub": "Your trust keeps this journey going.",
+    "i1t": "We never show your PNR",
+    "i1s": "Your PNR stays private, always.",
+    "i2t": "Berth numbers hidden until you agree",
+    "i2s": "You’re in control of what you share.",
+    "i3t": "Delete your data anytime",
+    "i3s": "You can remove your data whenever you want.",
+    "agree": "I agree",
     "body": "We show others only your first name and initial, class, coach and berth type. Exact berth numbers are revealed to both sides only after payment. We never show your PNR, full name, phone, email or ticket photo.",
     "continue": "Continue"
   },
@@ -36,17 +48,24 @@
     "body": "Sign-in is needed only to send or accept a request. SeatSwap uses Google sign-in only.",
     "google": "Continue with Google",
     "later": "Not now",
+    "safe": "Your PNR and name stay private.",
     "note": "Adding a PNR works without sign-in."
   },
   "home": {
     "trips": "Your trips",
     "empty": "No trips yet. Add your PNR to see your berth.",
     "addPnr": "Add PNR",
+    "addNextPnr": "Add your next PNR",
+    "pastTrips": "Past trips",
+    "seeAll": "See all",
     "openToSwap": "open to swap",
     "firstHere": "You're the first here",
     "view": "View",
     "welcomeBack": "Welcome back",
     "creditLine": "You have ₹{amount} credit.",
+    "creditWaiting": "₹{amount} credit waiting",
+    "creditUse": "use on your next swap",
+    "travelBetter": "Travel is better together",
     "addAnother": "Add another trip"
   },
   "add": {
@@ -65,7 +84,7 @@
     "yourBerth": "Your berth",
     "coach": "Coach {coach}",
     "berthMasked": "Berth ••",
-    "peopleWant": "{n} people on this train want to swap",
+    "peopleWant": "{n} people on your train want to swap",
     "ask": "Ask for a swap",
     "open": "I'm open to swap",
     "openOn": "You’re open to swap. Nothing is shared except first name and initial, class, coach and berth type.",
@@ -73,8 +92,11 @@
     "noReward": "Being open to swap earns nothing by itself. You earn ₹50 credit only when a swap is confirmed as done.",
     "wl": "Swaps open once your berth is confirmed",
     "wlBody": "Your ticket is {status}. We’ll keep this trip and tell you when your berth is confirmed.",
-    "can": "This ticket is cancelled",
+    "can": "Ticket cancelled",
     "canBody": "A cancelled ticket cannot be swapped. You can remove this trip.",
+    "wasCancelled": "PNR ••• {last4} was cancelled.",
+    "cancelledInfo": "Your open requests are closed. Any money paid is added to your credit.",
+    "addNewPnr": "Add a new PNR",
     "quota": "This berth was given for a reason; it’s only offered to people who qualify.",
     "child": "Child without berth: counted in your group, never offered for swap.",
     "chaircar": "Seat words for this coach: Window / Aisle / Middle.",
@@ -86,14 +108,24 @@
   },
   "swaps": {
     "title": "Swaps",
+    "sub": "Real travellers. Better journeys.",
+    "none": "No swaps yet",
     "empty": "No swap requests yet. Add a trip, then ask for a swap. Sending is free — you pay ₹99 only after someone accepts.",
     "updates": "Updates about your swaps will appear here."
   },
   "profile": {
     "title": "Profile",
+    "name": "Traveller",
+    "tag": "Traveller · Together is better",
     "credit": "Credit",
     "creditBody": "Credit only lowers future SeatSwap fees. Never cash. Valid 12 months after it is earned.",
+    "validNote": "Valid 12 months · never cash",
     "balance": "₹{amount}",
+    "myTrips": "My trips",
+    "safety": "Safety settings",
+    "langRow": "Language · English / हिन्दी",
+    "helpQ": "Help & questions",
+    "del": "Delete my account",
     "language": "Language",
     "easy": "Easy mode · big text",
     "alerts": "Alerts",
@@ -102,8 +134,26 @@
     "settings": "Settings",
     "signInLater": "You’ll be asked to sign in with Google only when you send or accept a request."
   },
+  "settings": {
+    "title": "Settings",
+    "women": "Requests only from women",
+    "families": "Requests only from families",
+    "sameCoach": "Same coach only",
+    "pause": "Pause all requests",
+    "easyBig": "Easy mode (bigger text)",
+    "lang": "Language · {lang}",
+    "helpQ": "Help & questions",
+    "del": "Delete my account"
+  },
+  "del": {
+    "title": "Delete my data?",
+    "body": "This removes your trips from this device.",
+    "confirm": "Delete",
+    "keep": "Keep my data",
+    "done": "Deleted."
+  },
   "train": { "title": "Train {n}", "body": "Berth layout for train {n}. Add your PNR to see swap options on your date." },
-  "common": { "back": "Back", "close": "Close", "continue": "Continue", "save": "Save", "cancel": "Cancel", "on": "On", "off": "Off" },
+  "common": { "back": "Back", "close": "Close", "continue": "Continue", "save": "Save", "cancel": "Cancel", "on": "On", "off": "Off", "gotIt": "Got it", "agree": "I agree" },
   "footer": {
     "line1": "Keep your original ticket and ID with you.",
     "line2": "SeatSwap is not an official railway service."

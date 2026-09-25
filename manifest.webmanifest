@@ -1,14 +1,14 @@
 {
-  "name": "SwapSeat — Global Train & Flight Seat Swap",
-  "short_name": "SwapSeat",
-  "description": "Swap train berths & flight seats visually. See your exact berth in the compartment, match with co-passengers, swap with mutual consent. Global PWA.",
+  "name": "SeatSwap",
+  "short_name": "SeatSwap",
+  "description": "Tell us what berth you want. We find people on your train who want to swap. You pay ₹99 only when someone says yes.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#070b19",
-  "theme_color": "#070b19",
-  "categories": ["travel", "navigation", "social"],
+  "background_color": "#FAF6EE",
+  "theme_color": "#1F6B45",
+  "categories": ["travel"],
   "lang": "en",
   "dir": "ltr",
   "icons": [
@@ -29,18 +29,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "Find a swap",
-      "url": "./index.html#swap",
-      "description": "Post a seat swap request"
-    },
-    {
-      "name": "Marketplace",
-      "url": "./index.html#market",
-      "description": "Browse live swap requests"
     }
   ]
 }

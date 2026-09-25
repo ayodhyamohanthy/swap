@@ -1,0 +1,20 @@
+{
+  "name": "seatswap",
+  "private": true,
+  "version": "0.1.0",
+  "description": "SeatSwap — mobile-first PWA for train berth swaps (Build Plan steps 1-2: Foundation + Trips).",
+  "workspaces": [
+    "app"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace seatswap-app",
+    "build": "npm run build --workspace seatswap-app",
+    "preview": "npm run preview --workspace seatswap-app",
+    "typecheck": "npm run typecheck --workspace seatswap-app",
+    "test": "npm run test --workspace seatswap-app",
+    "verify": "npm run verify --workspace seatswap-app"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}
