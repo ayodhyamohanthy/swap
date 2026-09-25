@@ -284,6 +284,9 @@ export function trips(): Trip[] {
   return snapshot.trips
 }
 
+/** Alias for trips() */
+export const listTrips = trips
+
 export function getTrip(id: string | undefined): Trip | undefined {
   if (!id) return undefined
   return snapshot.trips.find((trip) => trip.id === id)
@@ -478,7 +481,7 @@ export function detachFromAccount(): Trip[] {
 }
 
 export interface SyncPayload {
-  bookings: Array<Omit<Trip, 'passengers'> & { local_id: string }>
+  bookings: Array<Omit<Trip, 'passengers' | 'id'> & { local_id: string }>
   passengers: Array<Passenger & { local_booking_id: string }>
   activity: ActivityRow[]
 }

@@ -135,7 +135,7 @@ function TripScreen() {
         </Card>
       ) : null}
 
-      {ticketStatus === 'CNF' && passenger && restricted.includes(passenger.quota) && !trip.quota_note_seen ? (
+      {ticketStatus === 'CNF' && passenger && restricted && !trip.quota_note_seen ? (
         <Card className="mt-3 border-accent/40 bg-accent-soft">
           <CardTitle>{t('trip.quotaTitle', { quota: quota(passenger.quota) })}</CardTitle>
           <CardBody className="text-ink">{t('trip.quotaBody')}</CardBody>

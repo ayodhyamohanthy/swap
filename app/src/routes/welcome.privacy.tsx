@@ -3,7 +3,6 @@ import { Check, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 import type { RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
-import { CardRow } from '@/components/ui/card'
 import { useI18n } from '@/lib/i18n'
 import { logActivity, markSeen, updateSettings } from '@/lib/store'
 

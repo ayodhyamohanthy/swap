@@ -153,10 +153,14 @@ export function normaliseBerth(input: unknown, travelClass?: unknown): BerthType
   if (value.startsWith('SIDE U') || value === 'SU') return 'SU'
   if (value.startsWith('LOW')) return 'LB'
   if (value.startsWith('UPP')) return 'UB'
-  if (value === 'MB' || value.startsWith('MIDDLE B') || value === 'MID') return 'MB'
+  if (value === 'MB' || value.startsWith('MIDDLE B') || value.startsWith('MID')) {
+    return isChairCar(travelClass) ? 'MIDDLE_SEAT' : 'MB'
+  }
   if (value === 'WINDOW') return 'WINDOW'
   if (value === 'AISLE') return 'AISLE'
-  if (value === 'MIDDLE' || value === 'MIDDLE SEAT' || value === 'MIDDLE_SEAT') return 'MIDDLE_SEAT'
+  if (value === 'MIDDLE' || value === 'MIDDLE SEAT' || value === 'MIDDLE_SEAT') {
+    return isChairCar(travelClass) ? 'MIDDLE_SEAT' : 'MB'
+  }
   if (isBerthType(value)) return value as BerthType
   return isChairCar(travelClass) ? 'WINDOW' : undefined
 }
@@ -233,7 +237,9 @@ export function parseBookingSms(sms: unknown): ParsedBookingSms {
     if (value) out.status = value
   }
 
-  const route = text.match(/\b([A-Z]{3,4})\s*(?:TO|->|→|-)\s*([A-Z]{3,4})\b/)
+  const route =
+    text.match(/\b([A-Z]{3,4})\s*(?:TO|->|→|-)\s*([A-Z]{3,4})\b/) ??
+    text.match(/\b(?:FROM|SRC)[:\s]+([A-Z]{3,4})\b.*\b(?:TO|DST)[:\s]+([A-Z]{3,4})\b/)
   if (route) {
     out.from_code = route[1]
     out.to_code = route[2]
