@@ -42,7 +42,7 @@ export const workboxOptions = {
     {
       /* Pages: NetworkFirst keeps content fresh, the precached shell answers
          when the phone is offline or the network is slow (docs/08). */
-      urlPattern: /^https?:\/\/[^/]+\/(?:[?#]|$|(?:trips|swaps|profile|welcome|signin)(?:[/?#]|$))/,
+      urlPattern: /^https?:\/\/[^/]+\/(?:[?#]|$|(?:trips|swaps|profile|welcome|signin|pay|chat)(?:[/?#]|$))/,
       handler: 'NetworkFirst',
       options: {
         cacheName: cacheNames.pages,

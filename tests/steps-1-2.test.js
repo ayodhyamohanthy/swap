@@ -28,7 +28,12 @@ describe('locales', () => {
       for (const k of ['brand.wordmark', 'brand.tagline', 'nav.home', 'nav.swaps', 'nav.profile',
         'first.title', 'first.paste', 'note.body', 'note.c1', 'note.got', 'footer.line2',
         'privacy.i1t', 'trip.quota', 'trip.child', 'trip.addNewPnr', 'profile.creditBody',
-        'profile.myTrips', 'settings.title', 'del.confirm', 'swaps.none', 'home.travelBetter']) {
+        'profile.myTrips', 'settings.title', 'del.confirm', 'swaps.none', 'home.travelBetter',
+        'req.title', 'req.needChoices', 'match.sendFree', 'reqm.free', 'incoming.earn',
+        'pay.noSwap', 'pay.lockNote', 'paystatus.failedB', 'paystatus.pendingB',
+        'swap.diffB', 'confirm.swapped', 'chat.riskT', 'meet.title', 'summary.title',
+        'swapdone.earnedT', 'rate.title', 'updates.title', 'onb.title', 'grp.price',
+        'inv.bad', 'admin.title', 'signin.demoName']) {
         const v = k.split('.').reduce((a, x) => (a ? a[x] : undefined), j);
         assert.ok(typeof v === 'string' && v.length > 0, `missing ${k}`);
       }
@@ -84,7 +89,7 @@ describe('app shell', () => {
   });
   it('no banned words in shipped UI code (footer excepted)', () => {
     const banned = ['TTE', 'swap pass', 'Indian Railways', 'IRCTC approved', 'authorised', 'legal', 'grievance'];
-    for (const f of ['js/seatswap-app.js', 'js/seatswap-pnr.js', 'js/seatswap-store.js', 'js/seatswap-i18n.js', 'index.html']) {
+    for (const f of ['js/seatswap-app.js', 'js/seatswap-pnr.js', 'js/seatswap-store.js', 'js/seatswap-i18n.js', 'js/seatswap-config.js', 'js/seatswap-data.js', 'js/seatswap-engine.js', 'js/seatswap-pay.js', 'js/seatswap-demo.js', 'js/seatswap-auth.js', 'js/seatswap-screens1.js', 'js/seatswap-screens2.js', 'js/seatswap-screens3.js', 'index.html']) {
       const s = stripFooter(read(f));
       for (const w of banned) assert.ok(!bannedFound(s, w), `${f} contains banned: ${w}`);
       assert.ok(!/\bofficial\b/i.test(s), `${f} contains "official" outside footer`);
@@ -166,5 +171,191 @@ describe('pwa + tokens', () => {
     assert.ok(/pnr_hash/.test(sql) && !/full_pnr|plain_text_pnr/i.test(sql));
     assert.ok(/is_child_no_berth/.test(sql));
     assert.ok(/activity_log/.test(sql));
+  });
+});
+
+describe('engine state machines + money outcomes', () => {
+  function world() {
+    const store = new Map();
+    const sandbox = {
+      console,
+      localStorage: {
+        getItem: (k) => (store.has(k) ? store.get(k) : null),
+        setItem: (k, v) => store.set(k, String(v)),
+        removeItem: (k) => store.delete(k),
+      },
+      sessionStorage: {
+        getItem: () => null, setItem: () => {}, removeItem: () => {},
+      },
+    };
+    sandbox.window = sandbox;
+    vm.createContext(sandbox);
+    for (const f of ['js/seatswap-config.js', 'js/seatswap-pnr.js', 'js/seatswap-store.js', 'js/seatswap-data.js', 'js/seatswap-engine.js']) {
+      vm.runInContext(read(f), sandbox, { filename: f });
+    }
+    return sandbox;
+  }
+  async function flow(steps) {
+    const ctx = world();
+    const script = `(async () => {
+      const out = {};
+      const me = SeatSwapEngine.signIn({ first_name: 'Ravi', last_initial: 'K', via: 'demo' });
+      out.me = me.id;
+      const trip = await SeatSwapStore.addTrip({ pnr: '9999999999', train_no: '12951',
+        journey_date: '2026-06-12', from_code: 'NDLS', to_code: 'BPL', class: '3A',
+        coach: 'B2', berth_no: '34', berth_type: 'UB', status: 'CNF', quota: 'GN', source: 'typed',
+        passengers: [{ label: 'Passenger 1', coach: 'B2', berth_no: '34', berth_type: 'UB', status: 'CNF', quota: 'GN', is_child_no_berth: false }] });
+      out.trip = trip.id;
+      const _s0 = SeatSwapData.seedsFor(trip);
+      const ch = [...new Set([_s0[0].berth_type, 'LB', 'MB', 'UB', 'SL', 'SU'])].slice(0, 3);
+      ${steps}
+      return out;
+    })()`;
+    return vm.runInContext(script, ctx);
+  }
+
+  it('request > offer > accept > pay > lock > both swapped > confirmed', async () => {
+    const out = await flow(`
+      const req = SeatSwapEngine.newRequest({ tripId: trip.id, choices: ch, sameCoach: false, keepTogether: false, reason: 'family' });
+      out.req = req.id; out.st1 = req.status;
+      const seeds = SeatSwapData.seedsFor(trip);
+      const rows = SeatSwapData.scoreMatches(req, trip, seeds, {});
+      out.matches = rows.length;
+      const offers = SeatSwapEngine.sendOffers(req.id, rows.slice(0, 2).map(x => x.seed.id));
+      out.sent = offers.length;
+      SeatSwapEngine.acceptOffer(offers[0].id, offers[0].acceptor_id);
+      out.st2 = SeatSwapEngine.getRequest(req.id).status;
+      const pay = SeatSwapEngine.createPayment(req.id, { provider: 'demo', useCredit: false });
+      out.provider = pay.provider;
+      SeatSwapEngine.gatewayResult(pay.id, 'paid', 'demo_x1');
+      const locked = SeatSwapEngine.getRequest(req.id);
+      out.st3 = locked.status;
+      out.superseded = SeatSwapEngine.offersFor(req.id).filter(o => o.status === 'superseded').length;
+      SeatSwapEngine.submitOutcome(req.id, me.id, 'swapped');
+      SeatSwapEngine.submitOutcome(req.id, offers[0].acceptor_id, 'swapped');
+      out.st4 = SeatSwapEngine.getRequest(req.id).status;
+      out.log = SeatSwapEngine.db().activity.length > 5;
+    `);
+    assert.equal(out.st1, 'searching');
+    assert.ok(out.matches >= 1, 'expected demo matches, got ' + out.matches);
+    assert.ok(out.sent >= 1, 'expected offers sent');
+    assert.equal(out.st2, 'accepted_awaiting_payment');
+    assert.equal(out.provider, 'demo');
+    assert.equal(out.st3, 'locked');
+    assert.equal(out.superseded, out.sent - 1);
+    assert.equal(out.st4, 'confirmed');
+    assert.ok(out.log, 'activity log written');
+  });
+
+  it('money: no-show agreed > requester +9900 credit; failed payment charges nothing', async () => {
+    const out = await flow(`
+      const req = SeatSwapEngine.newRequest({ tripId: trip.id, choices: ch, sameCoach: false, keepTogether: false, reason: '' });
+      const seeds = SeatSwapData.seedsFor(trip);
+      const rows = SeatSwapData.scoreMatches(req, trip, seeds, {});
+      const offers = SeatSwapEngine.sendOffers(req.id, [rows[0].seed.id]);
+      SeatSwapEngine.acceptOffer(offers[0].id, offers[0].acceptor_id);
+      const pay = SeatSwapEngine.createPayment(req.id, { provider: 'demo', useCredit: false });
+      SeatSwapEngine.gatewayResult(pay.id, 'paid', 'demo_x2');
+      SeatSwapEngine.submitOutcome(req.id, me.id, 'no_show');
+      SeatSwapEngine.submitOutcome(req.id, offers[0].acceptor_id, 'no_show');
+      out.st = SeatSwapEngine.getRequest(req.id).status;
+      out.bal = SeatSwapEngine.myBalance();
+      const req2 = SeatSwapEngine.newRequest({ tripId: trip.id, choices: ch, sameCoach: false, keepTogether: false, reason: '' });
+      const rows2 = SeatSwapData.scoreMatches(req2, trip, seeds, {});
+      const off2 = SeatSwapEngine.sendOffers(req2.id, [rows2[0].seed.id]);
+      SeatSwapEngine.acceptOffer(off2[0].id, off2[0].acceptor_id);
+      const pay2 = SeatSwapEngine.createPayment(req2.id, { provider: 'demo', useCredit: false });
+      SeatSwapEngine.gatewayResult(pay2.id, 'failed');
+      out.payFailed = SeatSwapEngine.db().payments[pay2.id].status;
+      out.stillWaiting = SeatSwapEngine.getRequest(req2.id).status;
+    `);
+    assert.equal(out.st, 'voided');
+    assert.equal(out.bal, 9900, 'requester credit should be exactly ₹99, got ' + out.bal);
+    assert.equal(out.payFailed, 'failed');
+    assert.equal(out.stillWaiting, 'accepted_awaiting_payment');
+  });
+
+  it('money: credit covers full amount > instant lock, provider credit', async () => {
+    const out = await flow(`
+      SeatSwapEngine.adminAdjust(me.id, 9900, 'test grant');
+      out.bal0 = SeatSwapEngine.myBalance();
+      const req = SeatSwapEngine.newRequest({ tripId: trip.id, choices: ch, sameCoach: false, keepTogether: false, reason: '' });
+      const seeds = SeatSwapData.seedsFor(trip);
+      const rows = SeatSwapData.scoreMatches(req, trip, seeds, {});
+      const offers = SeatSwapEngine.sendOffers(req.id, [rows[0].seed.id]);
+      SeatSwapEngine.acceptOffer(offers[0].id, offers[0].acceptor_id);
+      const pay = SeatSwapEngine.createPayment(req.id, { provider: 'demo', useCredit: true });
+      out.provider = pay.provider;
+      out.st = SeatSwapEngine.getRequest(req.id).status;
+      out.bal1 = SeatSwapEngine.myBalance();
+    `);
+    assert.equal(out.bal0, 9900);
+    assert.equal(out.provider, 'credit');
+    assert.equal(out.st, 'locked');
+    assert.equal(out.bal1, 0);
+  });
+
+  it('dispute on differing answers; admin resolves; cancel > credit', async () => {
+    const out = await flow(`
+      const req = SeatSwapEngine.newRequest({ tripId: trip.id, choices: ch, sameCoach: false, keepTogether: false, reason: '' });
+      const seeds = SeatSwapData.seedsFor(trip);
+      const rows = SeatSwapData.scoreMatches(req, trip, seeds, {});
+      const offers = SeatSwapEngine.sendOffers(req.id, [rows[0].seed.id]);
+      SeatSwapEngine.acceptOffer(offers[0].id, offers[0].acceptor_id);
+      const pay = SeatSwapEngine.createPayment(req.id, { provider: 'demo', useCredit: false });
+      SeatSwapEngine.gatewayResult(pay.id, 'paid', 'demo_x3');
+      SeatSwapEngine.submitOutcome(req.id, me.id, 'swapped');
+      SeatSwapEngine.submitOutcome(req.id, offers[0].acceptor_id, 'no_show');
+      out.disputed = SeatSwapEngine.getRequest(req.id).status;
+      SeatSwapEngine.resolveDispute(req.id, me.id, 'voided', '');
+      out.resolved = SeatSwapEngine.getRequest(req.id).status;
+      out.bal = SeatSwapEngine.myBalance();
+      const req2 = SeatSwapEngine.newRequest({ tripId: trip.id, choices: ch, sameCoach: false, keepTogether: false, reason: '' });
+      const rows2 = SeatSwapData.scoreMatches(req2, trip, seeds, {});
+      const off2 = SeatSwapEngine.sendOffers(req2.id, [rows2[0].seed.id]);
+      SeatSwapEngine.acceptOffer(off2[0].id, off2[0].acceptor_id);
+      const pay2 = SeatSwapEngine.createPayment(req2.id, { provider: 'demo', useCredit: true });
+      SeatSwapEngine.gatewayResult(pay2.id, 'paid', 'demo_x4');
+      SeatSwapEngine.cancelSwap(req2.id, me.id);
+      out.cancelled = SeatSwapEngine.getRequest(req2.id).status;
+    `);
+    assert.equal(out.disputed, 'disputed');
+    assert.equal(out.resolved, 'voided');
+    assert.equal(out.bal, 9900);
+    assert.equal(out.cancelled, 'voided');
+  });
+
+  it('guards: auth required, daily limit, backout returns to searching', async () => {
+    const ctx = world();
+    const script = `(async () => {
+      const out = {};
+      try { SeatSwapEngine.newRequest({ tripId: 'x', choices: ['LB'], reason: '' }); out.noauth = 'allowed'; }
+      catch (e) { out.noauth = e.message; }
+      const me = SeatSwapEngine.signIn({ first_name: 'R', last_initial: 'K', via: 'demo' });
+      const trip = await SeatSwapStore.addTrip({ pnr: '8888888888', train_no: '12951',
+        journey_date: '2026-06-12', from_code: 'A', to_code: 'B', class: 'SL',
+        coach: 'S1', berth_no: '12', berth_type: 'LB', status: 'CNF', quota: 'GN', source: 'typed',
+        passengers: [{ label: 'P1', coach: 'S1', berth_no: '12', berth_type: 'LB', status: 'CNF', quota: 'GN', is_child_no_berth: false }] });
+      const _s0 = SeatSwapData.seedsFor(trip);
+      const ch = [...new Set([_s0[0].berth_type, 'LB', 'MB', 'UB', 'SL', 'SU'])].slice(0, 3);
+      const req = SeatSwapEngine.newRequest({ tripId: trip.id, choices: ch, sameCoach: false, keepTogether: false, reason: '' });
+      const seeds = SeatSwapData.seedsFor(trip);
+      const rows = SeatSwapData.scoreMatches(req, trip, seeds, {});
+      const ids = rows.map(x => x.seed.id);
+      while (ids.length < 11) ids.push('seed:' + trip.id + ':x' + ids.length);
+      try { SeatSwapEngine.sendOffers(req.id, ids.slice(0, 11)); out.limit = 'allowed'; }
+      catch (e) { out.limit = e.message; }
+      const offers = SeatSwapEngine.sendOffers(req.id, [ids[0]]);
+      SeatSwapEngine.acceptOffer(offers[0].id, offers[0].acceptor_id);
+      SeatSwapEngine.backOutOffer(offers[0].id, offers[0].acceptor_id);
+      out.back = SeatSwapEngine.getRequest(req.id).status;
+      out.bo = SeatSwapEngine.backedOut30d(offers[0].acceptor_id);
+      return out;
+    })()`;
+    const out = await vm.runInContext(script, ctx);
+    assert.equal(out.noauth, 'auth_required');
+    assert.equal(out.limit, 'daily_limit');
+    assert.equal(out.back, 'searching');
+    assert.equal(out.bo, 1);
   });
 });

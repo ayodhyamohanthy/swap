@@ -240,3 +240,61 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   outline: 2px solid var(--primary); outline-offset: 2px;
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; } }
+
+/* ---------- steps 4+ components ---------- */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.chipbtn { border: 1.5px solid var(--line); background: var(--card); color: var(--ink); border-radius: 999px; min-height: 44px; padding: 0 16px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.chipbtn.on { background: var(--primary); border-color: var(--primary); color: var(--card); }
+.chipbtn .rank { font-size: 11px; font-weight: 700; opacity: 0.75; margin-right: 4px; }
+.matchrow { display: flex; gap: 12px; align-items: center; width: 100%; text-align: left; font: inherit; background: var(--card); border: 1.5px solid var(--line); border-radius: var(--radius-card); padding: 12px; margin: 8px 0; cursor: pointer; color: var(--ink); }
+.matchrow.sel { border-color: var(--primary); }
+.matchrow .avatar { width: 48px; height: 48px; font-size: 20px; }
+.matchrow .mwho { flex: 1; }
+.matchrow .mwho b { font-size: 15.5px; font-family: var(--font-head); display: block; }
+.matchrow .mwho small { color: var(--muted); font-size: 12.5px; display: block; }
+.mscore { font-size: 13px; font-weight: 800; color: var(--primary); background: var(--tint-green); border-radius: 999px; padding: 5px 11px; white-space: nowrap; }
+.paybox { text-align: center; border: 1.5px solid var(--primary); border-radius: 20px; background: var(--card); padding: 20px 16px; margin: 12px 0; }
+.paybox .big { font-family: var(--font-head); font-weight: 700; font-size: 42px; line-height: 1.1; }
+.bkrow { display: flex; justify-content: space-between; gap: 10px; padding: 8px 2px; border-bottom: 1px dashed var(--line); font-size: 14.5px; }
+.bkrow:last-child { border-bottom: 0; }
+.bkrow.total { font-weight: 800; font-size: 16px; }
+.pmrow { display: flex; gap: 12px; align-items: center; width: 100%; text-align: left; font: inherit; background: var(--card); border: 1.5px solid var(--line); border-radius: 14px; padding: 13px 14px; margin: 8px 0; cursor: pointer; color: var(--ink); font-size: 15px; }
+.pmrow b { display: block; font-size: 15px; }
+.pmrow small { color: var(--muted); }
+.pmrow .pmic { font-size: 22px; width: 30px; text-align: center; flex: none; }
+.chatlist { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.bubble { max-width: 82%; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 9px 12px; font-size: 14.5px; }
+.bubble.me { align-self: flex-end; background: var(--primary); border-color: var(--primary); color: var(--card); }
+.bubble small { display: block; font-size: 11px; opacity: 0.65; margin-top: 3px; }
+.bubble--flag { border-color: var(--danger); }
+.quickchips { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 8px; }
+.composer { display: flex; gap: 8px; position: sticky; bottom: calc(78px + env(safe-area-inset-bottom)); background: var(--background); padding: 8px 0; }
+.composer .input { flex: 1; background: var(--card); border-color: var(--line); }
+.composer .send { flex: none; width: 56px; border-radius: 14px; }
+.timeline { margin: 12px 0; }
+.tlrow { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; font-size: 14px; }
+.tldot { width: 22px; height: 22px; flex: none; border-radius: 50%; background: var(--tint-green); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; }
+.stars { display: flex; gap: 8px; justify-content: center; margin: 12px 0; }
+.star { width: 52px; height: 52px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--card); font-size: 24px; color: var(--tab-dim); cursor: pointer; }
+.star.on { background: var(--primary); border-color: var(--primary); color: var(--card); }
+.sharerow { display: flex; gap: 10px; justify-content: center; margin: 12px 0; flex-wrap: wrap; }
+.sharebtn { min-height: 48px; border: 1.5px solid var(--line); background: var(--card); border-radius: 12px; padding: 0 14px; font-weight: 700; font-size: 13.5px; cursor: pointer; color: var(--ink); font-family: inherit; }
+.updrow { display: flex; gap: 12px; width: 100%; text-align: left; font: inherit; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 13px 14px; margin: 8px 0; cursor: pointer; color: var(--ink); text-decoration: none; }
+.updrow.unread { border-color: var(--primary); }
+.updrow b { display: block; font-size: 15px; font-family: var(--font-head); }
+.updrow small { color: var(--muted); font-size: 13px; display: block; }
+.updrow time { color: var(--faint); font-size: 11.5px; }
+.adminrow { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 6px 0; font-size: 13.5px; }
+.adminrow small { color: var(--muted); display: block; }
+.adminrow .arow { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.minibtn { border: 1.5px solid var(--line); background: var(--card); border-radius: 10px; min-height: 40px; padding: 0 12px; font-size: 13px; font-weight: 700; cursor: pointer; color: var(--ink); font-family: inherit; }
+.minibtn--go { background: var(--primary); border-color: var(--primary); color: var(--card); }
+.minibtn--red { color: var(--red); border-color: var(--red); }
+table.grid { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.grid td, table.grid th { border-bottom: 1px solid var(--line); padding: 8px 6px; text-align: left; }
+.qrbox { display: flex; justify-content: center; margin: 10px 0; }
+.qrbox img { width: 180px; height: 180px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.statgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+.stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
+.stat b { font-family: var(--font-head); font-size: 22px; display: block; }
+.stat small { color: var(--muted); }

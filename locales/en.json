@@ -48,6 +48,9 @@
     "body": "Sign-in is needed only to send or accept a request. SeatSwap uses Google sign-in only.",
     "google": "Continue with Google",
     "later": "Not now",
+    "demoTitle": "Demo sign-in",
+    "demoBody": "Stands in for Google until a client ID is added. Same profile shape.",
+    "demoName": "First name",
     "safe": "Your PNR and name stay private.",
     "note": "Adding a PNR works without sign-in."
   },
@@ -153,6 +156,153 @@
     "done": "Deleted."
   },
   "train": { "title": "Train {n}", "body": "Berth layout for train {n}. Add your PNR to see swap options on your date." },
+  "req": {
+    "title": "What would you like?",
+    "rank": "Rank your choices (tap 1st, 2nd, 3rd)",
+    "first": "1st choice", "second": "2nd choice", "third": "3rd choice",
+    "sameCoach": "Same coach",
+    "keepTogether": "Keep group together",
+    "reason": "Why do you want to swap?",
+    "r1": "Travelling with family", "r2": "Knee issue, need lower berth", "r3": "Senior citizen",
+    "r4": "Kids in another coach", "r5": "Prefer side berth", "r6": "Group travelling together",
+    "notePh": "e.g. Travelling with elderly parent",
+    "continue": "Find matches",
+    "needChoices": "Pick at least your 1st choice."
+  },
+  "match": {
+    "title": "Potential matches",
+    "sub": "Same train, same date, same class.",
+    "sendFree": "Send to {n} · free",
+    "sent": "Requests sent · free",
+    "nomatchT": "You’re the first on {train}",
+    "nomatchB": "Share this link so others on your train can join.",
+    "copyLink": "Copy coach link",
+    "copied": "Link copied."
+  },
+  "reqm": {
+    "title": "Your request",
+    "waiting": "Waiting for replies",
+    "paused": "Paused",
+    "pause": "Pause request",
+    "resume": "Resume",
+    "withdraw": "Withdraw request",
+    "withdrawn": "Withdrawn.",
+    "editChoices": "Change what I want",
+    "noreplyT": "Nobody has replied on {train} yet",
+    "tryOther": "Try another berth type",
+    "acceptedT": "{name} said yes!",
+    "acceptedB": "Pay ₹99 to lock it.",
+    "payNow": "Pay ₹99",
+    "lockedB": "Swap locked. Open it from Swaps.",
+    "free": "Sending is free. Pay only if someone says yes."
+  },
+  "incoming": {
+    "title": "Swap request",
+    "giveGet": "You give {yours} · you get {theirs}",
+    "earn": "Earn ₹50 credit · you pay nothing",
+    "accept": "Accept",
+    "decline": "Decline",
+    "waiting": "{name} pays ₹99. You pay nothing.",
+    "backout": "Back out",
+    "closed": "This request is closed."
+  },
+  "pay": {
+    "saidYes": "{name} said yes! · Pay ₹99",
+    "rank1": "You got your 1st choice", "rank2": "You got your 2nd choice", "rank3": "You got your 3rd choice",
+    "rankAsk": "Take it, or keep waiting — your 1st choice stays open until you pay.",
+    "keepWaiting": "Keep waiting",
+    "fee": "SeatSwap fee ₹49",
+    "thanks": "Thank-you credit for {name} ₹50",
+    "creditLine": "Credit ₹{amount}",
+    "noSwap": "No swap? ₹99 goes to your credit",
+    "lockNote": "The swap locks once you pay. Until then, your other matches can still accept.",
+    "continue": "Continue to pay"
+  },
+  "paymethod": { "title": "Choose how to pay", "payCredit": "Pay with credit", "paypal": "International traveller? Pay with PayPal" },
+  "payupi": {
+    "title": "Waiting for UPI", "body": "Approve ₹99 in your UPI app.", "waiting": "Waiting…",
+    "sent": "Request sent to your UPI app.",
+    "simOk": "Bank: approve", "simPending": "Bank: pending", "simFail": "Bank: fail",
+    "demo": "Demo bank stands in until payment keys are added."
+  },
+  "paypal": { "title": "Pay with PayPal", "body": "For international travellers. Charged in INR.", "fx": "PayPal converts the total; shown here in ₹.", "approve": "Approve with PayPal" },
+  "paystatus": {
+    "pendingT": "Payment pending", "pendingB": "Your bank is still confirming ₹99. Please don’t pay again.",
+    "failedT": "Payment failed", "failedB": "No money was taken. If money left your account, your bank returns it in 3–5 days.",
+    "retry": "Try again", "otherWay": "Pay another way", "check": "Check status",
+    "noDouble": "Please don’t pay again while we check."
+  },
+  "paydone": { "title": "Payment successful", "body": "Your swap is locked. Berth numbers are revealed.", "receipt": "Receipt", "openSwap": "Open my swap" },
+  "swap": {
+    "title": "My swap",
+    "toCredit": "₹99 added to your credit",
+    "valid12": "Valid for 12 months · never cash.",
+    "diffT": "Answers don’t match",
+    "diffB": "We’ll look at both sides and reply as soon as we can. Your money is held safely meanwhile."
+  },
+  "swapcancel": {
+    "title": "Cancel this swap?",
+    "body": "You’ve paid but not met {name} yet.",
+    "toCredit": "₹99 goes to your credit.",
+    "noCredit": "They won’t get credit.",
+    "go": "Cancel swap", "keep": "Keep swap"
+  },
+  "chat": {
+    "title": "Chat", "empty": "Say hello. Plan where to meet on board.",
+    "ph": "Type a message…", "send": "Send",
+    "riskT": "Pay only inside SeatSwap.",
+    "riskB": "Never send money to anyone directly. This chat stays inside the app.",
+    "report": "Report & block", "reported": "Reported. They are now blocked.",
+    "q_meetDoor": "I’m at my berth now", "q_atBerth": "Meet me near the coach door",
+    "q_onWay": "On my way", "q_thanks": "Thanks!"
+  },
+  "meet": { "title": "Found each other?", "met": "I’ve met {name}", "notMet": "Can’t find them" },
+  "summary": {
+    "title": "Swap summary", "you": "You",
+    "t_sent": "Request sent · free", "t_accepted": "They accepted",
+    "t_paid": "You paid ₹99", "t_locked": "Swap locked · berths revealed"
+  },
+  "confirm": {
+    "title": "Did you swap?",
+    "swapped": "Yes, swapped", "no_show": "Other person didn’t come",
+    "not_possible": "Swap wasn’t possible", "changed_mind": "We changed our mind"
+  },
+  "swapdone": {
+    "swappedT": "You swapped", "swappedB": "Thanks for travelling together.",
+    "earnedT": "You earned ₹50", "earnedB": "Thanks for helping.",
+    "earnedCard": "₹50 credit · thanks for helping.",
+    "share": "Share", "another": "Add another trip"
+  },
+  "shr": {
+    "cardTitle": "Share", "cardText": "We swapped berths on {train}. Travel is better together.",
+    "wa": "WhatsApp", "tg": "Telegram", "sms": "SMS", "copy": "Copy link", "more": "More…"
+  },
+  "rate": { "title": "Rate your swap", "send": "Send rating", "thanks": "Thanks for rating." },
+  "updates": { "title": "Updates", "empty": "Updates about your swaps will appear here." },
+  "onb": {
+    "title": "On the train now", "live": "Live · until {to}", "swap": "Swap",
+    "wantsGives": "wants {w} · gives {g}",
+    "chartT": "Chart is out", "chartB": "{n} people in your coach want to swap"
+  },
+  "grp": {
+    "title": "Family trips", "new": "New family trip", "namePh": "e.g. Sharma family",
+    "create": "Create", "empty": "Link PNRs to see everyone together.",
+    "addTrip": "Add a trip", "plan": "Seat everyone together",
+    "together": "{a} of {b} together", "price": "One payment of ₹199 covers up to 3 swaps."
+  },
+  "inv": { "bad": "This link didn’t work. Ask for a fresh one." },
+  "admin": {
+    "title": "Admin", "gate": "Admin tools are guarded. Turn on demo access on this device.",
+    "demoOn": "Turn on demo admin", "demoOff": "Turn off demo admin",
+    "demoNote": "Demo data on this device. Production uses server roles.",
+    "overview": "Overview", "log": "Activity log", "users": "Users", "swaps": "Swaps",
+    "payments": "Payments", "credits": "Credits", "reports": "Reports",
+    "s_pnrs": "Trips", "s_requests": "Requests", "s_paid": "Paid", "s_confirmed": "Confirmed",
+    "searchPh": "Search action, user, PNR…", "csv": "Export CSV", "empty": "Nothing here yet.",
+    "adjust": "Adjust credit", "adjustAmt": "Amount in ₹ (e.g. 50 or -20)", "adjustReason": "Reason",
+    "toConfirmed": "Confirm swap", "toVoided": "Void → credit",
+    "moveCredit": "Move to credit", "markDone": "Mark done", "close": "Close report"
+  },
   "common": { "back": "Back", "close": "Close", "continue": "Continue", "save": "Save", "cancel": "Cancel", "on": "On", "off": "Off", "gotIt": "Got it", "agree": "I agree" },
   "footer": {
     "line1": "Keep your original ticket and ID with you.",

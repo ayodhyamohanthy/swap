@@ -6,6 +6,14 @@ import {
   type AppState,
   type Trip,
 } from './store'
+import {
+  getRequestsServerSnapshot,
+  getRequestsSnapshot,
+  subscribe as subscribeRequests,
+  type RequestsState,
+  type SwapOffer,
+  type SwapRequest,
+} from './requests'
 
 /** Subscribe a component to the local-first store. */
 export function useAppState(): AppState {
@@ -36,4 +44,26 @@ export function useSeenFlag(key: string): boolean {
 
 export function useSettings() {
   return useAppState().settings
+}
+
+function requestsSnapshot(): RequestsState {
+  return getRequestsSnapshot()
+}
+
+function requestsServerSnapshot(): RequestsState {
+  return getRequestsServerSnapshot()
+}
+
+export function useRequestsState(): RequestsState {
+  return useSyncExternalStore(subscribeRequests, requestsSnapshot, requestsServerSnapshot)
+}
+
+export function useSwapRequest(id: string | undefined): SwapRequest | undefined {
+  const { requests } = useRequestsState()
+  return id ? requests.find((request) => request.id === id) : undefined
+}
+
+export function useRequestOffers(requestId: string): SwapOffer[] {
+  const { offers } = useRequestsState()
+  return offers.filter((offer) => offer.request_id === requestId)
 }

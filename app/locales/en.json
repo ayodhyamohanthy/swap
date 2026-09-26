@@ -6,8 +6,14 @@
     "title": "SeatSwap — swap your berth with someone on your train",
     "description": "Tell us what berth you want. We find people on your train who want to swap. You pay ₹99 only when someone says yes."
   },
-  "brand": { "wordmark": "SeatSwap" },
-  "nav": { "home": "Home", "swaps": "Swaps", "profile": "Profile" },
+  "brand": {
+    "wordmark": "SeatSwap"
+  },
+  "nav": {
+    "home": "Home",
+    "swaps": "Swaps",
+    "profile": "Profile"
+  },
   "common": {
     "back": "Back",
     "close": "Close",
@@ -20,13 +26,23 @@
     "remove": "Remove",
     "notNow": "Not now",
     "loading": "One moment…",
-    "comingSoon": "Coming soon"
+    "comingSoon": "Coming soon",
+    "save": "Save",
+    "send": "Send",
+    "edit": "Edit",
+    "share": "Share",
+    "copy": "Copy",
+    "copied": "Copied.",
+    "retry": "Retry",
+    "view": "View"
   },
   "footer": {
     "line1": "Keep your original ticket and ID with you.",
     "line2": "SeatSwap is not an official railway service."
   },
-  "offline": { "bar": "You're offline. Your trips stay on this device." },
+  "offline": {
+    "bar": "You're offline. Your trips stay on this device."
+  },
   "first": {
     "title": "Where's your train taking you?",
     "hint": "Earn ₹50 credit every time you help someone swap",
@@ -208,7 +224,15 @@
     "onlyAfter": "You pay only after someone accepts. No payment timer.",
     "noSwap": "No swap? ₹99 goes to your credit.",
     "creditRule": "Credit lowers future SeatSwap fees. Never cash, never transferable. Valid 12 months.",
-    "acceptorFree": "The other traveller pays nothing and earns ₹50 credit when the swap is done."
+    "acceptorFree": "The other traveller pays nothing and earns ₹50 credit when the swap is done.",
+    "requests": "Your requests",
+    "incoming": "Requests for you",
+    "updatesLink": "Updates",
+    "unread": "{n} new",
+    "noRequests": "No requests yet. Ask for a swap from your trip.",
+    "ask": "Ask for a swap",
+    "faster": "Someone else was faster.",
+    "waitingPayment": "Waiting for payment."
   },
   "profile": {
     "title": "Profile",
@@ -225,11 +249,302 @@
     "alerts": "Alerts",
     "help": "Help",
     "helpBody": "SeatSwap only helps passengers find each other. Any swap is your own agreement. Keep your original ticket and ID, and follow instructions from railway staff on board.",
-    "dataNote": "Your trips stay on this device until you sign in."
+    "dataNote": "Your trips stay on this device until you sign in.",
+    "payments": "Payments and receipts",
+    "settings": "Settings",
+    "delete": "Delete account",
+    "groups": "Family trips",
+    "newGroup": "New family trip"
   },
   "train": {
     "title": "Train {n}",
     "body": "Berth layout for train {n}. Add your PNR to see swap options on your date."
+  },
+  "pay": {
+    "title": "{name} said yes!",
+    "pay99": "Pay ₹99",
+    "pay199": "Pay ₹199",
+    "fee": "SeatSwap fee ₹49",
+    "thankYou": "Thank-you credit for {name} ₹50",
+    "creditUsed": "Credit used ₹{amount}",
+    "creditLine": "₹{amount} credit applied",
+    "due": "To pay ₹{amount}",
+    "under": "No swap? ₹99 goes to your credit",
+    "lock": "The swap locks once you pay. Until then, your other matches can still accept.",
+    "methodTitle": "Choose how to pay",
+    "razorpay": "Pay with UPI, card or net banking",
+    "paypalAlt": "International traveller? Pay with PayPal",
+    "paypalNote": "PayPal shows about US${amount} as an estimate. You are charged ₹99.",
+    "creditOnly": "Covered by your credit. No payment needed.",
+    "payNow": "Pay ₹{amount}",
+    "pending": "Your bank is still confirming ₹99. Please don't pay again.",
+    "checkStatus": "Check status",
+    "failed": "No money was taken. If money left your account, your bank returns it in 3–5 days.",
+    "tryAgain": "Try again",
+    "otherWay": "Pay another way",
+    "done": "Payment successful",
+    "receipt": "Receipt {n}",
+    "receiptFee": "SeatSwap fee ₹49",
+    "receiptThanks": "Thank-you credit ₹50",
+    "receiptTotal": "Total ₹{amount}",
+    "berthReveal": "Berth numbers are now visible to both of you.",
+    "openChat": "Open chat",
+    "groupCover": "Group trip covers up to 3 swaps"
+  },
+  "chat": {
+    "title": "Chat with {name}",
+    "cashWarning": "Pay only inside SeatSwap. Never send money to anyone directly.",
+    "hidden": "This message was hidden because it asked for money outside SeatSwap.",
+    "slowDown": "You're sending a lot of messages. Please wait a moment.",
+    "quickAtBerth": "I'm at my berth now",
+    "quickDoor": "Meet me near the coach door",
+    "quickMet": "I've met {name}",
+    "quickLost": "Can't find them",
+    "placeholder": "Write a message",
+    "send": "Send",
+    "report": "Report & block",
+    "reported": "Thanks. We'll look at this chat.",
+    "found": "Found each other?",
+    "foundYes": "I've met {name}",
+    "foundNo": "Can't find them",
+    "foundSaved": "Saved."
+  },
+  "confirm": {
+    "title": "Did you swap?",
+    "sub": "Your answer decides where the ₹99 goes.",
+    "yes": "Yes, swapped",
+    "noShow": "Other person didn't come",
+    "notPossible": "Swap wasn't possible",
+    "changedMind": "We changed our mind",
+    "submit": "Confirm",
+    "saved": "Thanks. Your answer is saved.",
+    "waiting": "Waiting for {name}'s answer.",
+    "swapped": "You swapped",
+    "earned50": "You earned ₹50 credit. Thanks for helping {name}'s family sit together.",
+    "creditAdded": "₹99 added to your credit · valid for 12 months · never cash",
+    "share": "Share",
+    "addTrip": "Add another trip",
+    "rateTitle": "How was swapping with {name}?",
+    "rateSkip": "Skip"
+  },
+  "summary": {
+    "title": "Swap summary",
+    "offline": "Saved on this phone. Works offline.",
+    "youGive": "You give {berth}",
+    "youGet": "You get {berth}",
+    "train": "Train {n} · {date}",
+    "keep": "Keep your original ticket and ID with you."
+  },
+  "request": {
+    "title": "What would you like?",
+    "sub": "Pick up to 3 choices. Sending is free.",
+    "first": "1st choice",
+    "second": "2nd choice",
+    "third": "3rd choice",
+    "pickBerth": "Pick a berth for {rank}",
+    "sameCoach": "Same coach only",
+    "sameCoachBody": "Show people in {coach} first.",
+    "keepTogether": "Keep us together",
+    "keepTogetherBody": "Your group stays close.",
+    "reason": "Why do you need this swap?",
+    "chairNote": "Chair car uses seat words: Window, Aisle or Middle.",
+    "submit": "See matches",
+    "saved": "Request saved. Sending is free.",
+    "needChoice": "Pick at least your 1st choice.",
+    "reasons": {
+      "family": "Family needs to sit together",
+      "elder": "Elder prefers a lower berth",
+      "medical": "Medical need",
+      "group": "Travelling in a group",
+      "window": "Prefers a window seat",
+      "none": "Prefer not to say"
+    }
+  },
+  "dispute": {
+    "title": "Under review",
+    "body": "We'll look at both sides and reply as soon as we can. Your money is held safely meanwhile.",
+    "back": "Back to swaps"
+  },
+  "rating": {
+    "title": "Rate this swap",
+    "thanks": "Thanks for rating.",
+    "submit": "Submit"
+  },
+  "matches": {
+    "title": "People on your train",
+    "sub": "Same train, same date, same class.",
+    "sendTo": "Send to {n} · free",
+    "sent": "Sent. They see only your first name and berth type.",
+    "verified": "Google checked",
+    "firstTitle": "You're the first on {train}",
+    "firstBody": "Share this link so others on your train can join.",
+    "shareLink": "Share coach link",
+    "choice": "{rank} choice",
+    "berthMasked": "Berth ••",
+    "sentState": "Sent",
+    "viewRequest": "View my request",
+    "openSwaps": "Only people open to swap are listed."
+  },
+  "manage": {
+    "title": "Your request",
+    "status": "Status: {status}",
+    "edit": "Edit choices",
+    "pause": "Pause",
+    "resume": "Start again",
+    "withdraw": "Take back",
+    "withdrawn": "Request taken back.",
+    "pausedNote": "Paused. Others cannot see this request.",
+    "noReplyTitle": "No reply yet",
+    "noReplyBody": "Share your coach link or try another berth type.",
+    "share": "Share",
+    "tryAnother": "Try another berth",
+    "secondTitle": "You got your 2nd choice",
+    "secondBody": "{name} can give you {berth}. Your 1st choice stays open until you pay.",
+    "acceptThis": "Accept this",
+    "keepWaiting": "Keep waiting",
+    "payCta": "Pay ₹99",
+    "acceptedCta": "Someone said yes. Pay ₹99 to lock it."
+  },
+  "updates": {
+    "title": "Updates",
+    "empty": "No updates yet. When someone says yes, it shows here.",
+    "markRead": "Mark all read",
+    "open": "Open"
+  },
+  "incoming": {
+    "title": "Swap request",
+    "giveGet": "You give {yours} · you get {theirs}",
+    "reason": "Reason: {reason}",
+    "earn": "Earn ₹50 credit · you pay nothing",
+    "privacy": "They see only your first name and initial, class, coach and berth type.",
+    "accept": "Accept",
+    "decline": "Decline",
+    "accepted": "Accepted. Waiting for them to pay.",
+    "declined": "Declined. You stay open to swap.",
+    "waiting": "{name} pays ₹99. You pay nothing.",
+    "backOut": "Back out",
+    "backOutDone": "You backed out. You stay open to swap.",
+    "faster": "Someone else was faster. You're still open to swap.",
+    "browserTitle": "Someone wants your berth",
+    "browserBody": "Sign in with Google to accept. You pay nothing.",
+    "signinToAccept": "Sign in to accept"
+  },
+  "share": {
+    "title": "Invite people on {train}",
+    "body": "Share this link anywhere. Others join from a simple browser page.",
+    "whatsapp": "WhatsApp",
+    "instagram": "Instagram",
+    "facebook": "Facebook",
+    "telegram": "Telegram",
+    "sms": "SMS",
+    "copy": "Copy link",
+    "copied": "Link copied.",
+    "qr": "Show QR",
+    "qrNote": "Others can scan this at the station.",
+    "native": "Share…",
+    "link": "Coach link"
+  },
+  "onboard": {
+    "title": "On the train now",
+    "body": "Live coach board until your stop. Showing open swappers near you.",
+    "tillStop": "Board stays live till {stop}.",
+    "onlyOpen": "Only travellers open to swap are shown.",
+    "youHere": "You are here",
+    "ask": "Ask",
+    "empty": "No one else is open near you right now."
+  },
+  "groups": {
+    "title": "Family trip",
+    "sub": "Link PNRs and see everyone in one place.",
+    "link": "Link a PNR",
+    "linked": "{n} trips linked",
+    "planTitle": "Seat everyone together",
+    "planBody": "One plan finds swaps for the whole group.",
+    "partial": "{done} of {total} together",
+    "pay199": "Pay ₹199 once for up to 3 swaps",
+    "paid": "Group plan paid. Up to 3 swaps covered.",
+    "parents": "Swapping for my parents",
+    "parentsBody": "You handle the chat. They get the Swap summary link.",
+    "organiser": "Organiser pays",
+    "create": "Make a family trip",
+    "created": "Family trip made.",
+    "addFirst": "Add your first PNR to start a family trip.",
+    "none": "No family trips yet."
+  },
+  "payments": {
+    "title": "Payments and receipts",
+    "empty": "No payments yet. You pay ₹99 only after someone accepts.",
+    "receipt": "Receipt {n}",
+    "paid": "Paid",
+    "toCredit": "Moved to credit",
+    "view": "View receipt",
+    "total": "Total ₹{amount}",
+    "demo": "This is a sample receipt on this device."
+  },
+  "settings": {
+    "title": "Settings",
+    "women": "Women only",
+    "womenBody": "Only get requests from women travellers.",
+    "families": "Families only",
+    "familiesBody": "Only get requests from families.",
+    "coach": "Same coach only",
+    "coachBody": "Only get requests from your coach.",
+    "pause": "Pause all requests",
+    "pauseBody": "You will not get new requests while paused.",
+    "max": "Most requests per day",
+    "maxBody": "How many new requests you can get each day.",
+    "saved": "Saved."
+  },
+  "help": {
+    "title": "Help",
+    "allowed": "Is swapping allowed?",
+    "allowedBody": "SeatSwap only helps passengers find each other. Any swap is your own agreement. Keep your original ticket and ID, and follow instructions from railway staff on board.",
+    "payQ": "When do I pay?",
+    "payABody": "Only after someone accepts. Sending requests is free. No payment timer.",
+    "creditQ": "Where does ₹99 go if we do not swap?",
+    "creditABody": "₹99 goes to your credit. Valid 12 months. Never cash.",
+    "pnrQ": "Is my PNR shown to others?",
+    "pnrABody": "Never. Others see only your first name and initial, class, coach and berth type.",
+    "contact": "Need more help? Write from your trip chat and we will reply as soon as we can."
+  },
+  "delete": {
+    "title": "Delete account",
+    "body": "This removes your trips and requests from this device. Your credit on this device is also removed. This cannot be undone.",
+    "confirm": "Yes, delete everything",
+    "done": "Deleted.",
+    "back": "Keep my account"
+  },
+  "goodbye": {
+    "title": "Account deleted",
+    "body": "Your data on this device is gone. You can add a PNR anytime to start again.",
+    "home": "Back to home"
+  },
+  "trainPage": {
+    "title": "Train {n}",
+    "layout": "Berth layout",
+    "body": "Coach map for train {n}. Exact berths are shared only after payment.",
+    "cta": "Add PNR to swap on this train",
+    "coaches": "Coaches",
+    "slNote": "Lower, Middle, Upper, Side lower, Side upper.",
+    "ccNote": "Chair car seats: Window, Aisle, Middle."
+  },
+  "easy": {
+    "title": "Easy mode",
+    "body": "Bigger text across the app. Good for parents and senior travellers.",
+    "on": "Easy mode on",
+    "off": "Easy mode off"
+  },
+  "growth": {
+    "installTitle": "Add SeatSwap to your home screen",
+    "installBody": "One tap to open your trips and Swap summary offline.",
+    "install": "Add to home screen",
+    "dismiss": "Later",
+    "installed": "Saved. Look for SeatSwap on your home screen.",
+    "chartTitle": "Chart is out",
+    "chartBody": "Your berths are final. Check your trip.",
+    "expiryTitle": "Credit ends in 30 days",
+    "expiryBody": "Use ₹{amount} credit before it ends. Credit is never cash.",
+    "berthCheck": "Free berth check by PNR",
+    "berthCheckBody": "Add a PNR to see your berth. No sign-in needed."
   }
 }
-

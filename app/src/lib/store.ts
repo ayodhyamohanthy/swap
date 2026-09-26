@@ -89,6 +89,13 @@ export interface LocalSettings {
   alerts_intent: boolean
   privacy_consented_at: string | null
   note_acknowledged_at: string | null
+  /** Acceptor filters (docs/04 B2, `settings` table in docs/02). */
+  women_only: boolean
+  families_only: boolean
+  same_coach_only: boolean
+  paused: boolean
+  max_requests_per_day: number
+  notify_push: boolean
 }
 
 export interface AppState {
@@ -156,6 +163,13 @@ function defaultSettings(): LocalSettings {
     alerts_intent: false,
     privacy_consented_at: null,
     note_acknowledged_at: null,
+    /* Acceptor filters (docs/04 B2). */
+    women_only: false,
+    families_only: false,
+    same_coach_only: false,
+    paused: false,
+    max_requests_per_day: 3,
+    notify_push: false,
   }
 }
 

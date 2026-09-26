@@ -9,6 +9,7 @@ const SeatSwapApp = (() => {
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const T = (k, v) => SeatSwapI18n.t(k, v);
   const SETUP = new Set(['language', 'note', 'privacy', 'alerts', 'signin', 'goodbye']);
+  const extra = {}; // screens registered by seatswap-screens*.js: {render(r)->{html,tab}, wire(el,r)}
 
   /* ---------- SVG artwork (design palette via tokens; no literal colors) ---------- */
   const IC = (inner) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
@@ -248,11 +249,22 @@ const SeatSwapApp = (() => {
     </main>`;
   }
   function signin() {
+    const real = (typeof SeatSwapAuth !== 'undefined' && SeatSwapAuth.realGoogle());
+    const demo = (typeof SeatSwapConfig === 'undefined' || SeatSwapConfig.demoAuth !== false);
     return `${innerHead()}<main class="body body--setup" style="padding-top:10px">
       <p class="wordmark wordmark--center">${esc(T('brand.wordmark'))}</p>
       <h1 class="h-title center" style="margin-top:26px">${esc(T('signin.title'))}</h1>
       <p class="subtitle center">${esc(T('signin.body'))}</p>
-      <button type="button" class="btn" id="googleBtn" disabled><span style="width:22px;height:22px;display:inline-flex">${Art.googleG}</span>${esc(T('signin.google'))}</button>
+      <div id="googleSlot" style="margin-top:14px"></div>
+      ${real ? '' : `<button type="button" class="btn btn--ghost" id="googleBtn" disabled><span style="width:22px;height:22px;display:inline-flex">${Art.googleG}</span>${esc(T('signin.google'))}</button>`}
+      ${demo ? `<form id="demoLogin" class="card" style="margin-top:10px">
+        <b>${esc(T('signin.demoTitle'))}</b>
+        <p class="fine">${esc(T('signin.demoBody'))}</p>
+        <label class="label" for="dName">${esc(T('signin.demoName'))}</label>
+        <input id="dName" class="input" autocomplete="given-name" placeholder="Ravi" />
+        <p class="err" id="dErr" role="alert" hidden></p>
+        <button class="btn" type="submit">${esc(T('common.continue'))}</button>
+      </form>` : ''}
       <p class="lockline">${Art.lock}<span>${esc(T('signin.safe'))} ${esc(T('signin.note'))}</span></p>
       ${footer(false)}</main>`;
   }
@@ -394,10 +406,10 @@ const SeatSwapApp = (() => {
         <span class="bsub">${esc(SeatSwapPNR.berthLabel(p.berth_type, t.class))} · ${esc(p.status)}</span></span>
       </section>
       ${wl}${quota}${child}${chairNote}${extra}
-      <a class="card card--peach banner" href="#/swaps" style="text-decoration:none;color:inherit">
+      <a class="card card--peach banner" href="#/onboard/${t.id}" style="text-decoration:none;color:inherit">
         <span class="tile tile--peach">${Art.people}</span>
         <span class="btxt"><b>${esc(T('trip.peopleWant', { n: 3 }))}</b></span>${Art.chevR}</a>
-      <a class="btn" href="#/signin">${esc(T('trip.ask'))}</a>
+      <a class="btn" href="#/request/new?trip=${t.id}">${esc(T('trip.ask'))}</a>
       <button type="button" class="btn btn--ghost" id="openBtn">${esc(T('trip.open'))}</button>
       <p class="fine" id="openState">${t.open_to_swap ? esc(T('trip.openOn')) : esc(T('trip.openOff'))} ${esc(T('trip.noReward'))}</p>
       <button type="button" class="linklike linklike--danger" id="rmBtn">${esc(T('trip.remove'))}</button>
@@ -423,18 +435,52 @@ const SeatSwapApp = (() => {
     function tConfirm() { return window.confirm(T('trip.remove') + '?'); }
   }
 
-  /* ---------- SWAPS (stub styled like design; live lists land in Step 4) ---------- */
+  /* ---------- SWAPS tab: outgoing + incoming + updates ---------- */
   function swaps() {
+    const E = (typeof SeatSwapEngine !== 'undefined' ? SeatSwapEngine : null);
+    let out = [], inc = [], unread = 0;
+    if (E && E.authed()) {
+      out = E.myRequests();
+      inc = E.incomingForMe();
+      unread = E.myNotifs().filter((n) => !n.read_at).length;
+    }
+    const statusPill = (s) => {
+      const map = { searching: 'Waiting for replies', accepted_awaiting_payment: 'Said yes · pay to lock', locked: 'Locked', confirmed: 'Swapped', voided: 'To credit', disputed: 'On hold', withdrawn: 'Withdrawn', expired: 'Expired' };
+      return `<span class="pill">${esc(map[s] || s)}</span>`;
+    };
+    const tripLine = (bookingId) => {
+      const t = SeatSwapStore.get(bookingId);
+      return t ? `${esc(t.train_no)} · ${esc(t.from_code || '')}→${esc(t.to_code || '')}` : '';
+    };
     return `${homeHead('gear')}<main class="body">
       <h1 class="h-title" style="margin-top:10px">${esc(T('swaps.title'))}</h1>
       <p class="subtitle">${esc(T('swaps.sub'))}</p>
-      <section class="card card--ghost center" style="margin-top:16px">
-        ${Art.scene}
+      <a class="card banner" href="#/updates" style="text-decoration:none;color:inherit">
+        <span class="tile">${Art.bell}</span>
+        <span class="btxt" style="flex:1"><b>${esc(T('updates.title'))}${unread ? ` (${unread})` : ''}</b>
+        <small>${esc(T('swaps.updates'))}</small></span>${Art.chevR}</a>
+      ${!E || !E.authed() ? `<section class="card card--ghost center">
         <b style="font-size:17px">${esc(T('swaps.none'))}</b>
         <p class="subtitle">${esc(T('swaps.empty'))}</p>
-        <a class="btn" href="#/trips/add">${esc(T('home.addPnr'))}</a>
-        <p class="fine">${esc(T('swaps.updates'))}</p>
-      </section>
+        <a class="btn" href="#/trips/add">${esc(T('home.addPnr'))}</a></section>` : ''}
+      ${E && E.authed() && inc.length ? `<div class="rowhead"><h2 class="h-section">${esc(T('incoming.title'))}</h2></div>` +
+        inc.map((o) => {
+          const r = E.getRequest(o.request_id);
+          return `<a class="card banner" href="#/incoming/${o.id}" style="text-decoration:none;color:inherit">
+            <span class="avatar">${esc((r.reason || 'S').slice(0, 1))}</span>
+            <span class="btxt" style="flex:1"><b>${esc(T('incoming.title'))}</b>
+            <small>${esc(tripLine(r.booking_id))} · ${esc((r.choices || []).join(' / '))}</small></span>${Art.chevR}</a>`;
+        }).join('') : ''}
+      ${E && E.authed() ? out.map((r) => {
+        const link = r.status === 'locked' || r.status === 'confirmed' ? '#/swaps/' + r.id : '#/request/' + r.id;
+        return `<a class="card banner" href="${link}" style="text-decoration:none;color:inherit">
+          <span class="tripthumb">${Art.train}</span>
+          <span class="btxt" style="flex:1"><b>${esc((r.choices || []).join(' / ') || T('swaps.title'))}</b>
+          <small>${esc(tripLine(r.booking_id))}</small><span>${statusPill(r.status)}</span></span>${Art.chevR}</a>`;
+      }).join('') || (E.authed() ? `<section class="card card--ghost center">
+        <b style="font-size:17px">${esc(T('swaps.none'))}</b>
+        <p class="subtitle">${esc(T('swaps.empty'))}</p>
+        <a class="btn" href="#/trips/add">${esc(T('home.addPnr'))}</a></section>` : '') : ''}
       ${footer(false)}</main>`;
   }
 
@@ -553,7 +599,8 @@ const SeatSwapApp = (() => {
   /* ---------- ROUTER ---------- */
   function route() {
     const h = location.hash || '#/';
-    const parts = h.replace(/^#\//, '').split('/');
+    const pathPart = h.split('?')[0];
+    const parts = pathPart.replace(/^#\//, '').split('/');
     if (h === '#/' || h === '') return { name: 'home' };
     if (parts[0] === 'welcome' && parts[1] === 'language') return { name: 'language' };
     if (parts[0] === 'welcome' && parts[1] === 'note') return { name: 'note' };
@@ -563,12 +610,46 @@ const SeatSwapApp = (() => {
     if (parts[0] === 'goodbye') return { name: 'goodbye' };
     if (parts[0] === 'trips' && parts[1] === 'add') return { name: 'add' };
     if (parts[0] === 'trips' && parts[1]) return { name: 'trip', id: decodeURIComponent(parts[1]) };
-    if (parts[0] === 'swaps') return { name: 'swaps' };
+    if (parts[0] === 'swaps' && !parts[1]) return { name: 'swaps' };
     if (parts[0] === 'profile' && parts[1] === 'settings') return { name: 'settings' };
     if (parts[0] === 'profile' && parts[1] === 'delete') return { name: 'delAccount' };
     if (parts[0] === 'profile') return { name: 'profile' };
     if (parts[0] === 'train' && parts[1]) return { name: 'train', n: decodeURIComponent(parts[1]) };
+    if (parts[0] === 's' && parts[1]) return { name: 'invite', code: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'request' && parts[1] === 'new') return { name: 'choices', trip: qs('trip'), req: qs('req'), want: qs('want') };
+    if (parts[0] === 'request' && parts[2] === 'matches') return { name: 'matches', id: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'request' && parts[1]) return { name: 'request', id: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'incoming' && parts[1]) return { name: 'incoming', id: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'updates') return { name: 'updates' };
+    if (parts[0] === 'pay' && parts[2] === 'method') return { name: 'paymethod', id: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'pay' && parts[2] === 'upi') return { name: 'payupi', id: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'pay' && parts[2] === 'paypal') return { name: 'paypaypal', id: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'pay' && parts[2] === 'status') return { name: 'paystatus', id: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'pay' && parts[2] === 'done') return { name: 'paydone', id: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'pay' && parts[1]) return { name: 'pay', id: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'swaps' && parts[2] === 'cancel') return { name: 'swapcancel', id: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'swaps' && parts[2] === 'meet') return { name: 'meet', id: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'swaps' && parts[2] === 'summary') return { name: 'summary', id: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'swaps' && parts[2] === 'confirm') return { name: 'confirm', id: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'swaps' && parts[2] === 'done') return { name: 'swapdone', id: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'swaps' && parts[2] === 'share') return { name: 'swapshare', id: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'swaps' && parts[2] === 'rate') return { name: 'rate', id: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'swaps' && parts[1]) return { name: 'swapdetail', id: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'chat' && parts[1]) return { name: 'chat', id: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'onboard' && parts[1]) return { name: 'onboard', id: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'groups' && parts[2] === 'plan') return { name: 'groupplan', id: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'groups' && parts[1]) return { name: 'group', id: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'groups') return { name: 'groups' };
+    if (parts[0] === 'admin' && parts[1]) return { name: 'admin_' + parts[1], q: qs('q') };
+    if (parts[0] === 'admin') return { name: 'admin' };
+    if (extra[parts[0]]) return { name: parts[0], arg: decodeURIComponent(parts[1] || '') };
     return { name: 'home' };
+  }
+  function qs(k) {
+    try {
+      const q = (location.hash.split('?')[1] || '');
+      return new URLSearchParams(q).get(k);
+    } catch { return null; }
   }
   function render() {
     const r = route();
@@ -591,9 +672,11 @@ const SeatSwapApp = (() => {
     else if (r.name === 'settings') { html = settings(); tab = 'profile'; }
     else if (r.name === 'delAccount') { html = delAccount(); tab = 'profile'; }
     else if (r.name === 'train') { html = trainPage(r.n); tab = 'home'; }
+    else if (extra[r.name]) { const e = extra[r.name].render(r); html = e.html; tab = e.tab || 'home'; }
     el.innerHTML = html;
     setTabs(tab);
     paintOffline();
+    if (extra[r.name] && extra[r.name].wire) { try { extra[r.name].wire(el, r); } catch (err) { console.warn(err); } }
     if (r.name === 'home') wireHome(el);
     if (r.name === 'language') {
       el.querySelectorAll('[data-lang]').forEach((b) => b.addEventListener('click', async () => {
@@ -619,9 +702,30 @@ const SeatSwapApp = (() => {
     }
     if (r.name === 'signin') {
       bindBack(el);
-      const g = el.querySelector('#googleBtn');
-      if (g) g.addEventListener('click', () => {
-        SeatSwapStore.logActivity('signin_deferred', { provider: 'google' });
+      try {
+        const slot = el.querySelector('#googleSlot');
+        if (slot && typeof SeatSwapAuth !== 'undefined') {
+          SeatSwapAuth.initGoogleButton(slot, (resp) => {
+            try {
+              const payload = JSON.parse(atob(String(resp.credential).split('.')[1]));
+              const nm = String(payload.given_name || payload.name || '').split(/\s+/);
+              SeatSwapEngine.signIn({ first_name: nm[0] || 'Traveller', last_initial: (nm[1] || '').slice(0, 1), via: 'google', sub: payload.sub });
+              SeatSwapAuth.afterLogin();
+            } catch { toast('Sign-in failed. Try again.'); }
+          });
+        }
+      } catch {}
+      const dl = el.querySelector('#demoLogin');
+      if (dl) dl.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const err = el.querySelector('#dErr');
+        try {
+          SeatSwapAuth.signInDemo(el.querySelector('#dName').value);
+          SeatSwapStore.markSeen('signedin');
+        } catch {
+          err.textContent = T('signin.demoName');
+          err.hidden = false;
+        }
       });
     }
     if (r.name === 'alerts') {
@@ -648,6 +752,14 @@ const SeatSwapApp = (() => {
   async function boot() {
     await SeatSwapI18n.init();
     SeatSwapI18n.applyStatic(document);
+    try { SeatSwapEngine.expireSweep(); SeatSwapEngine.autoConfirmSweep(); } catch {}
+    // install prompt: gentle card after first PNR add (capture event for later)
+    try {
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        window.__seatswapInstall = e;
+      });
+    } catch {}
     if (new URLSearchParams(location.search).get('sw') === 'off' && 'serviceWorker' in navigator) {
       try {
         const regs = await navigator.serviceWorker.getRegistrations();
@@ -665,5 +777,9 @@ const SeatSwapApp = (() => {
     }
     render();
   }
-  return { boot, render, route };
+  const api = { boot, render, route };
+  api.screen = (name, def) => { extra[name] = def; };
+  api.helpers = { esc, Art, innerHead, homeHead, footer, fmtDate, bindBack, offlineBar, paintOffline };
+  api.T = T;
+  return api;
 })();

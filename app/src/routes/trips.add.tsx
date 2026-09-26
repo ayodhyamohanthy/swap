@@ -28,9 +28,14 @@ import { StoreError, addTrip, logActivity } from '@/lib/store'
    Several passengers per PNR are supported; a child without berth is counted in
    the group and never offered (docs/04 A4). */
 
+export interface TripsAddSearch {
+  pnr?: string
+  paste?: 'sms'
+}
+
 export const Route = createFileRoute('/trips/add')({
   staticData: { chrome: 'plain' } satisfies RouteChrome,
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (search: Record<string, unknown>): TripsAddSearch => ({
     pnr: typeof search.pnr === 'string' ? search.pnr.replace(/\D/g, '').slice(0, 10) : undefined,
     paste: search.paste === 'sms' ? ('sms' as const) : undefined,
   }),
@@ -74,7 +79,6 @@ function AddTripScreen() {
   const [sms, setSms] = useState('')
   const [pnr, setPnr] = useState(search.pnr ?? '')
   const [trainNo, setTrainNo] = useState('')
-  const [trainName, setTrainName] = useState('')
   const [travelDate, setTravelDate] = useState('')
   const [fromCode, setFromCode] = useState('')
   const [toCode, setToCode] = useState('')
@@ -143,7 +147,6 @@ function AddTripScreen() {
       const trip = await addTrip({
         pnr: digits,
         train_no: trainNo,
-        train_name: trainName,
         journey_date: travelDate,
         from_code: fromCode,
         to_code: toCode,

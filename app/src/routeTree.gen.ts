@@ -13,12 +13,25 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as SigninRouteImport } from './routes/signin'
 import { Route as SwapsRouteImport } from './routes/swaps'
+import { Route as UpdatesRouteImport } from './routes/updates'
+import { Route as ChatIdRouteImport } from './routes/chat.$id'
+import { Route as IncomingIdRouteImport } from './routes/incoming.$id'
+import { Route as PayRequestIdRouteImport } from './routes/pay.$requestId'
+import { Route as RequestIdRouteImport } from './routes/request.$id'
+import { Route as RequestNewRouteImport } from './routes/request.new'
 import { Route as TripsTripIdRouteImport } from './routes/trips.$tripId'
 import { Route as TripsAddRouteImport } from './routes/trips.add'
 import { Route as WelcomeAlertsRouteImport } from './routes/welcome.alerts'
 import { Route as WelcomeLanguageRouteImport } from './routes/welcome.language'
 import { Route as WelcomeNoteRouteImport } from './routes/welcome.note'
 import { Route as WelcomePrivacyRouteImport } from './routes/welcome.privacy'
+import { Route as PayRequestIdDoneRouteImport } from './routes/pay.$requestId.done'
+import { Route as PayRequestIdMethodRouteImport } from './routes/pay.$requestId.method'
+import { Route as PayRequestIdStatusRouteImport } from './routes/pay.$requestId.status'
+import { Route as RequestIdMatchesRouteImport } from './routes/request.$id.matches'
+import { Route as SwapsIdConfirmRouteImport } from './routes/swaps.$id.confirm'
+import { Route as SwapsIdDoneRouteImport } from './routes/swaps.$id.done'
+import { Route as SwapsIdSummaryRouteImport } from './routes/swaps.$id.summary'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -38,6 +51,36 @@ const SigninRoute = SigninRouteImport.update({
 const SwapsRoute = SwapsRouteImport.update({
   id: '/swaps',
   path: '/swaps',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UpdatesRoute = UpdatesRouteImport.update({
+  id: '/updates',
+  path: '/updates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatIdRoute = ChatIdRouteImport.update({
+  id: '/chat/$id',
+  path: '/chat/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IncomingIdRoute = IncomingIdRouteImport.update({
+  id: '/incoming/$id',
+  path: '/incoming/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PayRequestIdRoute = PayRequestIdRouteImport.update({
+  id: '/pay/$requestId',
+  path: '/pay/$requestId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RequestIdRoute = RequestIdRouteImport.update({
+  id: '/request/$id',
+  path: '/request/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RequestNewRoute = RequestNewRouteImport.update({
+  id: '/request/new',
+  path: '/request/new',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TripsTripIdRoute = TripsTripIdRouteImport.update({
@@ -70,43 +113,117 @@ const WelcomePrivacyRoute = WelcomePrivacyRouteImport.update({
   path: '/welcome/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PayRequestIdDoneRoute = PayRequestIdDoneRouteImport.update({
+  id: '/done',
+  path: '/done',
+  getParentRoute: () => PayRequestIdRoute,
+} as any)
+const PayRequestIdMethodRoute = PayRequestIdMethodRouteImport.update({
+  id: '/method',
+  path: '/method',
+  getParentRoute: () => PayRequestIdRoute,
+} as any)
+const PayRequestIdStatusRoute = PayRequestIdStatusRouteImport.update({
+  id: '/status',
+  path: '/status',
+  getParentRoute: () => PayRequestIdRoute,
+} as any)
+const RequestIdMatchesRoute = RequestIdMatchesRouteImport.update({
+  id: '/matches',
+  path: '/matches',
+  getParentRoute: () => RequestIdRoute,
+} as any)
+const SwapsIdConfirmRoute = SwapsIdConfirmRouteImport.update({
+  id: '/$id/confirm',
+  path: '/$id/confirm',
+  getParentRoute: () => SwapsRoute,
+} as any)
+const SwapsIdDoneRoute = SwapsIdDoneRouteImport.update({
+  id: '/$id/done',
+  path: '/$id/done',
+  getParentRoute: () => SwapsRoute,
+} as any)
+const SwapsIdSummaryRoute = SwapsIdSummaryRouteImport.update({
+  id: '/$id/summary',
+  path: '/$id/summary',
+  getParentRoute: () => SwapsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/profile': typeof ProfileRoute
   '/signin': typeof SigninRoute
-  '/swaps': typeof SwapsRoute
+  '/swaps': typeof SwapsRouteWithChildren
+  '/updates': typeof UpdatesRoute
+  '/chat/$id': typeof ChatIdRoute
+  '/incoming/$id': typeof IncomingIdRoute
+  '/pay/$requestId': typeof PayRequestIdRouteWithChildren
+  '/request/$id': typeof RequestIdRouteWithChildren
+  '/request/new': typeof RequestNewRoute
   '/trips/$tripId': typeof TripsTripIdRoute
   '/trips/add': typeof TripsAddRoute
   '/welcome/alerts': typeof WelcomeAlertsRoute
   '/welcome/language': typeof WelcomeLanguageRoute
   '/welcome/note': typeof WelcomeNoteRoute
   '/welcome/privacy': typeof WelcomePrivacyRoute
+  '/pay/$requestId/done': typeof PayRequestIdDoneRoute
+  '/pay/$requestId/method': typeof PayRequestIdMethodRoute
+  '/pay/$requestId/status': typeof PayRequestIdStatusRoute
+  '/request/$id/matches': typeof RequestIdMatchesRoute
+  '/swaps/$id/confirm': typeof SwapsIdConfirmRoute
+  '/swaps/$id/done': typeof SwapsIdDoneRoute
+  '/swaps/$id/summary': typeof SwapsIdSummaryRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/profile': typeof ProfileRoute
   '/signin': typeof SigninRoute
-  '/swaps': typeof SwapsRoute
+  '/swaps': typeof SwapsRouteWithChildren
+  '/updates': typeof UpdatesRoute
+  '/chat/$id': typeof ChatIdRoute
+  '/incoming/$id': typeof IncomingIdRoute
+  '/pay/$requestId': typeof PayRequestIdRouteWithChildren
+  '/request/$id': typeof RequestIdRouteWithChildren
+  '/request/new': typeof RequestNewRoute
   '/trips/$tripId': typeof TripsTripIdRoute
   '/trips/add': typeof TripsAddRoute
   '/welcome/alerts': typeof WelcomeAlertsRoute
   '/welcome/language': typeof WelcomeLanguageRoute
   '/welcome/note': typeof WelcomeNoteRoute
   '/welcome/privacy': typeof WelcomePrivacyRoute
+  '/pay/$requestId/done': typeof PayRequestIdDoneRoute
+  '/pay/$requestId/method': typeof PayRequestIdMethodRoute
+  '/pay/$requestId/status': typeof PayRequestIdStatusRoute
+  '/request/$id/matches': typeof RequestIdMatchesRoute
+  '/swaps/$id/confirm': typeof SwapsIdConfirmRoute
+  '/swaps/$id/done': typeof SwapsIdDoneRoute
+  '/swaps/$id/summary': typeof SwapsIdSummaryRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/profile': typeof ProfileRoute
   '/signin': typeof SigninRoute
-  '/swaps': typeof SwapsRoute
+  '/swaps': typeof SwapsRouteWithChildren
+  '/updates': typeof UpdatesRoute
+  '/chat/$id': typeof ChatIdRoute
+  '/incoming/$id': typeof IncomingIdRoute
+  '/pay/$requestId': typeof PayRequestIdRouteWithChildren
+  '/request/$id': typeof RequestIdRouteWithChildren
+  '/request/new': typeof RequestNewRoute
   '/trips/$tripId': typeof TripsTripIdRoute
   '/trips/add': typeof TripsAddRoute
   '/welcome/alerts': typeof WelcomeAlertsRoute
   '/welcome/language': typeof WelcomeLanguageRoute
   '/welcome/note': typeof WelcomeNoteRoute
   '/welcome/privacy': typeof WelcomePrivacyRoute
+  '/pay/$requestId/done': typeof PayRequestIdDoneRoute
+  '/pay/$requestId/method': typeof PayRequestIdMethodRoute
+  '/pay/$requestId/status': typeof PayRequestIdStatusRoute
+  '/request/$id/matches': typeof RequestIdMatchesRoute
+  '/swaps/$id/confirm': typeof SwapsIdConfirmRoute
+  '/swaps/$id/done': typeof SwapsIdDoneRoute
+  '/swaps/$id/summary': typeof SwapsIdSummaryRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -115,43 +232,88 @@ export interface FileRouteTypes {
     | '/profile'
     | '/signin'
     | '/swaps'
+    | '/updates'
+    | '/chat/$id'
+    | '/incoming/$id'
+    | '/pay/$requestId'
+    | '/request/$id'
+    | '/request/new'
     | '/trips/$tripId'
     | '/trips/add'
     | '/welcome/alerts'
     | '/welcome/language'
     | '/welcome/note'
     | '/welcome/privacy'
+    | '/pay/$requestId/done'
+    | '/pay/$requestId/method'
+    | '/pay/$requestId/status'
+    | '/request/$id/matches'
+    | '/swaps/$id/confirm'
+    | '/swaps/$id/done'
+    | '/swaps/$id/summary'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/profile'
     | '/signin'
     | '/swaps'
+    | '/updates'
+    | '/chat/$id'
+    | '/incoming/$id'
+    | '/pay/$requestId'
+    | '/request/$id'
+    | '/request/new'
     | '/trips/$tripId'
     | '/trips/add'
     | '/welcome/alerts'
     | '/welcome/language'
     | '/welcome/note'
     | '/welcome/privacy'
+    | '/pay/$requestId/done'
+    | '/pay/$requestId/method'
+    | '/pay/$requestId/status'
+    | '/request/$id/matches'
+    | '/swaps/$id/confirm'
+    | '/swaps/$id/done'
+    | '/swaps/$id/summary'
   id:
     | '__root__'
     | '/'
     | '/profile'
     | '/signin'
     | '/swaps'
+    | '/updates'
+    | '/chat/$id'
+    | '/incoming/$id'
+    | '/pay/$requestId'
+    | '/request/$id'
+    | '/request/new'
     | '/trips/$tripId'
     | '/trips/add'
     | '/welcome/alerts'
     | '/welcome/language'
     | '/welcome/note'
     | '/welcome/privacy'
+    | '/pay/$requestId/done'
+    | '/pay/$requestId/method'
+    | '/pay/$requestId/status'
+    | '/request/$id/matches'
+    | '/swaps/$id/confirm'
+    | '/swaps/$id/done'
+    | '/swaps/$id/summary'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ProfileRoute: typeof ProfileRoute
   SigninRoute: typeof SigninRoute
-  SwapsRoute: typeof SwapsRoute
+  SwapsRoute: typeof SwapsRouteWithChildren
+  UpdatesRoute: typeof UpdatesRoute
+  ChatIdRoute: typeof ChatIdRoute
+  IncomingIdRoute: typeof IncomingIdRoute
+  PayRequestIdRoute: typeof PayRequestIdRouteWithChildren
+  RequestIdRoute: typeof RequestIdRouteWithChildren
+  RequestNewRoute: typeof RequestNewRoute
   TripsTripIdRoute: typeof TripsTripIdRoute
   TripsAddRoute: typeof TripsAddRoute
   WelcomeAlertsRoute: typeof WelcomeAlertsRoute
@@ -188,6 +350,48 @@ declare module '@tanstack/react-router' {
       path: '/swaps'
       fullPath: '/swaps'
       preLoaderRoute: typeof SwapsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/updates': {
+      id: '/updates'
+      path: '/updates'
+      fullPath: '/updates'
+      preLoaderRoute: typeof UpdatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chat/$id': {
+      id: '/chat/$id'
+      path: '/chat/$id'
+      fullPath: '/chat/$id'
+      preLoaderRoute: typeof ChatIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/incoming/$id': {
+      id: '/incoming/$id'
+      path: '/incoming/$id'
+      fullPath: '/incoming/$id'
+      preLoaderRoute: typeof IncomingIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pay/$requestId': {
+      id: '/pay/$requestId'
+      path: '/pay/$requestId'
+      fullPath: '/pay/$requestId'
+      preLoaderRoute: typeof PayRequestIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/request/$id': {
+      id: '/request/$id'
+      path: '/request/$id'
+      fullPath: '/request/$id'
+      preLoaderRoute: typeof RequestIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/request/new': {
+      id: '/request/new'
+      path: '/request/new'
+      fullPath: '/request/new'
+      preLoaderRoute: typeof RequestNewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/trips/$tripId': {
@@ -232,14 +436,111 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WelcomePrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pay/$requestId/done': {
+      id: '/pay/$requestId/done'
+      path: '/done'
+      fullPath: '/pay/$requestId/done'
+      preLoaderRoute: typeof PayRequestIdDoneRouteImport
+      parentRoute: typeof PayRequestIdRoute
+    }
+    '/pay/$requestId/method': {
+      id: '/pay/$requestId/method'
+      path: '/method'
+      fullPath: '/pay/$requestId/method'
+      preLoaderRoute: typeof PayRequestIdMethodRouteImport
+      parentRoute: typeof PayRequestIdRoute
+    }
+    '/pay/$requestId/status': {
+      id: '/pay/$requestId/status'
+      path: '/status'
+      fullPath: '/pay/$requestId/status'
+      preLoaderRoute: typeof PayRequestIdStatusRouteImport
+      parentRoute: typeof PayRequestIdRoute
+    }
+    '/request/$id/matches': {
+      id: '/request/$id/matches'
+      path: '/matches'
+      fullPath: '/request/$id/matches'
+      preLoaderRoute: typeof RequestIdMatchesRouteImport
+      parentRoute: typeof RequestIdRoute
+    }
+    '/swaps/$id/confirm': {
+      id: '/swaps/$id/confirm'
+      path: '/$id/confirm'
+      fullPath: '/swaps/$id/confirm'
+      preLoaderRoute: typeof SwapsIdConfirmRouteImport
+      parentRoute: typeof SwapsRoute
+    }
+    '/swaps/$id/done': {
+      id: '/swaps/$id/done'
+      path: '/$id/done'
+      fullPath: '/swaps/$id/done'
+      preLoaderRoute: typeof SwapsIdDoneRouteImport
+      parentRoute: typeof SwapsRoute
+    }
+    '/swaps/$id/summary': {
+      id: '/swaps/$id/summary'
+      path: '/$id/summary'
+      fullPath: '/swaps/$id/summary'
+      preLoaderRoute: typeof SwapsIdSummaryRouteImport
+      parentRoute: typeof SwapsRoute
+    }
   }
 }
+
+interface SwapsRouteChildren {
+  SwapsIdConfirmRoute: typeof SwapsIdConfirmRoute
+  SwapsIdDoneRoute: typeof SwapsIdDoneRoute
+  SwapsIdSummaryRoute: typeof SwapsIdSummaryRoute
+}
+
+const SwapsRouteChildren: SwapsRouteChildren = {
+  SwapsIdConfirmRoute: SwapsIdConfirmRoute,
+  SwapsIdDoneRoute: SwapsIdDoneRoute,
+  SwapsIdSummaryRoute: SwapsIdSummaryRoute,
+}
+
+const SwapsRouteWithChildren = SwapsRoute._addFileChildren(SwapsRouteChildren)
+
+interface PayRequestIdRouteChildren {
+  PayRequestIdDoneRoute: typeof PayRequestIdDoneRoute
+  PayRequestIdMethodRoute: typeof PayRequestIdMethodRoute
+  PayRequestIdStatusRoute: typeof PayRequestIdStatusRoute
+}
+
+const PayRequestIdRouteChildren: PayRequestIdRouteChildren = {
+  PayRequestIdDoneRoute: PayRequestIdDoneRoute,
+  PayRequestIdMethodRoute: PayRequestIdMethodRoute,
+  PayRequestIdStatusRoute: PayRequestIdStatusRoute,
+}
+
+const PayRequestIdRouteWithChildren = PayRequestIdRoute._addFileChildren(
+  PayRequestIdRouteChildren,
+)
+
+interface RequestIdRouteChildren {
+  RequestIdMatchesRoute: typeof RequestIdMatchesRoute
+}
+
+const RequestIdRouteChildren: RequestIdRouteChildren = {
+  RequestIdMatchesRoute: RequestIdMatchesRoute,
+}
+
+const RequestIdRouteWithChildren = RequestIdRoute._addFileChildren(
+  RequestIdRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ProfileRoute: ProfileRoute,
   SigninRoute: SigninRoute,
-  SwapsRoute: SwapsRoute,
+  SwapsRoute: SwapsRouteWithChildren,
+  UpdatesRoute: UpdatesRoute,
+  ChatIdRoute: ChatIdRoute,
+  IncomingIdRoute: IncomingIdRoute,
+  PayRequestIdRoute: PayRequestIdRouteWithChildren,
+  RequestIdRoute: RequestIdRouteWithChildren,
+  RequestNewRoute: RequestNewRoute,
   TripsTripIdRoute: TripsTripIdRoute,
   TripsAddRoute: TripsAddRoute,
   WelcomeAlertsRoute: WelcomeAlertsRoute,

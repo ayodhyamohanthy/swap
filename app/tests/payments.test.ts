@@ -1,0 +1,72 @@
+/* Quote + receipt + pay-state machine + outcome-to-credit (rules 1-6, 9). */
+import { describe, expect, it } from 'vitest'
+import { GROUP_PRICE_PAISE, PRICE_PAISE } from '@/lib/money'
+import { buildQuote, nextPayState, outcomeToCredit, receiptNumber, splitReceipt } from '@/lib/payments'
+
+describe('buildQuote', () => {
+  it('charges full price with no credit', () => {
+    expect(buildQuote(0)).toEqual({ total: 9900, creditUsed: 0, due: 9900, provider: null })
+  })
+  it('applies partial credit and still needs a provider', () => {
+    expect(buildQuote(3000)).toEqual({ total: 9900, creditUsed: 3000, due: 6900, provider: null })
+  })
+  it('covers the full price by credit with no provider', () => {
+    expect(buildQuote(9900)).toEqual({ total: 9900, creditUsed: 9900, due: 0, provider: 'credit' })
+    expect(buildQuote(20000).provider).toBe('credit')
+  })
+  it('quotes the group price', () => {
+    const q = buildQuote(0, true)
+    expect(q.total).toBe(GROUP_PRICE_PAISE)
+    expect(q.due).toBe(GROUP_PRICE_PAISE)
+  })
+  it('clamps bad input to zero credit', () => {
+    expect(buildQuote(-500).creditUsed).toBe(0)
+    expect(buildQuote(Number.NaN).creditUsed).toBe(0)
+  })
+})
+describe('splitReceipt', () => {
+  it('lists fee 4900 + thank-you 5000 = 9900', () => {
+    const r = splitReceipt(9900, 0)
+    expect(r.total).toBe(PRICE_PAISE)
+    expect(r.lines.find((l) => l.label === 'fee')?.amountPaise).toBe(4900)
+    expect(r.lines.find((l) => l.label === 'thank_you')?.amountPaise).toBe(5000)
+  })
+  it('shows credit used when applied', () => {
+    const r = splitReceipt(6900, 3000)
+    expect(r.lines.find((l) => l.label === 'credit_used')?.amountPaise).toBe(-3000)
+    expect(r.total).toBe(9900)
+  })
+})
+describe('nextPayState', () => {
+  it('walks created->pending->paid', () => {
+    expect(nextPayState('created', 'authorize')).toBe('pending')
+    expect(nextPayState('pending', 'capture')).toBe('paid')
+  })
+  it('fails from created or pending', () => {
+    expect(nextPayState('created', 'fail')).toBe('failed')
+    expect(nextPayState('pending', 'fail')).toBe('failed')
+  })
+  it('keeps terminal states', () => {
+    expect(nextPayState('paid', 'fail')).toBe('paid')
+    expect(nextPayState('failed', 'capture')).toBe('failed')
+  })
+})
+describe('outcomeToCredit', () => {
+  it('awards nothing when swapped', () => {
+    expect(outcomeToCredit('swapped').amountPaise).toBe(0)
+  })
+  it('moves 9900 to requester credit when the swap did not happen', () => {
+    for (const o of ['no_show', 'not_possible', 'changed_mind'] as const) {
+      const c = outcomeToCredit(o)
+      expect(c).toMatchObject({ to: 'requester', amountPaise: 9900, kind: 'swap_to_credit', expiresMonths: 12 })
+    }
+  })
+  it('never refunds to bank except bank failure', () => {
+    expect(outcomeToCredit('failed_bank').amountPaise).toBe(0)
+  })
+})
+describe('receiptNumber', () => {
+  it('formats SS-#####', () => {
+    expect(receiptNumber(10482)).toMatch(/^SS-\d{5}$/)
+  })
+})
