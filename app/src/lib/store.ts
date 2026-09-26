@@ -472,6 +472,59 @@ export function creditPaise(): number {
   }, 0)
 }
 
+export interface CreditInput {
+  to: 'requester' | 'acceptor'
+  /** Always positive paise. Credit is a balance, never a payout. */
+  amountPaise: number
+  kind: 'acceptor_credit' | 'swap_to_credit'
+  ref_request_id?: string | null
+  /**
+   * Accepted only so `outcomes.CreditWrite` is assignable. The stored expiry is
+   * always recomputed as 12 months out (rule 4) — callers cannot shorten or
+   * extend credit life by passing this.
+   */
+  expiresMonths?: number
+  /** Defaults to 12 months out — credit expires and is never cash (rule 4). */
+  expires_at?: string | null
+}
+
+/**
+ * The ONLY way credit enters the ledger (`wallet_tx`, docs/02).
+ *
+ * Two callers, and nothing else:
+ * - the acceptor earns ₹50 when a swap is confirmed as done (rules 3, 5)
+ * - a swap that did not happen moves the requester's ₹99 in here, which is
+ *   never a bank refund (rule 6)
+ *
+ * The shape matches `CreditWrite` from `@/lib/outcomes`, so a resolved swap can
+ * be applied directly: `resolveConfirmations(...).credits.forEach(credit)`.
+ * There is deliberately no "withdraw" or "refund" counterpart. Every write also
+ * appends an activity_log row.
+ */
+export function credit(input: CreditInput): WalletTx {
+  if (!Number.isInteger(input.amountPaise) || input.amountPaise <= 0) {
+    throw new Error('credit_amount_must_be_positive_paise')
+  }
+  const expires = new Date()
+  expires.setMonth(expires.getMonth() + 12)
+  const row: WalletTx = {
+    id: uid(),
+    user_id: snapshot.settings.user_id,
+    amount_paise: input.amountPaise,
+    kind: input.kind,
+    ref_request_id: input.ref_request_id ?? null,
+    expires_at: input.expires_at ?? expires.toISOString(),
+    created_at: new Date().toISOString(),
+  }
+  commit({ ...snapshot, wallet: [...snapshot.wallet, row] })
+  logActivity(
+    'credit_added',
+    { to: input.to, amount_paise: input.amountPaise, kind: input.kind },
+    { type: 'wallet_tx', id: row.id },
+  )
+  return row
+}
+
 /**
  * Step 3: attach local (signed-out) trips to the account that just signed in.
  * Returns the rows that still need to be pushed to the server.

@@ -1,10 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
 import type { RouteChrome } from '@/components/app-shell'
-import { Card, CardTitle } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/lib/i18n'
-import { logActivity, updateSettings, useSettings } from '@/lib/use-store-helpers'
+import { logActivity, updateSettings } from '@/lib/store'
+import { useSettings } from '@/lib/use-store'
 
 /* Screen 60 "Settings" (design 21c): acceptor filters (docs/04 B2) — women
    only, families only, same coach, pause, max per day. Saved locally and

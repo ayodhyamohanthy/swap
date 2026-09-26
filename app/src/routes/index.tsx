@@ -2,6 +2,7 @@ import { Link, createFileRoute, redirect, useNavigate } from '@tanstack/react-ro
 import { FileText, Gift, Lock, Plus } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { AppFooter, type RouteChrome } from '@/components/app-shell'
+import { InstallPrompt } from '@/components/install-prompt'
 import { TripCard } from '@/components/trip-card'
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
@@ -113,6 +114,8 @@ function HomeScreen() {
           ))}
         </section>
       ) : null}
+
+      <InstallPrompt />
 
       <AppFooter />
 

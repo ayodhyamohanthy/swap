@@ -1,9 +1,18 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
-import { Bell, Coins, Globe, HelpCircle, ShieldCheck, User } from 'lucide-react'
-import { useState } from 'react'
+import {
+  Bell,
+  Coins,
+  Globe,
+  HelpCircle,
+  Receipt,
+  ShieldCheck,
+  SlidersHorizontal,
+  Trash2,
+  Type,
+  User,
+} from 'lucide-react'
 import { AppFooter, type RouteChrome } from '@/components/app-shell'
-import { Button } from '@/components/ui/button'
-import { Card, CardBody, CardTitle } from '@/components/ui/card'
+import { Card, CardBody } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { LANGUAGES, useI18n } from '@/lib/i18n'
 import { useCreditPaise, useTrips } from '@/lib/use-store'
@@ -20,7 +29,6 @@ function ProfileScreen() {
   const { t, lang, easy, setEasy } = useI18n()
   const creditPaise = useCreditPaise()
   const trips = useTrips()
-  const [showHelp, setShowHelp] = useState(false)
 
   const languageName = LANGUAGES.find((option) => option.code === lang)?.native ?? 'English'
 
@@ -71,18 +79,19 @@ function ProfileScreen() {
           <span className="text-caption text-muted">{languageName}</span>
         </Link>
 
-        <div className="flex min-h-14 items-center gap-3 border-b border-line px-4">
+        <Link
+          to="/profile/easy"
+          className="flex min-h-14 items-center gap-3 border-b border-line px-4"
+        >
           <span className="text-primary">
-            <span aria-hidden className="font-head text-section">
-              Aa
-            </span>
+            <Type aria-hidden className="size-5" />
           </span>
           <span className="flex-1">
             <span className="block text-body text-ink">{t('profile.easy')}</span>
             <span className="block text-caption text-muted">{t('profile.easyBody')}</span>
           </span>
           <Switch checked={easy} aria-label={t('profile.easy')} onCheckedChange={setEasy} />
-        </div>
+        </Link>
 
         <Link
           to="/welcome/alerts"
@@ -101,24 +110,46 @@ function ProfileScreen() {
           <span className="flex-1 text-body text-ink">{t('privacy.title')}</span>
         </Link>
 
-        <Button
-          variant="ghost"
-          className="min-h-14 justify-start rounded-none px-4 font-body text-body font-normal"
-          onClick={() => setShowHelp((open) => !open)}
+        <Link
+          to="/profile/payments"
+          className="flex min-h-14 items-center gap-3 border-b border-line px-4"
+        >
+          <span className="text-primary">
+            <Receipt aria-hidden className="size-5" />
+          </span>
+          <span className="flex-1 text-body text-ink">{t('profile.payments')}</span>
+        </Link>
+
+        <Link
+          to="/profile/settings"
+          className="flex min-h-14 items-center gap-3 border-b border-line px-4"
+        >
+          <span className="text-primary">
+            <SlidersHorizontal aria-hidden className="size-5" />
+          </span>
+          <span className="flex-1 text-body text-ink">{t('profile.settings')}</span>
+        </Link>
+
+        <Link
+          to="/profile/help"
+          className="flex min-h-14 items-center gap-3 border-b border-line px-4"
         >
           <span className="text-primary">
             <HelpCircle aria-hidden className="size-5" />
           </span>
-          <span className="flex-1 text-left text-ink">{t('profile.help')}</span>
-        </Button>
-      </div>
+          <span className="flex-1 text-body text-ink">{t('profile.help')}</span>
+        </Link>
 
-      {showHelp ? (
-        <Card className="mt-3">
-          <CardTitle>{t('profile.help')}</CardTitle>
-          <CardBody>{t('profile.helpBody')}</CardBody>
-        </Card>
-      ) : null}
+        <Link
+          to="/profile/delete"
+          className="flex min-h-14 items-center gap-3 border-b border-line px-4"
+        >
+          <span className="text-danger">
+            <Trash2 aria-hidden className="size-5" />
+          </span>
+          <span className="flex-1 text-body text-danger">{t('profile.delete')}</span>
+        </Link>
+      </div>
 
       <p className="mt-4 text-caption text-muted">{t('profile.dataNote')}</p>
 

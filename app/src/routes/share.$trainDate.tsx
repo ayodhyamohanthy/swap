@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { Check, Copy, QrCode, Share2 } from 'lucide-react'
+import { Copy, QrCode, Share2 } from 'lucide-react'
 import { useState } from 'react'
 import type { RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'

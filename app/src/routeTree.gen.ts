@@ -10,24 +10,45 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as GoodbyeRouteImport } from './routes/goodbye'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as SigninRouteImport } from './routes/signin'
 import { Route as SwapsRouteImport } from './routes/swaps'
 import { Route as UpdatesRouteImport } from './routes/updates'
+import { Route as AdminIndexRouteImport } from './routes/admin._index'
+import { Route as AdminActivityRouteImport } from './routes/admin.activity'
+import { Route as AdminCreditsRouteImport } from './routes/admin.credits'
+import { Route as AdminPaymentsRouteImport } from './routes/admin.payments'
+import { Route as AdminReportsRouteImport } from './routes/admin.reports'
+import { Route as AdminSwapsRouteImport } from './routes/admin.swaps'
+import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as ChatIdRouteImport } from './routes/chat.$id'
+import { Route as GroupsIdRouteImport } from './routes/groups.$id'
 import { Route as IncomingIdRouteImport } from './routes/incoming.$id'
+import { Route as OnboardTripIdRouteImport } from './routes/onboard.$tripId'
 import { Route as PayRequestIdRouteImport } from './routes/pay.$requestId'
+import { Route as ProfileDeleteRouteImport } from './routes/profile.delete'
+import { Route as ProfileEasyRouteImport } from './routes/profile.easy'
+import { Route as ProfileHelpRouteImport } from './routes/profile.help'
+import { Route as ProfilePaymentsRouteImport } from './routes/profile.payments'
+import { Route as ProfileSettingsRouteImport } from './routes/profile.settings'
 import { Route as RequestIdRouteImport } from './routes/request.$id'
 import { Route as RequestNewRouteImport } from './routes/request.new'
+import { Route as SCodeRouteImport } from './routes/s.$code'
+import { Route as ShareTrainDateRouteImport } from './routes/share.$trainDate'
+import { Route as TrainNumberRouteImport } from './routes/train.$number'
 import { Route as TripsTripIdRouteImport } from './routes/trips.$tripId'
 import { Route as TripsAddRouteImport } from './routes/trips.add'
 import { Route as WelcomeAlertsRouteImport } from './routes/welcome.alerts'
 import { Route as WelcomeLanguageRouteImport } from './routes/welcome.language'
 import { Route as WelcomeNoteRouteImport } from './routes/welcome.note'
 import { Route as WelcomePrivacyRouteImport } from './routes/welcome.privacy'
+import { Route as GroupsIdPlanRouteImport } from './routes/groups.$id.plan'
 import { Route as PayRequestIdDoneRouteImport } from './routes/pay.$requestId.done'
 import { Route as PayRequestIdMethodRouteImport } from './routes/pay.$requestId.method'
 import { Route as PayRequestIdStatusRouteImport } from './routes/pay.$requestId.status'
+import { Route as ProfilePaymentsIdRouteImport } from './routes/profile.payments.$id'
 import { Route as RequestIdMatchesRouteImport } from './routes/request.$id.matches'
 import { Route as SwapsIdConfirmRouteImport } from './routes/swaps.$id.confirm'
 import { Route as SwapsIdDoneRouteImport } from './routes/swaps.$id.done'
@@ -36,6 +57,16 @@ import { Route as SwapsIdSummaryRouteImport } from './routes/swaps.$id.summary'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GoodbyeRoute = GoodbyeRouteImport.update({
+  id: '/goodbye',
+  path: '/goodbye',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileRoute = ProfileRouteImport.update({
@@ -58,9 +89,48 @@ const UpdatesRoute = UpdatesRouteImport.update({
   path: '/updates',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/_index',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminActivityRoute = AdminActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminCreditsRoute = AdminCreditsRouteImport.update({
+  id: '/credits',
+  path: '/credits',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminPaymentsRoute = AdminPaymentsRouteImport.update({
+  id: '/payments',
+  path: '/payments',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminReportsRoute = AdminReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminSwapsRoute = AdminSwapsRouteImport.update({
+  id: '/swaps',
+  path: '/swaps',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminUsersRoute = AdminUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AdminRoute,
+} as any)
 const ChatIdRoute = ChatIdRouteImport.update({
   id: '/chat/$id',
   path: '/chat/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GroupsIdRoute = GroupsIdRouteImport.update({
+  id: '/groups/$id',
+  path: '/groups/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IncomingIdRoute = IncomingIdRouteImport.update({
@@ -68,10 +138,40 @@ const IncomingIdRoute = IncomingIdRouteImport.update({
   path: '/incoming/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OnboardTripIdRoute = OnboardTripIdRouteImport.update({
+  id: '/onboard/$tripId',
+  path: '/onboard/$tripId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PayRequestIdRoute = PayRequestIdRouteImport.update({
   id: '/pay/$requestId',
   path: '/pay/$requestId',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileDeleteRoute = ProfileDeleteRouteImport.update({
+  id: '/delete',
+  path: '/delete',
+  getParentRoute: () => ProfileRoute,
+} as any)
+const ProfileEasyRoute = ProfileEasyRouteImport.update({
+  id: '/easy',
+  path: '/easy',
+  getParentRoute: () => ProfileRoute,
+} as any)
+const ProfileHelpRoute = ProfileHelpRouteImport.update({
+  id: '/help',
+  path: '/help',
+  getParentRoute: () => ProfileRoute,
+} as any)
+const ProfilePaymentsRoute = ProfilePaymentsRouteImport.update({
+  id: '/payments',
+  path: '/payments',
+  getParentRoute: () => ProfileRoute,
+} as any)
+const ProfileSettingsRoute = ProfileSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => ProfileRoute,
 } as any)
 const RequestIdRoute = RequestIdRouteImport.update({
   id: '/request/$id',
@@ -81,6 +181,21 @@ const RequestIdRoute = RequestIdRouteImport.update({
 const RequestNewRoute = RequestNewRouteImport.update({
   id: '/request/new',
   path: '/request/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SCodeRoute = SCodeRouteImport.update({
+  id: '/s/$code',
+  path: '/s/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShareTrainDateRoute = ShareTrainDateRouteImport.update({
+  id: '/share/$trainDate',
+  path: '/share/$trainDate',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TrainNumberRoute = TrainNumberRouteImport.update({
+  id: '/train/$number',
+  path: '/train/$number',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TripsTripIdRoute = TripsTripIdRouteImport.update({
@@ -113,6 +228,11 @@ const WelcomePrivacyRoute = WelcomePrivacyRouteImport.update({
   path: '/welcome/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GroupsIdPlanRoute = GroupsIdPlanRouteImport.update({
+  id: '/plan',
+  path: '/plan',
+  getParentRoute: () => GroupsIdRoute,
+} as any)
 const PayRequestIdDoneRoute = PayRequestIdDoneRouteImport.update({
   id: '/done',
   path: '/done',
@@ -127,6 +247,11 @@ const PayRequestIdStatusRoute = PayRequestIdStatusRouteImport.update({
   id: '/status',
   path: '/status',
   getParentRoute: () => PayRequestIdRoute,
+} as any)
+const ProfilePaymentsIdRoute = ProfilePaymentsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ProfilePaymentsRoute,
 } as any)
 const RequestIdMatchesRoute = RequestIdMatchesRouteImport.update({
   id: '/matches',
@@ -151,24 +276,44 @@ const SwapsIdSummaryRoute = SwapsIdSummaryRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/profile': typeof ProfileRoute
+  '/admin': typeof AdminRouteWithChildren
+  '/goodbye': typeof GoodbyeRoute
+  '/profile': typeof ProfileRouteWithChildren
   '/signin': typeof SigninRoute
   '/swaps': typeof SwapsRouteWithChildren
   '/updates': typeof UpdatesRoute
+  '/admin/activity': typeof AdminActivityRoute
+  '/admin/credits': typeof AdminCreditsRoute
+  '/admin/payments': typeof AdminPaymentsRoute
+  '/admin/reports': typeof AdminReportsRoute
+  '/admin/swaps': typeof AdminSwapsRoute
+  '/admin/users': typeof AdminUsersRoute
   '/chat/$id': typeof ChatIdRoute
+  '/groups/$id': typeof GroupsIdRouteWithChildren
   '/incoming/$id': typeof IncomingIdRoute
+  '/onboard/$tripId': typeof OnboardTripIdRoute
   '/pay/$requestId': typeof PayRequestIdRouteWithChildren
+  '/profile/delete': typeof ProfileDeleteRoute
+  '/profile/easy': typeof ProfileEasyRoute
+  '/profile/help': typeof ProfileHelpRoute
+  '/profile/payments': typeof ProfilePaymentsRouteWithChildren
+  '/profile/settings': typeof ProfileSettingsRoute
   '/request/$id': typeof RequestIdRouteWithChildren
   '/request/new': typeof RequestNewRoute
+  '/s/$code': typeof SCodeRoute
+  '/share/$trainDate': typeof ShareTrainDateRoute
+  '/train/$number': typeof TrainNumberRoute
   '/trips/$tripId': typeof TripsTripIdRoute
   '/trips/add': typeof TripsAddRoute
   '/welcome/alerts': typeof WelcomeAlertsRoute
   '/welcome/language': typeof WelcomeLanguageRoute
   '/welcome/note': typeof WelcomeNoteRoute
   '/welcome/privacy': typeof WelcomePrivacyRoute
+  '/groups/$id/plan': typeof GroupsIdPlanRoute
   '/pay/$requestId/done': typeof PayRequestIdDoneRoute
   '/pay/$requestId/method': typeof PayRequestIdMethodRoute
   '/pay/$requestId/status': typeof PayRequestIdStatusRoute
+  '/profile/payments/$id': typeof ProfilePaymentsIdRoute
   '/request/$id/matches': typeof RequestIdMatchesRoute
   '/swaps/$id/confirm': typeof SwapsIdConfirmRoute
   '/swaps/$id/done': typeof SwapsIdDoneRoute
@@ -176,24 +321,44 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/profile': typeof ProfileRoute
+  '/admin': typeof AdminRouteWithChildren
+  '/goodbye': typeof GoodbyeRoute
+  '/profile': typeof ProfileRouteWithChildren
   '/signin': typeof SigninRoute
   '/swaps': typeof SwapsRouteWithChildren
   '/updates': typeof UpdatesRoute
+  '/admin/activity': typeof AdminActivityRoute
+  '/admin/credits': typeof AdminCreditsRoute
+  '/admin/payments': typeof AdminPaymentsRoute
+  '/admin/reports': typeof AdminReportsRoute
+  '/admin/swaps': typeof AdminSwapsRoute
+  '/admin/users': typeof AdminUsersRoute
   '/chat/$id': typeof ChatIdRoute
+  '/groups/$id': typeof GroupsIdRouteWithChildren
   '/incoming/$id': typeof IncomingIdRoute
+  '/onboard/$tripId': typeof OnboardTripIdRoute
   '/pay/$requestId': typeof PayRequestIdRouteWithChildren
+  '/profile/delete': typeof ProfileDeleteRoute
+  '/profile/easy': typeof ProfileEasyRoute
+  '/profile/help': typeof ProfileHelpRoute
+  '/profile/payments': typeof ProfilePaymentsRouteWithChildren
+  '/profile/settings': typeof ProfileSettingsRoute
   '/request/$id': typeof RequestIdRouteWithChildren
   '/request/new': typeof RequestNewRoute
+  '/s/$code': typeof SCodeRoute
+  '/share/$trainDate': typeof ShareTrainDateRoute
+  '/train/$number': typeof TrainNumberRoute
   '/trips/$tripId': typeof TripsTripIdRoute
   '/trips/add': typeof TripsAddRoute
   '/welcome/alerts': typeof WelcomeAlertsRoute
   '/welcome/language': typeof WelcomeLanguageRoute
   '/welcome/note': typeof WelcomeNoteRoute
   '/welcome/privacy': typeof WelcomePrivacyRoute
+  '/groups/$id/plan': typeof GroupsIdPlanRoute
   '/pay/$requestId/done': typeof PayRequestIdDoneRoute
   '/pay/$requestId/method': typeof PayRequestIdMethodRoute
   '/pay/$requestId/status': typeof PayRequestIdStatusRoute
+  '/profile/payments/$id': typeof ProfilePaymentsIdRoute
   '/request/$id/matches': typeof RequestIdMatchesRoute
   '/swaps/$id/confirm': typeof SwapsIdConfirmRoute
   '/swaps/$id/done': typeof SwapsIdDoneRoute
@@ -202,24 +367,45 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/profile': typeof ProfileRoute
+  '/admin': typeof AdminRouteWithChildren
+  '/goodbye': typeof GoodbyeRoute
+  '/profile': typeof ProfileRouteWithChildren
   '/signin': typeof SigninRoute
   '/swaps': typeof SwapsRouteWithChildren
   '/updates': typeof UpdatesRoute
+  '/admin/_index': typeof AdminIndexRoute
+  '/admin/activity': typeof AdminActivityRoute
+  '/admin/credits': typeof AdminCreditsRoute
+  '/admin/payments': typeof AdminPaymentsRoute
+  '/admin/reports': typeof AdminReportsRoute
+  '/admin/swaps': typeof AdminSwapsRoute
+  '/admin/users': typeof AdminUsersRoute
   '/chat/$id': typeof ChatIdRoute
+  '/groups/$id': typeof GroupsIdRouteWithChildren
   '/incoming/$id': typeof IncomingIdRoute
+  '/onboard/$tripId': typeof OnboardTripIdRoute
   '/pay/$requestId': typeof PayRequestIdRouteWithChildren
+  '/profile/delete': typeof ProfileDeleteRoute
+  '/profile/easy': typeof ProfileEasyRoute
+  '/profile/help': typeof ProfileHelpRoute
+  '/profile/payments': typeof ProfilePaymentsRouteWithChildren
+  '/profile/settings': typeof ProfileSettingsRoute
   '/request/$id': typeof RequestIdRouteWithChildren
   '/request/new': typeof RequestNewRoute
+  '/s/$code': typeof SCodeRoute
+  '/share/$trainDate': typeof ShareTrainDateRoute
+  '/train/$number': typeof TrainNumberRoute
   '/trips/$tripId': typeof TripsTripIdRoute
   '/trips/add': typeof TripsAddRoute
   '/welcome/alerts': typeof WelcomeAlertsRoute
   '/welcome/language': typeof WelcomeLanguageRoute
   '/welcome/note': typeof WelcomeNoteRoute
   '/welcome/privacy': typeof WelcomePrivacyRoute
+  '/groups/$id/plan': typeof GroupsIdPlanRoute
   '/pay/$requestId/done': typeof PayRequestIdDoneRoute
   '/pay/$requestId/method': typeof PayRequestIdMethodRoute
   '/pay/$requestId/status': typeof PayRequestIdStatusRoute
+  '/profile/payments/$id': typeof ProfilePaymentsIdRoute
   '/request/$id/matches': typeof RequestIdMatchesRoute
   '/swaps/$id/confirm': typeof SwapsIdConfirmRoute
   '/swaps/$id/done': typeof SwapsIdDoneRoute
@@ -229,24 +415,44 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
+    | '/goodbye'
     | '/profile'
     | '/signin'
     | '/swaps'
     | '/updates'
+    | '/admin/activity'
+    | '/admin/credits'
+    | '/admin/payments'
+    | '/admin/reports'
+    | '/admin/swaps'
+    | '/admin/users'
     | '/chat/$id'
+    | '/groups/$id'
     | '/incoming/$id'
+    | '/onboard/$tripId'
     | '/pay/$requestId'
+    | '/profile/delete'
+    | '/profile/easy'
+    | '/profile/help'
+    | '/profile/payments'
+    | '/profile/settings'
     | '/request/$id'
     | '/request/new'
+    | '/s/$code'
+    | '/share/$trainDate'
+    | '/train/$number'
     | '/trips/$tripId'
     | '/trips/add'
     | '/welcome/alerts'
     | '/welcome/language'
     | '/welcome/note'
     | '/welcome/privacy'
+    | '/groups/$id/plan'
     | '/pay/$requestId/done'
     | '/pay/$requestId/method'
     | '/pay/$requestId/status'
+    | '/profile/payments/$id'
     | '/request/$id/matches'
     | '/swaps/$id/confirm'
     | '/swaps/$id/done'
@@ -254,24 +460,44 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin'
+    | '/goodbye'
     | '/profile'
     | '/signin'
     | '/swaps'
     | '/updates'
+    | '/admin/activity'
+    | '/admin/credits'
+    | '/admin/payments'
+    | '/admin/reports'
+    | '/admin/swaps'
+    | '/admin/users'
     | '/chat/$id'
+    | '/groups/$id'
     | '/incoming/$id'
+    | '/onboard/$tripId'
     | '/pay/$requestId'
+    | '/profile/delete'
+    | '/profile/easy'
+    | '/profile/help'
+    | '/profile/payments'
+    | '/profile/settings'
     | '/request/$id'
     | '/request/new'
+    | '/s/$code'
+    | '/share/$trainDate'
+    | '/train/$number'
     | '/trips/$tripId'
     | '/trips/add'
     | '/welcome/alerts'
     | '/welcome/language'
     | '/welcome/note'
     | '/welcome/privacy'
+    | '/groups/$id/plan'
     | '/pay/$requestId/done'
     | '/pay/$requestId/method'
     | '/pay/$requestId/status'
+    | '/profile/payments/$id'
     | '/request/$id/matches'
     | '/swaps/$id/confirm'
     | '/swaps/$id/done'
@@ -279,24 +505,45 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/admin'
+    | '/goodbye'
     | '/profile'
     | '/signin'
     | '/swaps'
     | '/updates'
+    | '/admin/_index'
+    | '/admin/activity'
+    | '/admin/credits'
+    | '/admin/payments'
+    | '/admin/reports'
+    | '/admin/swaps'
+    | '/admin/users'
     | '/chat/$id'
+    | '/groups/$id'
     | '/incoming/$id'
+    | '/onboard/$tripId'
     | '/pay/$requestId'
+    | '/profile/delete'
+    | '/profile/easy'
+    | '/profile/help'
+    | '/profile/payments'
+    | '/profile/settings'
     | '/request/$id'
     | '/request/new'
+    | '/s/$code'
+    | '/share/$trainDate'
+    | '/train/$number'
     | '/trips/$tripId'
     | '/trips/add'
     | '/welcome/alerts'
     | '/welcome/language'
     | '/welcome/note'
     | '/welcome/privacy'
+    | '/groups/$id/plan'
     | '/pay/$requestId/done'
     | '/pay/$requestId/method'
     | '/pay/$requestId/status'
+    | '/profile/payments/$id'
     | '/request/$id/matches'
     | '/swaps/$id/confirm'
     | '/swaps/$id/done'
@@ -305,15 +552,22 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ProfileRoute: typeof ProfileRoute
+  AdminRoute: typeof AdminRouteWithChildren
+  GoodbyeRoute: typeof GoodbyeRoute
+  ProfileRoute: typeof ProfileRouteWithChildren
   SigninRoute: typeof SigninRoute
   SwapsRoute: typeof SwapsRouteWithChildren
   UpdatesRoute: typeof UpdatesRoute
   ChatIdRoute: typeof ChatIdRoute
+  GroupsIdRoute: typeof GroupsIdRouteWithChildren
   IncomingIdRoute: typeof IncomingIdRoute
+  OnboardTripIdRoute: typeof OnboardTripIdRoute
   PayRequestIdRoute: typeof PayRequestIdRouteWithChildren
   RequestIdRoute: typeof RequestIdRouteWithChildren
   RequestNewRoute: typeof RequestNewRoute
+  SCodeRoute: typeof SCodeRoute
+  ShareTrainDateRoute: typeof ShareTrainDateRoute
+  TrainNumberRoute: typeof TrainNumberRoute
   TripsTripIdRoute: typeof TripsTripIdRoute
   TripsAddRoute: typeof TripsAddRoute
   WelcomeAlertsRoute: typeof WelcomeAlertsRoute
@@ -329,6 +583,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/goodbye': {
+      id: '/goodbye'
+      path: '/goodbye'
+      fullPath: '/goodbye'
+      preLoaderRoute: typeof GoodbyeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profile': {
@@ -359,11 +627,67 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UpdatesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/_index': {
+      id: '/admin/_index'
+      path: ''
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/activity': {
+      id: '/admin/activity'
+      path: '/activity'
+      fullPath: '/admin/activity'
+      preLoaderRoute: typeof AdminActivityRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/credits': {
+      id: '/admin/credits'
+      path: '/credits'
+      fullPath: '/admin/credits'
+      preLoaderRoute: typeof AdminCreditsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/payments': {
+      id: '/admin/payments'
+      path: '/payments'
+      fullPath: '/admin/payments'
+      preLoaderRoute: typeof AdminPaymentsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/reports': {
+      id: '/admin/reports'
+      path: '/reports'
+      fullPath: '/admin/reports'
+      preLoaderRoute: typeof AdminReportsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/swaps': {
+      id: '/admin/swaps'
+      path: '/swaps'
+      fullPath: '/admin/swaps'
+      preLoaderRoute: typeof AdminSwapsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/users': {
+      id: '/admin/users'
+      path: '/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/chat/$id': {
       id: '/chat/$id'
       path: '/chat/$id'
       fullPath: '/chat/$id'
       preLoaderRoute: typeof ChatIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/groups/$id': {
+      id: '/groups/$id'
+      path: '/groups/$id'
+      fullPath: '/groups/$id'
+      preLoaderRoute: typeof GroupsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/incoming/$id': {
@@ -373,12 +697,54 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IncomingIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/onboard/$tripId': {
+      id: '/onboard/$tripId'
+      path: '/onboard/$tripId'
+      fullPath: '/onboard/$tripId'
+      preLoaderRoute: typeof OnboardTripIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pay/$requestId': {
       id: '/pay/$requestId'
       path: '/pay/$requestId'
       fullPath: '/pay/$requestId'
       preLoaderRoute: typeof PayRequestIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/profile/delete': {
+      id: '/profile/delete'
+      path: '/delete'
+      fullPath: '/profile/delete'
+      preLoaderRoute: typeof ProfileDeleteRouteImport
+      parentRoute: typeof ProfileRoute
+    }
+    '/profile/easy': {
+      id: '/profile/easy'
+      path: '/easy'
+      fullPath: '/profile/easy'
+      preLoaderRoute: typeof ProfileEasyRouteImport
+      parentRoute: typeof ProfileRoute
+    }
+    '/profile/help': {
+      id: '/profile/help'
+      path: '/help'
+      fullPath: '/profile/help'
+      preLoaderRoute: typeof ProfileHelpRouteImport
+      parentRoute: typeof ProfileRoute
+    }
+    '/profile/payments': {
+      id: '/profile/payments'
+      path: '/payments'
+      fullPath: '/profile/payments'
+      preLoaderRoute: typeof ProfilePaymentsRouteImport
+      parentRoute: typeof ProfileRoute
+    }
+    '/profile/settings': {
+      id: '/profile/settings'
+      path: '/settings'
+      fullPath: '/profile/settings'
+      preLoaderRoute: typeof ProfileSettingsRouteImport
+      parentRoute: typeof ProfileRoute
     }
     '/request/$id': {
       id: '/request/$id'
@@ -392,6 +758,27 @@ declare module '@tanstack/react-router' {
       path: '/request/new'
       fullPath: '/request/new'
       preLoaderRoute: typeof RequestNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/s/$code': {
+      id: '/s/$code'
+      path: '/s/$code'
+      fullPath: '/s/$code'
+      preLoaderRoute: typeof SCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/share/$trainDate': {
+      id: '/share/$trainDate'
+      path: '/share/$trainDate'
+      fullPath: '/share/$trainDate'
+      preLoaderRoute: typeof ShareTrainDateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/train/$number': {
+      id: '/train/$number'
+      path: '/train/$number'
+      fullPath: '/train/$number'
+      preLoaderRoute: typeof TrainNumberRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/trips/$tripId': {
@@ -436,6 +823,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WelcomePrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/groups/$id/plan': {
+      id: '/groups/$id/plan'
+      path: '/plan'
+      fullPath: '/groups/$id/plan'
+      preLoaderRoute: typeof GroupsIdPlanRouteImport
+      parentRoute: typeof GroupsIdRoute
+    }
     '/pay/$requestId/done': {
       id: '/pay/$requestId/done'
       path: '/done'
@@ -456,6 +850,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/pay/$requestId/status'
       preLoaderRoute: typeof PayRequestIdStatusRouteImport
       parentRoute: typeof PayRequestIdRoute
+    }
+    '/profile/payments/$id': {
+      id: '/profile/payments/$id'
+      path: '/$id'
+      fullPath: '/profile/payments/$id'
+      preLoaderRoute: typeof ProfilePaymentsIdRouteImport
+      parentRoute: typeof ProfilePaymentsRoute
     }
     '/request/$id/matches': {
       id: '/request/$id/matches'
@@ -488,6 +889,59 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AdminRouteChildren {
+  AdminIndexRoute: typeof AdminIndexRoute
+  AdminActivityRoute: typeof AdminActivityRoute
+  AdminCreditsRoute: typeof AdminCreditsRoute
+  AdminPaymentsRoute: typeof AdminPaymentsRoute
+  AdminReportsRoute: typeof AdminReportsRoute
+  AdminSwapsRoute: typeof AdminSwapsRoute
+  AdminUsersRoute: typeof AdminUsersRoute
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminIndexRoute: AdminIndexRoute,
+  AdminActivityRoute: AdminActivityRoute,
+  AdminCreditsRoute: AdminCreditsRoute,
+  AdminPaymentsRoute: AdminPaymentsRoute,
+  AdminReportsRoute: AdminReportsRoute,
+  AdminSwapsRoute: AdminSwapsRoute,
+  AdminUsersRoute: AdminUsersRoute,
+}
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+
+interface ProfilePaymentsRouteChildren {
+  ProfilePaymentsIdRoute: typeof ProfilePaymentsIdRoute
+}
+
+const ProfilePaymentsRouteChildren: ProfilePaymentsRouteChildren = {
+  ProfilePaymentsIdRoute: ProfilePaymentsIdRoute,
+}
+
+const ProfilePaymentsRouteWithChildren = ProfilePaymentsRoute._addFileChildren(
+  ProfilePaymentsRouteChildren,
+)
+
+interface ProfileRouteChildren {
+  ProfileDeleteRoute: typeof ProfileDeleteRoute
+  ProfileEasyRoute: typeof ProfileEasyRoute
+  ProfileHelpRoute: typeof ProfileHelpRoute
+  ProfilePaymentsRoute: typeof ProfilePaymentsRouteWithChildren
+  ProfileSettingsRoute: typeof ProfileSettingsRoute
+}
+
+const ProfileRouteChildren: ProfileRouteChildren = {
+  ProfileDeleteRoute: ProfileDeleteRoute,
+  ProfileEasyRoute: ProfileEasyRoute,
+  ProfileHelpRoute: ProfileHelpRoute,
+  ProfilePaymentsRoute: ProfilePaymentsRouteWithChildren,
+  ProfileSettingsRoute: ProfileSettingsRoute,
+}
+
+const ProfileRouteWithChildren =
+  ProfileRoute._addFileChildren(ProfileRouteChildren)
+
 interface SwapsRouteChildren {
   SwapsIdConfirmRoute: typeof SwapsIdConfirmRoute
   SwapsIdDoneRoute: typeof SwapsIdDoneRoute
@@ -501,6 +955,18 @@ const SwapsRouteChildren: SwapsRouteChildren = {
 }
 
 const SwapsRouteWithChildren = SwapsRoute._addFileChildren(SwapsRouteChildren)
+
+interface GroupsIdRouteChildren {
+  GroupsIdPlanRoute: typeof GroupsIdPlanRoute
+}
+
+const GroupsIdRouteChildren: GroupsIdRouteChildren = {
+  GroupsIdPlanRoute: GroupsIdPlanRoute,
+}
+
+const GroupsIdRouteWithChildren = GroupsIdRoute._addFileChildren(
+  GroupsIdRouteChildren,
+)
 
 interface PayRequestIdRouteChildren {
   PayRequestIdDoneRoute: typeof PayRequestIdDoneRoute
@@ -532,15 +998,22 @@ const RequestIdRouteWithChildren = RequestIdRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ProfileRoute: ProfileRoute,
+  AdminRoute: AdminRouteWithChildren,
+  GoodbyeRoute: GoodbyeRoute,
+  ProfileRoute: ProfileRouteWithChildren,
   SigninRoute: SigninRoute,
   SwapsRoute: SwapsRouteWithChildren,
   UpdatesRoute: UpdatesRoute,
   ChatIdRoute: ChatIdRoute,
+  GroupsIdRoute: GroupsIdRouteWithChildren,
   IncomingIdRoute: IncomingIdRoute,
+  OnboardTripIdRoute: OnboardTripIdRoute,
   PayRequestIdRoute: PayRequestIdRouteWithChildren,
   RequestIdRoute: RequestIdRouteWithChildren,
   RequestNewRoute: RequestNewRoute,
+  SCodeRoute: SCodeRoute,
+  ShareTrainDateRoute: ShareTrainDateRoute,
+  TrainNumberRoute: TrainNumberRoute,
   TripsTripIdRoute: TripsTripIdRoute,
   TripsAddRoute: TripsAddRoute,
   WelcomeAlertsRoute: WelcomeAlertsRoute,

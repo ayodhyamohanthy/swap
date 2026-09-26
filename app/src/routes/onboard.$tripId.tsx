@@ -1,10 +1,12 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
-import { MapPin } from 'lucide-react'
+import { Link2, MapPin } from 'lucide-react'
 import type { RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { Pill } from '@/components/ui/pill'
+import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/lib/i18n'
+import { createInvite, inviteLink } from '@/lib/invites'
 import { getTrip, listTrips } from '@/lib/store'
 
 /* Screen 34 "On the train now board" (design 7a): live coach board until the
@@ -19,7 +21,20 @@ export const Route = createFileRoute('/onboard/$tripId')({
 function OnboardScreen() {
   const { tripId } = Route.useParams()
   const { t, type, status } = useI18n()
+  const toast = useToast()
   const trip = getTrip(tripId)
+
+  /* Coach link for a WhatsApp group: the code carries no PNR, name or berth
+     number, so the link itself is safe to share (rule 13). */
+  async function copyCoachLink() {
+    const link = inviteLink(createInvite('board', tripId))
+    try {
+      await navigator.clipboard.writeText(link)
+      toast.show(t('share.copied'))
+    } catch {
+      toast.show(link)
+    }
+  }
 
   if (!trip) {
     return (
@@ -101,6 +116,11 @@ function OnboardScreen() {
           <CardBody>{t('onboard.empty')}</CardBody>
         </Card>
       ) : null}
+
+      <Button className="mt-4" variant="outline" onClick={copyCoachLink}>
+        <Link2 aria-hidden className="size-5" />
+        {t('onboard.shareLink')}
+      </Button>
     </div>
   )
 }

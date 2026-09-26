@@ -444,6 +444,18 @@
     "native": "Share…",
     "link": "Coach link"
   },
+  "invite": {
+    "title": "SeatSwap",
+    "bad": "This link didn't work. Ask for a fresh one.",
+    "boardTitle": "Someone is swapping on their train",
+    "boardBody": "See who is open to swap in that coach. You choose what to share.",
+    "boardCta": "Open the coach board",
+    "askTitle": "Someone wants your berth",
+    "askBody": "Sign in with Google to accept. You pay nothing.",
+    "askCta": "Sign in to accept",
+    "privacy": "They see only your first name and initial, class, coach and berth type.",
+    "openApp": "Open SeatSwap"
+  },
   "onboard": {
     "title": "On the train now",
     "body": "Live coach board until your stop. Showing open swappers near you.",
@@ -451,7 +463,8 @@
     "onlyOpen": "Only travellers open to swap are shown.",
     "youHere": "You are here",
     "ask": "Ask",
-    "empty": "No one else is open near you right now."
+    "empty": "No one else is open near you right now.",
+    "shareLink": "Copy coach link"
   },
   "groups": {
     "title": "Family trip",
@@ -546,5 +559,46 @@
     "expiryBody": "Use ₹{amount} credit before it ends. Credit is never cash.",
     "berthCheck": "Free berth check by PNR",
     "berthCheckBody": "Add a PNR to see your berth. No sign-in needed."
+  },
+  "admin": {
+    "title": "Admin",
+    "gate": "Admin tools are guarded. Turn on demo access on this device.",
+    "overview": "Overview",
+    "log": "Activity log",
+    "users": "Users",
+    "swaps": "Swaps",
+    "payments": "Payments",
+    "credits": "Credits",
+    "reports": "Reports",
+    "s_pnrs": "PNRs added today",
+    "s_requests": "Requests sent today",
+    "s_paid": "Payments today",
+    "s_confirmed": "Confirmed today",
+    "s_credit": "Credit in circulation",
+    "busiest": "Busiest trains",
+    "searchPh": "Search action, user or train",
+    "filterAll": "All actions",
+    "csv": "Export CSV",
+    "empty": "Nothing here yet.",
+    "demoNote": "Counts come from this device until the backend is connected.",
+    "colAction": "Action",
+    "colWhen": "When",
+    "colAmount": "Amount",
+    "colStatus": "Status",
+    "colState": "State",
+    "valid": "Valid",
+    "expiring": "Ends soon",
+    "expired": "Ended",
+    "creditNever": "Credit is never cash and is never paid out to a bank.",
+    "adjustTitle": "Adjust credit",
+    "adjustBody": "Add credit to this device's ledger. This is never a bank refund.",
+    "adjustAmount": "Amount in ₹ (for example 50)",
+    "adjustReason": "Reason",
+    "adjustReasonPh": "Why is this being adjusted?",
+    "adjustSave": "Add credit",
+    "adjustReasonRequired": "A reason is required.",
+    "adjustBadAmount": "Enter a whole number of rupees.",
+    "adjustSaved": "Credit added.",
+    "backToApp": "Back to the app"
   }
 }
