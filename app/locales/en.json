@@ -332,7 +332,7 @@
     "offline": "Saved on this phone. Works offline.",
     "youGive": "You give {berth}",
     "youGet": "You get {berth}",
-    "train": "Train {n} · {date}",
+    "train": "{n} · {date}",
     "keep": "Keep your original ticket and ID with you."
   },
   "request": {

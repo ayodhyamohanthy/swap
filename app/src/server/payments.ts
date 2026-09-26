@@ -1,5 +1,7 @@
 /* SeatSwap server payments — part 1: types + validators (docs/06).
    Secrets come from server env only, never returned to the browser. */
+import { razorpayCreateOrder } from './razorpay-client'
+import { depsFromEnv } from './payments-helpers'
 import { createServerFn } from '@tanstack/react-start'
 import { buildQuote } from '@/lib/payments'
 import { PRICE_PAISE } from '@/lib/money'
@@ -33,10 +35,20 @@ export function quoteFor(balancePaise: number, isGroup = false) {
 export const createRazorpayOrder = createServerFn({ method: 'POST' })
   .validator((input: { requestId: string }) => input)
   .handler(async ({ data }): Promise<RazorpayOrder> => {
-    const keyId = serverEnv('RAZORPAY_KEY_ID')
-    serverEnv('RAZORPAY_KEY_SECRET')
+    /* Real Orders API call. A failure here throws ProviderUnavailableError, which
+       the pay screen maps to "could not start payment — try again" WITHOUT locking
+       anything (docs/06: nothing is held until money is actually captured). */
+    const order = await razorpayCreateOrder(depsFromEnv(), {
+      amountPaise: PRICE_PAISE,
+      receipt: data.requestId,
+      requestId: data.requestId,
+    })
     return {
-      order_id: `order_${data.requestId}`, amount_paise: PRICE_PAISE,
-      currency: 'INR', receipt: data.requestId, key_id: keyId, credit_used_paise: 0,
+      order_id: order.order_id,
+      amount_paise: order.amount_paise,
+      currency: 'INR',
+      receipt: order.receipt,
+      key_id: order.key_id,
+      credit_used_paise: 0,
     }
   })

@@ -1,6 +1,6 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { Link, Outlet, createFileRoute } from '@tanstack/react-router'
 import { ArrowLeftRight, Info } from 'lucide-react'
-import { AppFooter, type RouteChrome } from '@/components/app-shell'
+import { AppFooter } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { Pill } from '@/components/ui/pill'
@@ -15,11 +15,14 @@ import { useTrips } from '@/lib/use-store'
    and the money rules, which are shown here so nobody has to guess. */
 
 export const Route = createFileRoute('/swaps')({
-  staticData: { chrome: 'tabs', tab: 'swaps' } satisfies RouteChrome,
-  component: SwapsScreen,
+  component: SwapsLayout,
 })
 
-function SwapsScreen() {
+/** Layout: the list renders at the index route; /$id/* swap screens render here. */
+function SwapsLayout() {
+  return <Outlet />
+}
+export function SwapsScreen() {
   const { t, date } = useI18n()
   const trips = useTrips()
   const openTrips = trips.filter((trip) => trip.open_to_swap)

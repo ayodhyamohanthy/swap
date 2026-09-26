@@ -1,7 +1,6 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { Link, Outlet, createFileRoute } from '@tanstack/react-router'
 import { Users } from 'lucide-react'
 import { useState, useSyncExternalStore } from 'react'
-import type { RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { Pill } from '@/components/ui/pill'
@@ -20,11 +19,15 @@ import { listTrips } from '@/lib/store'
    "Swapping for my parents" (docs/04 C). */
 
 export const Route = createFileRoute('/groups/$id')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
-  component: GroupScreen,
+  component: GroupLayout,
 })
 
-function GroupScreen() {
+/** Layout: the family screen renders at the index route; /plan renders here. */
+function GroupLayout() {
+  return <Outlet />
+}
+
+export function GroupScreen() {
   const { id } = Route.useParams()
   const { t, date, type, status } = useI18n()
   const toast = useToast()

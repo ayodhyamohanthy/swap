@@ -1,7 +1,6 @@
-import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
+import { Link, Outlet, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { ArrowLeftRight, Share2 } from 'lucide-react'
 import { useState } from 'react'
-import type { RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { Pill } from '@/components/ui/pill'
@@ -17,11 +16,14 @@ import { useSwapRequest } from '@/lib/use-store'
    yes (rule 2). */
 
 export const Route = createFileRoute('/request/$id')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
-  component: ManageRequestScreen,
+  component: RequestLayout,
 })
 
-function ManageRequestScreen() {
+/** Layout: the manage screen renders at the index route; /matches renders here. */
+function RequestLayout() {
+  return <Outlet />
+}
+export function ManageRequestScreen() {
   const { id } = Route.useParams()
   const { t, type } = useI18n()
   const navigate = useNavigate()

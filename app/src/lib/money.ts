@@ -29,3 +29,17 @@ export function rupees(paise: number): number {
 export function formatRupees(paise: number): string {
   return `₹${rupees(paise).toLocaleString('en-IN')}`
 }
+
+/** Decimal string for payment-gateway wire formats. Razorpay takes integer
+    paise; PayPal takes "99.00". Never send a float to either (docs/02), and
+    never round: build the string from the integer parts. */
+export function paiseToDecimalString(paise: number): string {
+  if (!Number.isInteger(paise)) {
+    throw new Error(`amount_not_whole_paise:${paise}`)
+  }
+  const sign = paise < 0 ? '-' : ''
+  const abs = Math.abs(paise)
+  const whole = Math.trunc(abs / 100)
+  const fraction = abs % 100
+  return `${sign}${whole}.${String(fraction).padStart(2, '0')}`
+}

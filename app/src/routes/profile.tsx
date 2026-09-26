@@ -1,4 +1,4 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { Link, Outlet, createFileRoute } from '@tanstack/react-router'
 import {
   Bell,
   Coins,
@@ -11,7 +11,7 @@ import {
   Type,
   User,
 } from 'lucide-react'
-import { AppFooter, type RouteChrome } from '@/components/app-shell'
+import { AppFooter } from '@/components/app-shell'
 import { Card, CardBody } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { LANGUAGES, useI18n } from '@/lib/i18n'
@@ -21,11 +21,15 @@ import { useCreditPaise, useTrips } from '@/lib/use-store'
    steps 1-2: it stays ₹0 until a swap is confirmed as done (rules 3-6). */
 
 export const Route = createFileRoute('/profile')({
-  staticData: { chrome: 'tabs', tab: 'profile' } satisfies RouteChrome,
-  component: ProfileScreen,
+  component: ProfileLayout,
 })
 
-function ProfileScreen() {
+/** Layout: the profile screen renders at the index route; settings / help /
+   payments / easy / delete render here instead of being swallowed. */
+function ProfileLayout() {
+  return <Outlet />
+}
+export function ProfileScreen() {
   const { t, lang, easy, setEasy } = useI18n()
   const creditPaise = useCreditPaise()
   const trips = useTrips()

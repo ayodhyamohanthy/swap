@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { PRICE_PAISE } from '@/lib/money'
-import { paypalWebhookId, serverEnv } from '@/server/payments-helpers'
+import { paypalWebhookId, serverEnv, depsFromEnv } from '@/server/payments-helpers'
+import { paypalCaptureOrder, paypalCreateOrder } from '@/server/paypal-client'
 
 /* Webhook request handling — the security-critical half of docs/06, written as a
    pure function so it is testable without a server.
@@ -156,19 +157,35 @@ export const verifyRazorpaySignature = createServerFn({ method: 'POST' })
   })
 export const createPaypalOrder = createServerFn({ method: 'POST' })
   .validator((input: { requestId: string }) => input)
-  .handler(async ({ data }): Promise<{ id: string; currency: 'INR'; amount_paise: number }> => {
-    serverEnv('PAYPAL_CLIENT_ID')
-    serverEnv('PAYPAL_CLIENT_SECRET')
-    return { id: `paypal_${data.requestId}`, currency: 'INR', amount_paise: PRICE_PAISE }
-  })
+  .handler(
+    async ({
+      data,
+    }): Promise<{ id: string; currency: 'INR'; amount_paise: number; approval_url: string | null }> => {
+      /* Real v2 order. approval_url is where the browser redirects to authorise. */
+      const order = await paypalCreateOrder(depsFromEnv(), {
+        amountPaise: PRICE_PAISE,
+        requestId: data.requestId,
+      })
+      return {
+        id: order.id,
+        currency: 'INR',
+        amount_paise: order.amount_paise,
+        approval_url: order.approval_url,
+      }
+    },
+  )
 export const capturePaypalOrder = createServerFn({ method: 'POST' })
   .validator((input: { orderId: string; requestId: string }) => input)
-  .handler(async ({ data }): Promise<{ status: 'pending' }> => {
-    serverEnv('PAYPAL_CLIENT_ID')
-    serverEnv('PAYPAL_CLIENT_SECRET')
-    void data
-    return { status: 'pending' }
-  })
+  .handler(
+    async ({
+      data,
+    }): Promise<{ status: 'paid' | 'pending' | 'failed'; provider_ref: string | null }> => {
+      /* The capture response — not the browser callback — decides the status.
+         Anything other than COMPLETED must not lock the swap. */
+      const capture = await paypalCaptureOrder(depsFromEnv(), { orderId: data.orderId })
+      return { status: capture.status, provider_ref: capture.provider_ref }
+    },
+  )
 export async function verifyRazorpayWebhook(rawBody: string, signature: string): Promise<boolean> {
   const secret = serverEnv('RAZORPAY_WEBHOOK_SECRET')
   const { createHmac, timingSafeEqual } = await import('node:crypto')

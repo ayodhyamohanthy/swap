@@ -61,6 +61,9 @@ export interface SwapOffer {
   acceptor_name: string
   acceptor_berth_type: BerthType
   acceptor_coach: string | null
+  /** Exact berth number, stored at send time but only SHOWN after payment
+      (rule 13) via `revealedBerths()`. Never rendered masked-or-guessed. */
+  acceptor_berth_no: string | null
   matched_choice_rank: 1 | 2 | 3
   status: OfferStatus
   created_at: string
@@ -99,9 +102,12 @@ function readState(): RequestsState {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (!raw) return emptyState()
     const parsed = JSON.parse(raw) as Partial<RequestsState>
+    const offers = Array.isArray(parsed.offers) ? parsed.offers : []
     return {
       requests: Array.isArray(parsed.requests) ? parsed.requests : [],
-      offers: Array.isArray(parsed.offers) ? parsed.offers : [],
+      /* Rows stored before `acceptor_berth_no` existed stay unknown (null) —
+         never backfilled or guessed. */
+      offers: offers.map((offer) => ({ ...offer, acceptor_berth_no: offer.acceptor_berth_no ?? null })),
       incoming: parsed.incoming && typeof parsed.incoming === 'object' ? parsed.incoming : {},
     }
   } catch {
@@ -289,7 +295,7 @@ export function matchesFor(
 }
 
 /** Free send: creates `sent` offers to the ranked matches (rule 2).
-    Pass `onlyIds` when the user ticked a subset on the matches screen. */
+    Supply `onlyIds` when the user ticked a subset on the matches screen. */
 export function sendRequest(requestId: string, onlyIds?: string[]): SwapRequest | undefined {
   const request = getRequest(requestId)
   if (!request) return undefined
@@ -317,6 +323,7 @@ export function sendRequest(requestId: string, onlyIds?: string[]): SwapRequest 
       acceptor_name: 'Traveller',
       acceptor_berth_type: candidate.berth_type,
       acceptor_coach: candidate.coach,
+      acceptor_berth_no: candidate.berth_no,
       matched_choice_rank: rank.choice_rank,
       status: 'sent',
       created_at: now(),
@@ -431,6 +438,42 @@ export function lockRequest(requestId: string): SwapRequest | undefined {
 /** The accepted offer: who said yes and what they hold (for the pay screen). */
 export function acceptedOffer(requestId: string): SwapOffer | undefined {
   return offersFor(requestId).find((offer) => offer.status === 'accepted')
+}
+
+export interface RevealedBerths {
+  /** Requester's own berth, e.g. "B3 · 27". Null when not on the ticket. */
+  mine: string | null
+  /** Acceptor's berth, e.g. "B4 · 41". Null when unknown — render masked. */
+  theirs: string | null
+  /** Coach both berths were matched in, when known. */
+  coach: string | null
+}
+
+/**
+ * Exact berths for the Swap summary / chat header / meet screen (rule 13).
+ * Returns null until the requester has PAID (locked or later) — before that,
+ * both sides see only "Berth ••". Never fabricates: unknown numbers stay
+ * null so the UI renders the masked form, never a guessed berth.
+ */
+export function revealedBerths(requestId: string): RevealedBerths | null {
+  const request = getRequest(requestId)
+  if (!request) return null
+  if (request.status !== 'locked' && request.status !== 'confirmed' && request.status !== 'disputed') {
+    return null
+  }
+  const locked =
+    offersFor(requestId).find((offer) => offer.id === request.locked_offer_id) ??
+    acceptedOffer(requestId)
+  if (!locked) return null
+  const mine = getTrip(request.trip_id)?.passengers.find((p) => p.berth_no)?.berth_no ?? null
+  const mineCoach = getTrip(request.trip_id)?.passengers.find((p) => p.berth_no)?.coach ?? null
+  const theirs = locked.acceptor_berth_no
+  if (!theirs) return null
+  return {
+    mine: mine && mineCoach ? `${mineCoach} · ${mine}` : mine,
+    theirs: locked.acceptor_coach ? `${locked.acceptor_coach} · ${theirs}` : theirs,
+    coach: locked.acceptor_coach,
+  }
 }
 
 export function offersWithStatus(status: OfferStatus): SwapOffer[] {

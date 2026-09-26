@@ -1,5 +1,5 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
-import { AppFooter, type RouteChrome } from '@/components/app-shell'
+import { Link, Outlet, createFileRoute } from '@tanstack/react-router'
+import { AppFooter } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useI18n } from '@/lib/i18n'
@@ -10,10 +10,14 @@ import { useCreditPaise } from '@/lib/use-store'
 /* Pay screen (docs/04 A9): breakdown 49+50, credit line if balance>0,
    lock note, No-swap-to-credit. Sending requests is free; pay after accept. */
 export const Route = createFileRoute('/pay/$requestId')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
-  component: PayScreen,
+  component: PayLayout,
 })
-function PayScreen() {
+
+/** Layout: child screens (method / status / done) render here. */
+function PayLayout() {
+  return <Outlet />
+}
+export function PayScreen() {
   const { requestId } = Route.useParams()
   const { t } = useI18n()
   const req = demoRequest(requestId)

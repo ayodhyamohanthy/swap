@@ -16,6 +16,7 @@ import {
   offersFor,
   resetRequests,
   respondToIncoming,
+  revealedBerths,
   sendRequest,
   setRequestPaused,
   withdrawRequest,
@@ -224,6 +225,59 @@ describe('accept then pay (rules 2, 3)', () => {
     sendRequest(request.id)
     expect(matchesFor(request.id).filter((row) => 'offer' in row)).toHaveLength(1)
     expect(matchesFor(request.id).filter((row) => 'candidate' in row)).toHaveLength(0)
+  })
+
+  it('offers carry the acceptor berth number but never show it (rule 13)', async () => {
+    const { mine, theirs } = await seed()
+    const request = createRequest({ trip_id: mine.id, choices: ['UB'] })
+    sendRequest(request.id)
+    const offer = offersFor(request.id)[0]
+    expect(offer.acceptor_trip_id).toBe(theirs.id)
+    /* Stored for the post-payment reveal, hidden until then. */
+    expect(offer.acceptor_berth_no).toBe('41')
+    expect(offer.acceptor_coach).toBe('B4')
+  })
+})
+
+describe('revealedBerths (rule 13: exact berths only after payment)', () => {
+  beforeEach(() => {
+    resetStore()
+    resetRequests()
+  })
+
+  it('stays hidden while searching or awaiting payment', async () => {
+    const { mine } = await seed()
+    const request = createRequest({ trip_id: mine.id, choices: ['UB'] })
+    sendRequest(request.id)
+    expect(revealedBerths(request.id)).toBeNull()
+    acceptOffer(offersFor(request.id)[0].id)
+    /* Accepted but not paid: still hidden. */
+    expect(revealedBerths(request.id)).toBeNull()
+  })
+
+  it('reveals both real berths once locked — never fabricated', async () => {
+    const { mine } = await seed()
+    const request = createRequest({ trip_id: mine.id, choices: ['UB'] })
+    sendRequest(request.id)
+    acceptOffer(offersFor(request.id)[0].id)
+    lockRequest(request.id)
+    expect(revealedBerths(request.id)).toEqual({ mine: 'B3 · 27', theirs: 'B4 · 41', coach: 'B4' })
+  })
+
+  it('returns null rather than a guessed berth when the number is unknown', async () => {
+    const { mine } = await seed()
+    const request = createRequest({ trip_id: mine.id, choices: ['UB'] })
+    sendRequest(request.id)
+    const offer = offersFor(request.id)[0]
+    /* Simulate a row stored before berth numbers were kept: unknown, noteditable. */
+    offer.acceptor_berth_no = null
+    acceptOffer(offer.id)
+    lockRequest(request.id)
+    expect(revealedBerths(request.id)).toBeNull()
+  })
+
+  it('returns null for a missing request', () => {
+    expect(revealedBerths('nope')).toBeNull()
   })
 })
 

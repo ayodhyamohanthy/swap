@@ -1,6 +1,6 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { Link, Outlet, createFileRoute } from '@tanstack/react-router'
 import { Coins, Receipt } from 'lucide-react'
-import { AppFooter, type RouteChrome } from '@/components/app-shell'
+import { AppFooter } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
 import { Pill } from '@/components/ui/pill'
@@ -14,9 +14,13 @@ import { useAppState } from '@/lib/use-store'
    withdrawal. Sending requests costs nothing, so an empty list is normal. */
 
 export const Route = createFileRoute('/profile/payments')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
-  component: PaymentsScreen,
+  component: PaymentsLayout,
 })
+
+/** Layout: the list renders at the index route; /$id (receipt) renders here. */
+function PaymentsLayout() {
+  return <Outlet />
+}
 
 function kindLabel(kind: string): 'payments.paid' | 'payments.toCredit' | 'profile.credit' {
   if (kind === 'used' || kind === 'expired') return 'profile.credit'
@@ -24,7 +28,7 @@ function kindLabel(kind: string): 'payments.paid' | 'payments.toCredit' | 'profi
   return 'payments.paid'
 }
 
-function PaymentsScreen() {
+export function PaymentsScreen() {
   const { t, date } = useI18n()
   const { wallet } = useAppState()
 
