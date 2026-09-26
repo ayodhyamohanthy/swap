@@ -14,6 +14,15 @@ import { paypalCaptureOrder, paypalCreateOrder } from '@/server/paypal-client'
    request-handling contract is implemented and tested here so that step is a
    wiring change, not a rewrite. */
 
+/* Node's crypto without a bare `import('node:crypto')`: Vite's browser-compat
+   externalization mangles that specifier to `node:` under the jsdom test pool,
+   and Node 22's getBuiltinModule resolves it before Vite ever sees it. */
+async function nodeCrypto(): Promise<typeof import('node:crypto')> {
+  const builtin = process.getBuiltinModule('node:crypto')
+  if (builtin) return builtin
+  return import('node:crypto')
+}
+
 export interface WebhookRequest {
   /** The exact bytes the provider sent — never a re-serialised object. */
   rawBody: string
@@ -150,7 +159,7 @@ export const verifyRazorpaySignature = createServerFn({ method: 'POST' })
   .validator((input: { orderId: string; paymentId: string; signature: string }) => input)
   .handler(async ({ data }): Promise<{ ok: boolean }> => {
     const secret = serverEnv('RAZORPAY_KEY_SECRET')
-    const { createHmac, timingSafeEqual } = await import('node:crypto')
+    const { createHmac, timingSafeEqual } = await nodeCrypto()
     const expected = createHmac('sha256', secret)
       .update(`${data.orderId}|${data.paymentId}`).digest('hex')
     return { ok: safeEqual(expected, data.signature, timingSafeEqual) }
@@ -188,7 +197,7 @@ export const capturePaypalOrder = createServerFn({ method: 'POST' })
   )
 export async function verifyRazorpayWebhook(rawBody: string, signature: string): Promise<boolean> {
   const secret = serverEnv('RAZORPAY_WEBHOOK_SECRET')
-  const { createHmac, timingSafeEqual } = await import('node:crypto')
+  const { createHmac, timingSafeEqual } = await nodeCrypto()
   const expected = createHmac('sha256', secret).update(rawBody).digest('hex')
   return safeEqual(expected, signature, timingSafeEqual)
 }

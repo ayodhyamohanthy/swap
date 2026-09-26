@@ -231,6 +231,9 @@ describe('webhook replay is idempotent', () => {
 })
 
 describe('webhook signature verification (docs/06)', () => {
+  /* getBuiltinModule instead of import('node:crypto') — Vite's browser-compat
+     externalization mangles the dynamic import under the jsdom pool. */
+  const { createHmac } = process.getBuiltinModule('node:crypto') as typeof import('node:crypto')
   const SECRET = 'whsec_test_secret'
   const OTHER = 'whsec_wrong_secret'
 
@@ -239,21 +242,18 @@ describe('webhook signature verification (docs/06)', () => {
   })
 
   it('accepts a signature produced with the right secret', async () => {
-    const { createHmac } = await import('node:crypto')
     const body = JSON.stringify({ event: 'payment.captured', id: 'pay_1' })
     const signature = createHmac('sha256', SECRET).update(body).digest('hex')
     await expect(verifyRazorpayWebhook(body, signature)).resolves.toBe(true)
   })
 
   it('rejects a signature made with the wrong secret', async () => {
-    const { createHmac } = await import('node:crypto')
     const body = JSON.stringify({ event: 'payment.captured', id: 'pay_1' })
     const bad = createHmac('sha256', OTHER).update(body).digest('hex')
     await expect(verifyRazorpayWebhook(body, bad)).resolves.toBe(false)
   })
 
   it('rejects a tampered body', async () => {
-    const { createHmac } = await import('node:crypto')
     const body = JSON.stringify({ event: 'payment.captured', id: 'pay_1' })
     const signature = createHmac('sha256', SECRET).update(body).digest('hex')
     const tampered = JSON.stringify({ event: 'payment.captured', id: 'pay_2' })
@@ -270,7 +270,6 @@ describe('webhook signature verification (docs/06)', () => {
   })
 
   it('is case-sensitive on the digest', async () => {
-    const { createHmac } = await import('node:crypto')
     const body = 'x'
     const signature = createHmac('sha256', SECRET).update(body).digest('hex')
     await expect(verifyRazorpayWebhook(body, signature.toUpperCase())).resolves.toBe(false)

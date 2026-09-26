@@ -4,17 +4,18 @@ import { AppFooter, type RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
 import { useI18n } from '@/lib/i18n'
-import { loadRazorpay } from '@/lib/pay-sdk'
+import { loadPaypal } from '@/lib/pay-sdk'
 import { buildQuote } from '@/lib/payments'
 import { demoRequest } from '@/lib/demo-swap'
 import { useCreditPaise } from '@/lib/use-store'
 
-/* Choose how to pay (docs/04 A10): Razorpay default, PayPal for travellers. */
-export const Route = createFileRoute('/pay/$requestId/method')({
+/* Screen 25 "Pay with PayPal" (design 28a, docs/06): international
+   travellers pay the same ₹99; PayPal shows its own currency estimate. */
+export const Route = createFileRoute('/pay/$requestId/paypal')({
   staticData: { chrome: 'plain' } satisfies RouteChrome,
-  component: MethodScreen,
+  component: PaypalScreen,
 })
-function MethodScreen() {
+function PaypalScreen() {
   const { requestId } = Route.useParams()
   const { t } = useI18n()
   const navigate = useNavigate()
@@ -24,14 +25,14 @@ function MethodScreen() {
   async function go() {
     setBusy(true)
     try {
-      await loadRazorpay()
+      await loadPaypal('test')
     } catch { /* SDK CDN offline: status screen still explains pending/failed. */ }
     navigate({ to: '/pay/$requestId/status', params: { requestId }, search: { state: 'pending' } })
   }
   if (q.provider === 'credit') {
     return (
       <div>
-        <h1 className="text-title text-ink">{t('pay.methodTitle')}</h1>
+        <h1 className="text-title text-ink">{t('pay.paypalTitle')}</h1>
         <Card className="mt-4"><CardBody>{t('pay.creditOnly')}</CardBody></Card>
         <Button className="mt-4" asChild>
           <Link to="/pay/$requestId/done" params={{ requestId }}>{t('common.continue')}</Link>
@@ -42,21 +43,22 @@ function MethodScreen() {
   }
   return (
     <div>
-      <h1 className="text-title text-ink">{t('pay.methodTitle')}</h1>
-      <Card className="mt-4"><CardBody>{t('pay.razorpay')}</CardBody></Card>
-      <Button className="mt-3" disabled={busy} onClick={go}>
-        {t('pay.payNow', { amount: q.due / 100 })}
+      <h1 className="text-title text-ink">{t('pay.paypalTitle')}</h1>
+      <Card className="mt-4 items-center text-center">
+        <p className="font-head text-title font-bold text-ink">
+          {t('pay.paypalDue', { amount: q.due / 100 })}
+        </p>
+      </Card>
+      <p className="mt-3 text-center text-body text-muted">{t('pay.paypalOwn')}</p>
+      <Button className="mt-4 border-accent bg-accent text-ink" disabled={busy} onClick={go}>
+        {t('pay.paypalGo')}
       </Button>
-      {busy ? (
-        <Button className="mt-3" variant="ghost" disabled>{t('pay.paypalAlt')}</Button>
-      ) : (
-        <Button className="mt-3" variant="ghost" asChild>
-          <Link to="/pay/$requestId/paypal" params={{ requestId }}>
-            {t('pay.paypalAlt')}
-          </Link>
-        </Button>
-      )}
-      <p className="mt-2 text-center text-caption text-muted">{t('pay.paypalNote', { amount: '1.2' })}</p>
+      <p className="mt-2 text-center text-caption text-muted">{t('pay.paypalFor')}</p>
+      <Button className="mt-2" variant="ghost" asChild>
+        <Link to="/pay/$requestId/method" params={{ requestId }}>
+          {t('pay.otherWay')}
+        </Link>
+      </Button>
       <AppFooter />
     </div>
   )

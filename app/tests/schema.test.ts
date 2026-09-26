@@ -3,8 +3,10 @@
    never regress: RLS on every table, explicit GRANTs, has_role() as SECURITY
    DEFINER, roles in a separate user_roles table, integer paise, and no column
    that could hold a plaintext PNR. */
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+/* node: modules come via getBuiltinModule — a static `import 'node:fs'` is
+   mangled by Vite's browser-compat externalization under the jsdom pool. */
+const { readFileSync } = process.getBuiltinModule('node:fs') as typeof import('node:fs')
+const { join } = process.getBuiltinModule('node:path') as typeof import('node:path')
 import { describe, expect, it } from 'vitest'
 
 const SUPABASE = join(import.meta.dirname, '..', 'supabase')

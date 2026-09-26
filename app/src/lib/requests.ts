@@ -12,7 +12,8 @@
 
 import type { BerthType } from './pnr'
 import { rankMatches, type CandidateSpec, type RequesterSpec } from './matching'
-import { logActivity, listTrips, getTrip, type Trip } from './store'
+import { needsCreditReminder } from './jobs'
+import { logActivity, listTrips, getTrip, getSnapshot, type Trip } from './store'
 
 export type RequestStatus =
   | 'draft'
@@ -537,6 +538,10 @@ export type UpdateKind =
   | 'incoming_waiting'
   | 'incoming_declined'
   | 'incoming_faster'
+  | 'chart_out'
+  | 'credit_added'
+  | 'credit_expiring'
+  | 'request_expired'
 
 export interface UpdateRow {
   id: string
@@ -544,6 +549,10 @@ export interface UpdateRow {
   request_id: string | null
   trip_id: string | null
   created_at: string
+  /** Credit rows only: original wallet amount, paise. */
+  amount_paise?: number | null
+  /** Expiring-credit rows only: whole days left, rounded up. */
+  days_left?: number | null
 }
 
 export function updates(): UpdateRow[] {
@@ -606,6 +615,57 @@ export function updates(): UpdateRow[] {
         created_at: now(),
       })
     }
+  }
+  /* Chart is out (docs/04 growth loop): one row per trip whose chart flipped. */
+  for (const trip of listTrips()) {
+    if (!trip.chart_prepared) continue
+    rows.push({
+      id: `u_chart_${trip.id}`,
+      kind: 'chart_out',
+      request_id: null,
+      trip_id: trip.id,
+      created_at: trip.created_at,
+    })
+  }
+  /* Credit added + expiring (docs/04 notifications, rule 4: 12-month life). */
+  const at = Date.now()
+  for (const tx of getSnapshot().wallet) {
+    if (tx.amount_paise <= 0) continue
+    if (tx.kind === 'acceptor_credit' || tx.kind === 'swap_to_credit' || tx.kind === 'admin_adjust') {
+      rows.push({
+        id: `u_tx_${tx.id}`,
+        kind: 'credit_added',
+        request_id: tx.ref_request_id,
+        trip_id: null,
+        created_at: tx.created_at,
+        amount_paise: tx.amount_paise,
+      })
+    }
+    if (tx.expires_at) {
+      const expiresMs = Date.parse(tx.expires_at)
+      if (Number.isFinite(expiresMs) && needsCreditReminder(at, expiresMs)) {
+        rows.push({
+          id: `u_txexp_${tx.id}`,
+          kind: 'credit_expiring',
+          request_id: tx.ref_request_id,
+          trip_id: null,
+          created_at: tx.created_at,
+          amount_paise: tx.amount_paise,
+          days_left: Math.max(1, Math.ceil((expiresMs - at) / 86_400_000)),
+        })
+      }
+    }
+  }
+  /* Requests that ended with no swap (docs/03: searching -> expired). */
+  for (const request of state.requests) {
+    if (request.status !== 'expired') continue
+    rows.push({
+      id: `u_reqexp_${request.id}`,
+      kind: 'request_expired',
+      request_id: request.id,
+      trip_id: request.trip_id,
+      created_at: request.updated_at,
+    })
   }
   return rows.sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
 }

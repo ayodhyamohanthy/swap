@@ -4,6 +4,7 @@ import type { RouteChrome } from '@/components/app-shell'
 import { Card, CardTitle } from '@/components/ui/card'
 import { useI18n } from '@/lib/i18n'
 import { updates as listUpdates, type UpdateRow } from '@/lib/requests'
+import { getTrip } from '@/lib/store'
 import { useRequestsState } from '@/lib/use-store'
 
 /* Screen 20 "Updates" (design 13a) — in-app list behind the Swaps tab badge
@@ -14,8 +15,9 @@ export const Route = createFileRoute('/updates')({
   component: UpdatesScreen,
 })
 
-function rowCopy(kind: UpdateRow['kind'], t: ReturnType<typeof useI18n>['t']): string {
-  switch (kind) {
+function rowCopy(row: UpdateRow, t: ReturnType<typeof useI18n>['t']): string {
+  const amount = Math.round((row.amount_paise ?? 0) / 100)
+  switch (row.kind) {
     case 'accepted':
       return t('manage.acceptedCta')
     case 'faster':
@@ -28,12 +30,24 @@ function rowCopy(kind: UpdateRow['kind'], t: ReturnType<typeof useI18n>['t']): s
       return t('incoming.declined')
     case 'incoming_faster':
       return t('incoming.faster')
+    case 'chart_out': {
+      const trip = row.trip_id ? getTrip(row.trip_id) : undefined
+      return t('updates.chartOut', { train: trip?.train_no ?? '' })
+    }
+    case 'credit_added':
+      return t('updates.creditAdded', { amount })
+    case 'credit_expiring':
+      return t('updates.creditExpiring', { amount, days: row.days_left ?? 30 })
+    case 'request_expired':
+      return t('updates.requestExpired')
   }
 }
 
 function rowHref(row: UpdateRow): string {
   if (row.kind === 'accepted') return `/pay/${row.request_id}`
   if (row.kind === 'locked') return `/swaps/${row.request_id}/summary`
+  if (row.kind === 'chart_out') return row.trip_id ? `/trips/${row.trip_id}` : '/'
+  if (row.kind === 'credit_added' || row.kind === 'credit_expiring') return '/profile'
   if (row.request_id) return `/request/${row.request_id}`
   return row.trip_id ? `/incoming/${row.trip_id}` : '/swaps'
 }
@@ -62,7 +76,7 @@ function UpdatesScreen() {
               <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-wash text-primary">
                 <BellRing aria-hidden className="size-5" />
               </span>
-              <span className="min-w-0 flex-1 text-body text-ink">{rowCopy(row.kind, t)}</span>
+              <span className="min-w-0 flex-1 text-body text-ink">{rowCopy(row, t)}</span>
               <ChevronRight aria-hidden className="size-5 text-muted" />
             </Link>
           ))}

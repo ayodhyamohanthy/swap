@@ -60,11 +60,21 @@ function SummaryScreen() {
       </Card>
       {berths ? (
         <Button className="mt-4" asChild>
-          <Link to="/swaps/$id/confirm" params={{ id }}>
-            {t('confirm.title')}
+          <Link to="/swaps/$id/meet" params={{ id }}>
+            {t('meet.title')}
           </Link>
         </Button>
       ) : null}
+      <Button className="mt-2" variant="outline" asChild>
+        <Link to="/swaps/$id/confirm" params={{ id }}>
+          {t('confirm.title')}
+        </Link>
+      </Button>
+      <Button className="mt-2" variant="ghost" asChild>
+        <Link to="/swaps/$id/cancel" params={{ id }}>
+          {t('cancelSwap.title')}
+        </Link>
+      </Button>
       <AppFooter />
     </div>
   )

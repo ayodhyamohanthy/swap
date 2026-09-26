@@ -275,6 +275,11 @@
     "razorpay": "Pay with UPI, card or net banking",
     "paypalAlt": "International traveller? Pay with PayPal",
     "paypalNote": "PayPal shows about US${amount} as an estimate. You are charged ₹99.",
+    "paypalTitle": "Pay with PayPal",
+    "paypalDue": "₹{amount} · about US$1.20",
+    "paypalOwn": "Your card is charged in your own currency by PayPal",
+    "paypalGo": "Continue to PayPal",
+    "paypalFor": "For international travellers",
     "creditOnly": "Covered by your credit. No payment needed.",
     "payNow": "Pay ₹{amount}",
     "pending": "Your bank is still confirming ₹99. Please don't pay again.",
@@ -307,7 +312,9 @@
     "found": "Found each other?",
     "foundYes": "I've met {name}",
     "foundNo": "Can't find them",
-    "foundSaved": "Saved."
+    "foundSaved": "Saved.",
+    "queued": "Queued. Sends when you're back online.",
+    "queuedShort": "Queued"
   },
   "confirm": {
     "title": "Did you swap?",
@@ -368,7 +375,46 @@
   "rating": {
     "title": "Rate this swap",
     "thanks": "Thanks for rating.",
-    "submit": "Submit"
+    "submit": "Submit",
+    "sub": "How was swapping with {name}?",
+    "friendly": "Friendly",
+    "onTime": "On time",
+    "helpful": "Helpful",
+    "done": "Done"
+  },
+  "meet": {
+    "title": "Found each other?",
+    "atBerth": "I'm at berth {berth}",
+    "metYes": "I've met {name}",
+    "metNo": "Can't find them",
+    "offline": "Quick messages work offline.",
+    "saved": "Saved."
+  },
+  "shareCard": {
+    "title": "Share your swap",
+    "body": "We swapped berths on {train}. Travel is better together.",
+    "note": "No names, berths or PNRs are shared."
+  },
+  "cancelSwap": {
+    "title": "Cancel this swap?",
+    "body": "You've paid but not met {name} yet.",
+    "creditNote": "₹99 goes to your credit. {name} won't get credit.",
+    "confirm": "Cancel swap",
+    "keep": "Keep swap",
+    "done": "Swap cancelled. ₹99 is in your credit."
+  },
+  "outcome": {
+    "creditTitle": "Added to your credit",
+    "creditReady": "Ready to use on your next swap",
+    "reviewTitle": "Answers don't match",
+    "reviewBody": "You said swapped. {name} said they couldn't find you.",
+    "addNote": "Add a note",
+    "noteSaved": "Thanks. Your note is saved.",
+    "partnerTitle": "{name} can't swap now",
+    "partnerBody": "{name} cancelled before you met.",
+    "otherMatches": "{n} other matches on your train",
+    "askFree": "Ask them · free",
+    "seeRequests": "See my requests"
   },
   "matches": {
     "title": "People on your train",
@@ -409,7 +455,11 @@
     "title": "Updates",
     "empty": "No updates yet. When someone says yes, it shows here.",
     "markRead": "Mark all read",
-    "open": "Open"
+    "open": "Open",
+    "chartOut": "Chart is out for {train}",
+    "creditAdded": "₹{amount} credit added",
+    "creditExpiring": "₹{amount} credit ends in {days} days",
+    "requestExpired": "A swap request has ended."
   },
   "incoming": {
     "title": "Swap request",
@@ -425,6 +475,9 @@
     "backOut": "Back out",
     "backOutDone": "You backed out. You stay open to swap.",
     "faster": "Someone else was faster. You're still open to swap.",
+    "fasterTitle": "Someone else was faster",
+    "fasterPaid": "Someone else paid first, so this swap went to them.",
+    "fasterOpen": "Your other requests are still open",
     "browserTitle": "Someone wants your berth",
     "browserBody": "Sign in with Google to accept. You pay nothing.",
     "signinToAccept": "Sign in to accept"

@@ -3,8 +3,10 @@
    the route/component source, so a banned word typed straight into JSX or a raw
    PNR printed next to a passenger name fails the build. */
 
-import { readFileSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
+/* node: modules come via getBuiltinModule — a static `import 'node:fs'` is
+   mangled by Vite's browser-compat externalization under the jsdom pool. */
+const { readFileSync, readdirSync } = process.getBuiltinModule('node:fs') as typeof import('node:fs')
+const { join } = process.getBuiltinModule('node:path') as typeof import('node:path')
 import { describe, expect, it } from 'vitest'
 
 import en from '../locales/en.json'

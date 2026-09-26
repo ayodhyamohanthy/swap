@@ -1,6 +1,6 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { Coins, ShieldCheck } from 'lucide-react'
-import type { RouteChrome } from '@/components/app-shell'
+import { AppFooter, type RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
@@ -52,6 +52,23 @@ function IncomingScreen() {
   }
 
   const state = incoming.state
+
+  /* Design 20a: someone else paid first — standalone screen, still open. */
+  if (state === 'faster') {
+    return (
+      <div>
+        <h1 className="mt-2 text-center text-title text-ink">{t('incoming.fasterTitle')}</h1>
+        <p className="mt-1 text-center text-body text-muted">{t('incoming.fasterPaid')}</p>
+        <Card className="mt-4">
+          <CardBody className="font-semibold text-ink">{t('incoming.fasterOpen')}</CardBody>
+        </Card>
+        <Button className="mt-4" asChild>
+          <Link to="/swaps">{t('outcome.seeRequests')}</Link>
+        </Button>
+        <AppFooter />
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -124,12 +141,6 @@ function IncomingScreen() {
       {state === 'backed_out' ? (
         <Card className="mt-4">
           <CardBody>{t('incoming.backOutDone')}</CardBody>
-        </Card>
-      ) : null}
-
-      {state === 'faster' ? (
-        <Card className="mt-4">
-          <CardBody>{t('incoming.faster')}</CardBody>
         </Card>
       ) : null}
     </div>

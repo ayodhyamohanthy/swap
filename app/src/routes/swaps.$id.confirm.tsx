@@ -41,7 +41,14 @@ function ConfirmScreen() {
       </Card>
       <Button className="mt-4" disabled={!picked} asChild={!!picked}>
         {picked
-          ? <Link to="/swaps/$id/done" params={{ id }} search={{ state: 'swapped' }}>{t('confirm.submit')}</Link>
+          ? (
+            <Link
+              to="/swaps/$id/done" params={{ id }}
+              search={{ state: picked === 'swapped' ? 'swapped' : 'credit' }}
+            >
+              {t('confirm.submit')}
+            </Link>
+          )
           : <span aria-hidden>{t('confirm.submit')}</span>}
       </Button>
       <AppFooter />
