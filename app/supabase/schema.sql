@@ -488,12 +488,16 @@ CREATE POLICY receipts_payer ON public.receipts
     )
   );
 
--- ------------------------------------------------------------------ wallet
--- Self-only ledger; inserts happen through server functions / webhooks.
+-- ------------------------------------------------------------ wallet (credit)
+-- Ledger rows are written ONLY by server functions and webhooks (service_role,
+-- which bypasses RLS). There is deliberately NO authenticated INSERT policy:
+-- with `WITH CHECK (user_id = auth.uid())` a passenger could insert
+-- amount_paise = 99999999 kind = 'acceptor_credit' and mint unlimited credit,
+-- breaking rules 3-6 outright. Rules 3-6 are enforced by the writers, not by
+-- trusting the client (docs/08). Clients keep SELECT only, so the Profile
+-- wallet still renders.
 CREATE POLICY wallet_owner_read ON public.wallet_tx
   FOR SELECT TO authenticated USING (user_id = auth.uid());
-CREATE POLICY wallet_owner_insert ON public.wallet_tx
-  FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
 
 -- ------------------------------------------------------------ confirmations
 -- Each party writes only their own answer; both answers are visible to both
@@ -614,7 +618,8 @@ REVOKE ALL ON TABLE public.receipts FROM PUBLIC, anon;
 GRANT SELECT ON TABLE public.receipts TO authenticated;
 GRANT ALL ON TABLE public.receipts TO service_role;
 REVOKE ALL ON TABLE public.wallet_tx FROM PUBLIC, anon;
-GRANT SELECT, INSERT ON TABLE public.wallet_tx TO authenticated;
+-- SELECT only: credit is minted by service_role writers, never by the client.
+GRANT SELECT ON TABLE public.wallet_tx TO authenticated;
 GRANT ALL ON TABLE public.wallet_tx TO service_role;
 
 -- confirmations: parties read, self writes.

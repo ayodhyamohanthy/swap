@@ -140,3 +140,55 @@ describe('Google-only sign-in (rule 8)', () => {
     }
   })
 })
+
+describe('credit cannot be minted by a passenger (rules 3-6)', () => {
+  /* The wallet ledger is the only thing that makes "acceptor earns Rs 50" and
+     "failed swap becomes Rs 99 credit" true. If a client can write it directly,
+     any signed-in user can insert amount_paise = 99999999 and print credit. */
+  const walletPolicies = [
+    ...SCHEMA.matchAll(/CREATE POLICY\s+\w+\s+ON\s+public\.wallet_tx[\s\S]*?;/gi),
+  ].map((m) => m[0])
+
+  it('has no INSERT policy for the authenticated role', () => {
+    const insertToClient = walletPolicies.filter(
+      (p) => /\bFOR\s+INSERT\b/i.test(p) && /\bTO\s+authenticated\b/i.test(p),
+    )
+    expect(insertToClient, 'wallet_tx must not be client-writable').toHaveLength(0)
+  })
+
+  it('grants the client SELECT but never INSERT on the ledger', () => {
+    const authGrants = [...SCHEMA.matchAll(/GRANT\s+[^;]*ON\s+TABLE\s+public\.wallet_tx\s+TO\s+authenticated;/gi)]
+    expect(authGrants.length, 'expected an authenticated grant on wallet_tx').toBeGreaterThan(0)
+    for (const g of authGrants) {
+      expect(g[0].toUpperCase()).not.toContain('INSERT')
+      expect(g[0].toUpperCase()).toContain('SELECT')
+    }
+  })
+
+  it('still lets the passenger read their own wallet', () => {
+    const read = walletPolicies.find((p) => /\bFOR\s+SELECT\b/i.test(p))
+    expect(read, 'wallet_tx needs an owner-read policy').toBeDefined()
+    expect(read).toContain('auth.uid()')
+  })
+
+  it('keeps the store ledger kinds and the SQL CHECK in step', () => {
+    /* app/src/lib/store.ts WalletTx.kind must equal the column CHECK exactly.
+       A drift means the local-first wallet writes rows the database rejects. */
+    const sqlKinds = SCHEMA.match(
+      /kind\s+text\s+NOT\s+NULL\s+CHECK\s*\(kind\s+IN\s*\(([^)]*)\)\)/i,
+    )?.[1]
+    expect(sqlKinds, 'wallet_tx.kind must have a CHECK').toBeDefined()
+    const inSql = (sqlKinds as string)
+      .split(',')
+      .map((s) => s.trim().replace(/'/g, ''))
+      .sort()
+    const store = readFileSync(join(SUPABASE, '..', 'src', 'lib', 'store.ts'), 'utf8')
+    const inStore = (
+      store.match(/kind:\s*((?:'[a-z_]+'\s*\|\s*)*'[a-z_]+')/)?.[1] ?? ''
+    )
+      .split('|')
+      .map((s) => s.trim().replace(/'/g, ''))
+      .sort()
+    expect(inStore).toEqual(inSql)
+  })
+})

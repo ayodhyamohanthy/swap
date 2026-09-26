@@ -8,7 +8,8 @@ REVOKE ALL ON TABLE public.receipts FROM PUBLIC, anon;
 GRANT SELECT ON TABLE public.receipts TO authenticated;
 GRANT ALL ON TABLE public.receipts TO service_role;
 REVOKE ALL ON TABLE public.wallet_tx FROM PUBLIC, anon;
-GRANT SELECT, INSERT ON TABLE public.wallet_tx TO authenticated;
+-- SELECT only: credit is minted by service_role writers, never by the client.
+GRANT SELECT ON TABLE public.wallet_tx TO authenticated;
 GRANT ALL ON TABLE public.wallet_tx TO service_role;
 
 -- confirmations: parties read, self writes.
