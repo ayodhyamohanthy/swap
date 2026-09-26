@@ -12,7 +12,12 @@
    - credit is never cash and expires after 12 months (rule 4) */
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { applyWebhookEvent } from '@/server/webhooks'
+import {
+  applyWebhookEvent,
+  parseWebhook,
+  signatureHeader,
+  verifyRazorpayWebhook,
+} from '@/server/webhooks'
 import { buildQuote } from '@/lib/payments'
 import { FEE_PAISE, PRICE_PAISE, THANK_YOU_PAISE } from '@/lib/money'
 import { creditExpiresAt, resolveConfirmations } from '@/lib/outcomes'
@@ -225,11 +230,137 @@ describe('webhook replay is idempotent', () => {
   })
 })
 
+describe('webhook signature verification (docs/06)', () => {
+  const SECRET = 'whsec_test_secret'
+  const OTHER = 'whsec_wrong_secret'
+
+  beforeEach(() => {
+    process.env.RAZORPAY_WEBHOOK_SECRET = SECRET
+  })
+
+  it('accepts a signature produced with the right secret', async () => {
+    const { createHmac } = await import('node:crypto')
+    const body = JSON.stringify({ event: 'payment.captured', id: 'pay_1' })
+    const signature = createHmac('sha256', SECRET).update(body).digest('hex')
+    await expect(verifyRazorpayWebhook(body, signature)).resolves.toBe(true)
+  })
+
+  it('rejects a signature made with the wrong secret', async () => {
+    const { createHmac } = await import('node:crypto')
+    const body = JSON.stringify({ event: 'payment.captured', id: 'pay_1' })
+    const bad = createHmac('sha256', OTHER).update(body).digest('hex')
+    await expect(verifyRazorpayWebhook(body, bad)).resolves.toBe(false)
+  })
+
+  it('rejects a tampered body', async () => {
+    const { createHmac } = await import('node:crypto')
+    const body = JSON.stringify({ event: 'payment.captured', id: 'pay_1' })
+    const signature = createHmac('sha256', SECRET).update(body).digest('hex')
+    const tampered = JSON.stringify({ event: 'payment.captured', id: 'pay_2' })
+    await expect(verifyRazorpayWebhook(tampered, signature)).resolves.toBe(false)
+  })
+
+  it('rejects a wrong-length signature without throwing', async () => {
+    // timingSafeEqual throws on mismatched lengths; the guard must absorb it.
+    await expect(verifyRazorpayWebhook('body', 'abc')).resolves.toBe(false)
+    await expect(verifyRazorpayWebhook('body', '')).resolves.toBe(false)
+    await expect(
+      verifyRazorpayWebhook('body', 'a'.repeat(1000)),
+    ).resolves.toBe(false)
+  })
+
+  it('is case-sensitive on the digest', async () => {
+    const { createHmac } = await import('node:crypto')
+    const body = 'x'
+    const signature = createHmac('sha256', SECRET).update(body).digest('hex')
+    await expect(verifyRazorpayWebhook(body, signature.toUpperCase())).resolves.toBe(false)
+  })
+})
+
 describe('withdrawing before payment costs nothing', () => {
   it('expires the offers and leaves the wallet empty', async () => {
     const { request } = await journey()
     expect(withdrawRequest(request.id)?.status).toBe('withdrawn')
     expect(offersFor(request.id)[0].status).toBe('expired')
     expect(creditPaise()).toBe(0)
+  })
+})
+
+describe('webhook payload parsing (docs/06)', () => {
+  it('reads a Razorpay capture and uses the payment id as the idempotency key', () => {
+    const body = JSON.stringify({
+      event: 'payment.captured',
+      payload: { payment: { entity_id: 'pay_123', amount: 9900 } },
+    })
+    expect(parseWebhook('razorpay', { rawBody: body, headers: {} })).toEqual({
+      status: 'ok',
+      provider: 'razorpay',
+      providerRef: 'pay_123',
+      kind: 'captured',
+    })
+  })
+
+  it('reads a Razorpay failure', () => {
+    const body = JSON.stringify({
+      event: 'payment.failed',
+      payload: { payment: { entity_id: 'pay_456' } },
+    })
+    expect(parseWebhook('razorpay', { rawBody: body, headers: {} })).toMatchObject({
+      status: 'ok',
+      kind: 'failed',
+    })
+  })
+
+  it('reads a PayPal capture and denial', () => {
+    const ok = JSON.stringify({
+      event_type: 'PAYMENT.CAPTURE.COMPLETED',
+      resource: { id: 'CAPTURE-9' },
+    })
+    expect(parseWebhook('paypal', { rawBody: ok, headers: {} })).toMatchObject({
+      status: 'ok',
+      providerRef: 'CAPTURE-9',
+      kind: 'captured',
+    })
+
+    const denied = JSON.stringify({
+      event_type: 'PAYMENT.CAPTURE.DENIED',
+      resource: { id: 'CAPTURE-10' },
+    })
+    expect(parseWebhook('paypal', { rawBody: denied, headers: {} })).toMatchObject({
+      kind: 'denied',
+    })
+  })
+
+  it('rejects malformed JSON instead of throwing', () => {
+    expect(parseWebhook('razorpay', { rawBody: 'not json', headers: {} })).toEqual({
+      status: 'rejected',
+      reason: 'missing_ref',
+    })
+  })
+
+  it('rejects an event it does not understand', () => {
+    const body = JSON.stringify({
+      event: 'refund.processed',
+      payload: { payment: { entity_id: 'pay_789' } },
+    })
+    expect(parseWebhook('razorpay', { rawBody: body, headers: {} })).toEqual({
+      status: 'rejected',
+      reason: 'unsupported_event',
+    })
+  })
+
+  it('rejects a payload with no payment id', () => {
+    const body = JSON.stringify({ event: 'payment.captured', payload: {} })
+    expect(parseWebhook('razorpay', { rawBody: body, headers: {} })).toEqual({
+      status: 'rejected',
+      reason: 'missing_ref',
+    })
+  })
+
+  it('finds the signature header case-insensitively', () => {
+    const headers = { 'X-Razorpay-Signature': 'abc', 'Transmission-Sig': 'def' }
+    expect(signatureHeader('razorpay', headers)).toBe('abc')
+    expect(signatureHeader('paypal', headers)).toBe('def')
+    expect(signatureHeader('razorpay', {})).toBe('')
   })
 })

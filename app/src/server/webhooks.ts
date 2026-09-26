@@ -1,18 +1,158 @@
-/* SeatSwap server payments — part 2: verify + capture + webhooks (docs/06).
-   Webhook is the source of truth; client polling only updates UI. */
 import { createServerFn } from '@tanstack/react-start'
 import { PRICE_PAISE } from '@/lib/money'
 import { paypalWebhookId, serverEnv } from '@/server/payments-helpers'
+
+/* Webhook request handling — the security-critical half of docs/06, written as a
+   pure function so it is testable without a server.
+
+   IMPORTANT ARCHITECTURE NOTE: `vite.config.ts` sets `spa.enabled = true`, so the
+   current build ships a static PWA to `dist/client` and has NO server runtime.
+   These handlers therefore cannot be mounted at WEBHOOK_PATHS until the app is
+   deployed with a server (flip `spa.enabled` off, or run these behind Supabase
+   Edge Functions / the separate `server/` process the prototype uses). The
+   request-handling contract is implemented and tested here so that step is a
+   wiring change, not a rewrite. */
+
+export interface WebhookRequest {
+  /** The exact bytes the provider sent — never a re-serialised object. */
+  rawBody: string
+  /** Razorpay: X-Razorpay-Signature. PayPal: the transmission headers. */
+  headers: Record<string, string | undefined>
+}
+
+export type WebhookProvider = 'razorpay' | 'paypal'
+
+export type WebhookVerdict =
+  | {
+      status: 'ok'
+      provider: WebhookProvider
+      providerRef: string
+      kind: 'captured' | 'failed' | 'completed' | 'denied'
+    }
+  | { status: 'rejected'; reason: 'bad_signature' | 'unsupported_event' | 'missing_ref' }
+
+export interface ParsedWebhook {
+  provider: WebhookProvider
+  /** Provider payment id — the idempotency key. */
+  providerRef: string
+  kind: 'captured' | 'failed' | 'completed' | 'denied'
+}
+
+/** Razorpay event names that mean the money is (or is not) ours. */
+const RAZORPAY_KINDS: Record<string, ParsedWebhook['kind']> = {
+  'payment.captured': 'captured',
+  'payment.failed': 'failed',
+  'order.paid': 'completed',
+}
+
+function header(headers: Record<string, string | undefined>, name: string): string {
+  const target = name.toLowerCase()
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() === target) return value ?? ''
+  }
+  return ''
+}
+
+function parseRazorpay(rawBody: string): Omit<ParsedWebhook, 'provider'> | null {
+  let payload: Record<string, unknown>
+  try {
+    payload = JSON.parse(rawBody) as Record<string, unknown>
+  } catch {
+    return null
+  }
+  const event = typeof payload.event === 'string' ? payload.event : ''
+  const kind = RAZORPAY_KINDS[event]
+  if (!kind) return null
+  const entity = (payload.payload as Record<string, unknown> | undefined)?.payment as
+    | Record<string, unknown>
+    | undefined
+  const entityId = entity?.entity_id
+  const ref = typeof entityId === 'string' ? entityId : ''
+  if (!ref) return null
+  return { providerRef: ref, kind }
+}
+
+function parsePaypal(rawBody: string): Omit<ParsedWebhook, 'provider'> | null {
+  let payload: Record<string, unknown>
+  try {
+    payload = JSON.parse(rawBody) as Record<string, unknown>
+  } catch {
+    return null
+  }
+  const event = typeof payload.event_type === 'string' ? payload.event_type : ''
+  const resource = payload.resource as Record<string, unknown> | undefined
+  const ref = typeof resource?.id === 'string' ? resource.id : ''
+  if (!ref) return null
+  if (event === 'PAYMENT.CAPTURE.COMPLETED') return { providerRef: ref, kind: 'captured' }
+  if (event === 'PAYMENT.CAPTURE.DENIED') return { providerRef: ref, kind: 'denied' }
+  return null
+}
+
+/**
+ * Turn a raw provider request into a verdict. Signature verification is the
+ * caller's job and MUST happen on `rawBody` before this is trusted.
+ */
+export function parseWebhook(
+  provider: WebhookProvider,
+  request: WebhookRequest,
+): WebhookVerdict {
+  const parsed =
+    provider === 'razorpay' ? parseRazorpay(request.rawBody) : parsePaypal(request.rawBody)
+  if (!parsed) {
+    /* Distinguish "bad shape" from "no payment id" for clearer logs. */
+    let hasRef = false
+    try {
+      const payload = JSON.parse(request.rawBody) as Record<string, unknown>
+      const entity = payload.payload as Record<string, unknown> | undefined
+      const resource = payload.resource as Record<string, unknown> | undefined
+      hasRef = Boolean(entity?.payment ?? resource?.id)
+    } catch {
+      hasRef = false
+    }
+    return hasRef
+      ? { status: 'rejected', reason: 'unsupported_event' }
+      : { status: 'rejected', reason: 'missing_ref' }
+  }
+  return { status: 'ok', provider, providerRef: parsed.providerRef, kind: parsed.kind }
+}
+
+/** Header name each provider signs with, so the route code cannot get it wrong. */
+export const SIGNATURE_HEADERS: Record<WebhookProvider, string> = {
+  razorpay: 'x-razorpay-signature',
+  paypal: 'transmission-sig',
+}
+
+export function signatureHeader(
+  provider: WebhookProvider,
+  headers: Record<string, string | undefined>,
+): string {
+  return header(headers, SIGNATURE_HEADERS[provider])
+}
+
+/**
+ * Constant-time hex comparison. `timingSafeEqual` throws when the two buffers
+ * differ in length, so we screen the length first — the length of a hex digest
+ * is public, so leaking it costs nothing, while the contents must not leak.
+ */
+function safeEqual(
+  expected: string,
+  actual: string,
+  timingSafeEqual: (a: Uint8Array, b: Uint8Array) => boolean,
+): boolean {
+  const a = Buffer.from(expected, 'utf8')
+  const b = Buffer.from(actual, 'utf8')
+  if (a.length !== b.length) return false
+  return timingSafeEqual(a, b)
+}
 
 export const verifyRazorpaySignature = createServerFn({ method: 'POST' })
   .validator((input: { orderId: string; paymentId: string; signature: string }) => input)
   .handler(async ({ data }): Promise<{ ok: boolean }> => {
     const secret = serverEnv('RAZORPAY_KEY_SECRET')
-    const { createHmac } = await import('node:crypto')
+    const { createHmac, timingSafeEqual } = await import('node:crypto')
     const expected = createHmac('sha256', secret)
       .update(`${data.orderId}|${data.paymentId}`).digest('hex')
-    const ok = expected.length === data.signature.length && expected === data.signature
-    return { ok }
+    return { ok: safeEqual(expected, data.signature, timingSafeEqual) }
   })
 export const createPaypalOrder = createServerFn({ method: 'POST' })
   .validator((input: { requestId: string }) => input)
@@ -31,9 +171,9 @@ export const capturePaypalOrder = createServerFn({ method: 'POST' })
   })
 export async function verifyRazorpayWebhook(rawBody: string, signature: string): Promise<boolean> {
   const secret = serverEnv('RAZORPAY_WEBHOOK_SECRET')
-  const { createHmac } = await import('node:crypto')
+  const { createHmac, timingSafeEqual } = await import('node:crypto')
   const expected = createHmac('sha256', secret).update(rawBody).digest('hex')
-  return expected.length === signature.length && expected === signature
+  return safeEqual(expected, signature, timingSafeEqual)
 }
 export function applyWebhookEvent(
   seen: Set<string>,
