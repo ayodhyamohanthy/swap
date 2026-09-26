@@ -6,7 +6,8 @@
       "Shell(grep:*)",
       "Shell(npx vitest run tests/flows.test.ts 2 >& 1)",
       "Shell(perl -0pi -e s/ const \\{ createHmac \\} = await import\\('node:crypto'\\)\\n//g tests/flows.test.ts)",
-      "Shell(cd /Users/ayodhyarammohanthy/Documents/GitHub/swap/app && grep -rn \"to=\\\"/swaps\\|to={\\`/swaps\\|to={\\`/pay\\|to=\\\"/pay\" src/routes/*.tsx | head -20 && echo \"---UPI---\" && grep -rn \"upi\" src/routes/pay.\\$requestId.*.tsx src/locales/../../locales/en.json | grep -i \"upi\" | head -10)"
+      "Shell(cd /Users/ayodhyarammohanthy/Documents/GitHub/swap/app && grep -rn \"to=\\\"/swaps\\|to={\\`/swaps\\|to={\\`/pay\\|to=\\\"/pay\" src/routes/*.tsx | head -20 && echo \"---UPI---\" && grep -rn \"upi\" src/routes/pay.\\$requestId.*.tsx src/locales/../../locales/en.json | grep -i \"upi\" | head -10)",
+      "Shell(sed:*)"
     ],
     "deny": [],
     "defaultMode": "default"
