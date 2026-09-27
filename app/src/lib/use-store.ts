@@ -12,9 +12,11 @@ import {
   getRequestsServerSnapshot,
   getRequestsSnapshot,
   subscribe as subscribeRequests,
+  unreadUpdates,
   type RequestsState,
   type SwapOffer,
   type SwapRequest,
+  type UpdateRow,
 } from './requests'
 
 /** Subscribe a component to the local-first store. */
@@ -86,4 +88,12 @@ export function useSwapRequest(id: string | undefined): SwapRequest | undefined 
 export function useRequestOffers(requestId: string): SwapOffer[] {
   const { offers } = useRequestsState()
   return offers.filter((offer) => offer.request_id === requestId)
+}
+
+/** Unread updates for the Swaps-tab badge and the Updates list. Re-renders
+    when requests, trips, wallet or seen-flags change. */
+export function useUnreadUpdates(): UpdateRow[] {
+  useAppState()
+  useRequestsState()
+  return unreadUpdates()
 }

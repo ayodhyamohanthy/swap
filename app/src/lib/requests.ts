@@ -16,7 +16,7 @@ import { needsCreditReminder } from './jobs'
 import { trackEvent } from './analytics'
 import { GROUP_MAX_SWAPS } from './money'
 import { getGroup, groupForTrip } from './groups'
-import { logActivity, listTrips, getTrip, getSnapshot, paymentFor, type Trip } from './store'
+import { logActivity, listTrips, getTrip, getSnapshot, isSeen, markSeen, paymentFor, type Trip } from './store'
 
 export type RequestStatus =
   | 'draft'
@@ -757,5 +757,34 @@ export function updates(): UpdateRow[] {
   return rows.sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
 }
 
+/* ---- Updates read-state (docs/05 #20): every row id above is stable across
+   calls, so "read" survives reloads in the same `seen` map as onboarding. */
 
+const updateSeenKey = (id: string): string => `update:${id}`
 
+/** True once the traveller opened (or marked) this update. */
+export function isUpdateRead(id: string): boolean {
+  return isSeen(updateSeenKey(id))
+}
+
+/** Mark one update read. */
+export function markUpdateRead(id: string): void {
+  markSeen(updateSeenKey(id))
+}
+
+/** Mark every current update read. Returns how many were unread. */
+export function markAllUpdatesRead(): number {
+  let newly = 0
+  for (const row of updates()) {
+    if (!isUpdateRead(row.id)) {
+      markUpdateRead(row.id)
+      newly += 1
+    }
+  }
+  return newly
+}
+
+/** Updates the traveller has not opened yet, newest first. */
+export function unreadUpdates(): UpdateRow[] {
+  return updates().filter((row) => !isUpdateRead(row.id))
+}

@@ -407,3 +407,36 @@ describe('client guards mirror the server machine (docs/03)', () => {
     expect(getRequest(request.id)?.status).toBe('searching')
   })
 })
+
+describe('updates read-state (docs/05 #20)', () => {
+  beforeEach(() => {
+    resetStore()
+    resetRequests()
+  })
+
+  it('lists new updates as unread until opened', async () => {
+    const { isUpdateRead, markAllUpdatesRead, markUpdateRead, unreadUpdates, updates } = await import('@/lib/requests')
+    const { mine } = await seed()
+    const request = createRequest({ trip_id: mine.id, choices: ['UB'] })
+    sendRequest(request.id)
+    acceptOffer(offersFor(request.id)[0].id)
+    const rows = updates()
+    expect(rows.length).toBeGreaterThan(0)
+    expect(unreadUpdates().map((r) => r.id).sort()).toEqual(rows.map((r) => r.id).sort())
+    markUpdateRead(rows[0].id)
+    expect(isUpdateRead(rows[0].id)).toBe(true)
+    expect(unreadUpdates()).toHaveLength(rows.length - 1)
+    const marked = markAllUpdatesRead()
+    expect(marked).toBe(rows.length - 1)
+    expect(unreadUpdates()).toEqual([])
+    expect(markAllUpdatesRead()).toBe(0)
+  })
+
+  it('keeps update ids stable across calls', async () => {
+    const { updates } = await import('@/lib/requests')
+    const { mine } = await seed()
+    const request = createRequest({ trip_id: mine.id, choices: ['UB'] })
+    sendRequest(request.id)
+    expect(updates().map((r) => r.id)).toEqual(updates().map((r) => r.id))
+  })
+})

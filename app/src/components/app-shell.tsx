@@ -3,6 +3,7 @@ import { ArrowLeftRight, ChevronLeft, House, Settings, User } from 'lucide-react
 import type { ReactNode } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { useOnline } from '@/lib/use-online'
+import { useUnreadUpdates } from '@/lib/use-store'
 import { cn } from '@/lib/utils'
 
 /* Navigation rules (AGENTS.md 12): exactly three bottom tabs — Home / Swaps /
@@ -65,6 +66,7 @@ function TopBar({ back, showSettings }: { back?: boolean; showSettings?: boolean
 
 function TabBar({ active }: { active: TabId }) {
   const { t } = useI18n()
+  const unread = useUnreadUpdates()
   const tabs = [
     { id: 'home' as const, to: '/', label: t('nav.home'), Icon: House },
     { id: 'swaps' as const, to: '/swaps', label: t('nav.swaps'), Icon: ArrowLeftRight },
@@ -75,20 +77,32 @@ function TabBar({ active }: { active: TabId }) {
       aria-label={t('brand.wordmark')}
       className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[34rem] border-t border-line bg-card pb-[env(safe-area-inset-bottom)]"
     >
-      {tabs.map(({ id, to, label, Icon }) => (
-        <Link
-          key={id}
-          to={to}
-          aria-current={active === id ? 'page' : undefined}
-          className={cn(
-            'tap flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-caption font-semibold',
-            active === id ? 'text-primary' : 'text-muted',
-          )}
-        >
-          <Icon aria-hidden className="size-6" />
-          {label}
-        </Link>
-      ))}
+      {tabs.map(({ id, to, label, Icon }) => {
+        const badge = id === 'swaps' ? unread.length : 0
+        return (
+          <Link
+            key={id}
+            to={to}
+            aria-current={active === id ? 'page' : undefined}
+            aria-label={badge > 0 ? `${label}, ${badge} new` : label}
+            className={cn(
+              'tap relative flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-caption font-semibold',
+              active === id ? 'text-primary' : 'text-muted',
+            )}
+          >
+            <Icon aria-hidden className="size-6" />
+            {label}
+            {badge > 0 ? (
+              <span
+                aria-hidden
+                className="absolute top-0.5 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-caption font-bold text-ink"
+              >
+                {badge > 9 ? '9+' : badge}
+              </span>
+            ) : null}
+          </Link>
+        )
+      })}
     </nav>
   )
 }
