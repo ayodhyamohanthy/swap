@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import type { RouteChrome } from '@/components/app-shell'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
@@ -12,6 +13,7 @@ import { useAppState } from '@/lib/use-store'
    the masked last4 and train numbers are present in the data. */
 
 export const Route = createFileRoute('/admin/activity')({
+  staticData: { chrome: 'setup' } satisfies RouteChrome,
   component: AdminActivity,
 })
 

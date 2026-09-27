@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import type { RouteChrome } from '@/components/app-shell'
 import { Coins } from 'lucide-react'
 import { Card, CardBody } from '@/components/ui/card'
 import { buildOverview } from '@/lib/admin'
@@ -10,6 +11,7 @@ import { useAppState } from '@/lib/use-store'
    device's activity_log until the backend is wired. Money stays in paise. */
 
 export const Route = createFileRoute('/admin/_index')({
+  staticData: { chrome: 'setup' } satisfies RouteChrome,
   component: AdminOverview,
 })
 

@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import type { RouteChrome } from '@/components/app-shell'
 import { Coins } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -20,6 +21,7 @@ import { useAppState } from '@/lib/use-store'
    — this screen never decides who is an admin. */
 
 export const Route = createFileRoute('/admin/credits')({
+  staticData: { chrome: 'setup' } satisfies RouteChrome,
   component: AdminCredits,
 })
 

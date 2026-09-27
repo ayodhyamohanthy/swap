@@ -1,4 +1,4 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Coins, ShieldCheck } from 'lucide-react'
 import { AppFooter, type RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
@@ -40,11 +40,10 @@ function IncomingScreen() {
     )
   }
 
+  const navigate = useNavigate()
   const accept = () => {
     if (!isSeen('signin_asked')) {
-      window.location.assign(
-        `/signin?redirect=${encodeURIComponent(`/incoming/${incoming.trip_id}`)}`,
-      )
+      navigate({ to: '/signin', search: { redirect: `/incoming/${incoming.trip_id}` } })
       return
     }
     respondToIncoming(incoming.trip_id, 'accepted')

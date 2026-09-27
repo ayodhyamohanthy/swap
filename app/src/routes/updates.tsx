@@ -1,5 +1,6 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { BellRing, ChevronRight } from 'lucide-react'
+import type { ReactNode } from 'react'
 import type { RouteChrome } from '@/components/app-shell'
 import { Card, CardTitle } from '@/components/ui/card'
 import { useI18n } from '@/lib/i18n'
@@ -43,13 +44,65 @@ function rowCopy(row: UpdateRow, t: ReturnType<typeof useI18n>['t']): string {
   }
 }
 
-function rowHref(row: UpdateRow): string {
-  if (row.kind === 'accepted') return `/pay/${row.request_id}`
-  if (row.kind === 'locked') return `/swaps/${row.request_id}/summary`
-  if (row.kind === 'chart_out') return row.trip_id ? `/trips/${row.trip_id}` : '/'
-  if (row.kind === 'credit_added' || row.kind === 'credit_expiring') return '/profile'
-  if (row.request_id) return `/request/${row.request_id}`
-  return row.trip_id ? `/incoming/${row.trip_id}` : '/swaps'
+const ROW_CLASSES =
+  'flex min-h-14 items-center gap-3 rounded-card border border-line bg-card px-3 py-2 shadow-soft'
+
+function RowShell({ children }: { children: ReactNode }) {
+  return (
+    <>
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-wash text-primary">
+        <BellRing aria-hidden className="size-5" />
+      </span>
+      <span className="min-w-0 flex-1 text-body text-ink">{children}</span>
+      <ChevronRight aria-hidden className="size-5 text-muted" />
+    </>
+  )
+}
+
+/** Every destination is a typed route — a renamed route fails the build here. */
+function UpdateLink({ row, copy }: { row: UpdateRow; copy: string }) {
+  switch (row.kind) {
+    case 'accepted':
+      return row.request_id ? (
+        <Link to="/pay/$requestId" params={{ requestId: row.request_id }} className={ROW_CLASSES}>
+          <RowShell>{copy}</RowShell>
+        </Link>
+      ) : null
+    case 'locked':
+      return row.request_id ? (
+        <Link to="/swaps/$id/summary" params={{ id: row.request_id }} className={ROW_CLASSES}>
+          <RowShell>{copy}</RowShell>
+        </Link>
+      ) : null
+    case 'chart_out':
+      return row.trip_id ? (
+        <Link to="/trips/$tripId" params={{ tripId: row.trip_id }} className={ROW_CLASSES}>
+          <RowShell>{copy}</RowShell>
+        </Link>
+      ) : null
+    case 'credit_added':
+    case 'credit_expiring':
+      return (
+        <Link to="/profile" className={ROW_CLASSES}>
+          <RowShell>{copy}</RowShell>
+        </Link>
+      )
+    case 'faster':
+    case 'request_expired':
+      return row.request_id ? (
+        <Link to="/request/$id" params={{ id: row.request_id }} className={ROW_CLASSES}>
+          <RowShell>{copy}</RowShell>
+        </Link>
+      ) : null
+    case 'incoming_waiting':
+    case 'incoming_declined':
+    case 'incoming_faster':
+      return row.trip_id ? (
+        <Link to="/incoming/$id" params={{ id: row.trip_id }} className={ROW_CLASSES}>
+          <RowShell>{copy}</RowShell>
+        </Link>
+      ) : null
+  }
 }
 
 function UpdatesScreen() {
@@ -68,17 +121,7 @@ function UpdatesScreen() {
       ) : (
         <section className="mt-4 space-y-2">
           {rows.map((row) => (
-            <Link
-              key={row.id}
-              to={rowHref(row) as '/'}
-              className="flex min-h-14 items-center gap-3 rounded-card border border-line bg-card px-3 py-2 shadow-soft"
-            >
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-wash text-primary">
-                <BellRing aria-hidden className="size-5" />
-              </span>
-              <span className="min-w-0 flex-1 text-body text-ink">{rowCopy(row, t)}</span>
-              <ChevronRight aria-hidden className="size-5 text-muted" />
-            </Link>
+            <UpdateLink key={row.id} row={row} copy={rowCopy(row, t)} />
           ))}
         </section>
       )}

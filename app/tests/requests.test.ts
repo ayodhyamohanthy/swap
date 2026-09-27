@@ -361,3 +361,49 @@ describe('share codes carry nothing private (rule 13)', () => {
     }
   })
 })
+
+describe('client guards mirror the server machine (docs/03)', () => {
+  beforeEach(() => {
+    resetStore()
+    resetRequests()
+  })
+
+  it('refuses to withdraw a locked request', async () => {
+    const { mine } = await seed()
+    const request = createRequest({ trip_id: mine.id, choices: ['UB'] })
+    sendRequest(request.id)
+    acceptOffer(offersFor(request.id)[0].id)
+    lockRequest(request.id)
+    expect(getRequest(request.id)?.status).toBe('locked')
+    expect(withdrawRequest(request.id)).toBeUndefined()
+    expect(getRequest(request.id)?.status).toBe('locked')
+  })
+
+  it('refuses to accept an already-accepted offer', async () => {
+    const { mine } = await seed()
+    const request = createRequest({ trip_id: mine.id, choices: ['UB'] })
+    sendRequest(request.id)
+    const offer = offersFor(request.id)[0]
+    expect(acceptOffer(offer.id).request?.status).toBe('accepted_awaiting_payment')
+    expect(acceptOffer(offer.id)).toEqual({})
+  })
+
+  it('refuses to lock before payment', async () => {
+    const { mine } = await seed()
+    const request = createRequest({ trip_id: mine.id, choices: ['UB'] })
+    sendRequest(request.id)
+    expect(lockRequest(request.id)).toBeUndefined()
+    expect(getRequest(request.id)?.status).toBe('searching')
+  })
+
+  it('returns an accepted request to searching when the acceptor backs out', async () => {
+    const { mine } = await seed()
+    const request = createRequest({ trip_id: mine.id, choices: ['UB'] })
+    sendRequest(request.id)
+    const offer = offersFor(request.id)[0]
+    acceptOffer(offer.id)
+    expect(getRequest(request.id)?.status).toBe('accepted_awaiting_payment')
+    expect(declineOffer(offer.id)?.status).toBe('declined')
+    expect(getRequest(request.id)?.status).toBe('searching')
+  })
+})

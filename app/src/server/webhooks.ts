@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { PRICE_PAISE } from '@/lib/money'
+import { priceFor } from '@/lib/payments'
 import { paypalWebhookId, serverEnv, depsFromEnv } from '@/server/payments-helpers'
 import { paypalCaptureOrder, paypalCreateOrder } from '@/server/paypal-client'
 
@@ -63,6 +63,17 @@ function header(headers: Record<string, string | undefined>, name: string): stri
   return ''
 }
 
+function entityRef(payload: Record<string, unknown>, section: string): string {
+  /* Real Razorpay webhooks nest the object at payload.<section>.entity.id
+     (docs: payload.payment.entity.id = "pay_..."); accept a flat entity_id
+     too so older queued shapes still reconcile instead of silently dropping. */
+  const holder = payload.payload as Record<string, unknown> | undefined
+  const entity = holder?.[section] as Record<string, unknown> | undefined
+  const nested = entity?.entity as Record<string, unknown> | undefined
+  const ref = nested?.id ?? entity?.entity_id
+  return typeof ref === 'string' ? ref : ''
+}
+
 function parseRazorpay(rawBody: string): Omit<ParsedWebhook, 'provider'> | null {
   let payload: Record<string, unknown>
   try {
@@ -73,11 +84,8 @@ function parseRazorpay(rawBody: string): Omit<ParsedWebhook, 'provider'> | null 
   const event = typeof payload.event === 'string' ? payload.event : ''
   const kind = RAZORPAY_KINDS[event]
   if (!kind) return null
-  const entity = (payload.payload as Record<string, unknown> | undefined)?.payment as
-    | Record<string, unknown>
-    | undefined
-  const entityId = entity?.entity_id
-  const ref = typeof entityId === 'string' ? entityId : ''
+  /* order.paid carries payload.order.entity; payment.* carries payload.payment. */
+  const ref = entityRef(payload, event.startsWith('order.') ? 'order' : 'payment')
   if (!ref) return null
   return { providerRef: ref, kind }
 }
@@ -113,9 +121,10 @@ export function parseWebhook(
     let hasRef = false
     try {
       const payload = JSON.parse(request.rawBody) as Record<string, unknown>
-      const entity = payload.payload as Record<string, unknown> | undefined
-      const resource = payload.resource as Record<string, unknown> | undefined
-      hasRef = Boolean(entity?.payment ?? resource?.id)
+      hasRef = Boolean(
+        entityRef(payload, 'payment') || entityRef(payload, 'order')
+        || (payload.resource as Record<string, unknown> | undefined)?.id,
+      )
     } catch {
       hasRef = false
     }
@@ -165,14 +174,14 @@ export const verifyRazorpaySignature = createServerFn({ method: 'POST' })
     return { ok: safeEqual(expected, data.signature, timingSafeEqual) }
   })
 export const createPaypalOrder = createServerFn({ method: 'POST' })
-  .validator((input: { requestId: string }) => input)
+  .validator((input: { requestId: string; isGroup?: boolean }) => input)
   .handler(
     async ({
       data,
     }): Promise<{ id: string; currency: 'INR'; amount_paise: number; approval_url: string | null }> => {
       /* Real v2 order. approval_url is where the browser redirects to authorise. */
       const order = await paypalCreateOrder(depsFromEnv(), {
-        amountPaise: PRICE_PAISE,
+        amountPaise: priceFor(data.isGroup === true),
         requestId: data.requestId,
       })
       return {
@@ -200,6 +209,94 @@ export async function verifyRazorpayWebhook(rawBody: string, signature: string):
   const { createHmac, timingSafeEqual } = await nodeCrypto()
   const expected = createHmac('sha256', secret).update(rawBody).digest('hex')
   return safeEqual(expected, signature, timingSafeEqual)
+}
+
+/**
+ * PayPal webhook verification (docs/06 PayPal 3): the transmission headers
+ * are confirmed with PayPal's verify-webhook-signature API BEFORE
+ * parseWebhook('paypal', …) is trusted. Injectable deps so tests stub fetch.
+ */
+export interface PaypalTransmission {
+  transmissionId: string
+  transmissionTime: string
+  certUrl: string
+  authAlgo: string
+  transmissionSig: string
+}
+
+export function paypalTransmission(
+  headers: Record<string, string | undefined>,
+): PaypalTransmission | null {
+  const pick = (...names: string[]): string => {
+    for (const name of names) {
+      const value = header(headers, name)
+      if (value) return value
+    }
+    return ''
+  }
+  const transmission: PaypalTransmission = {
+    transmissionId: pick('paypal-transmission-id'),
+    transmissionTime: pick('paypal-transmission-time'),
+    certUrl: pick('paypal-cert-url'),
+    authAlgo: pick('paypal-auth-algo'),
+    transmissionSig: pick('paypal-transmission-sig', 'transmission-sig'),
+  }
+  if (!transmission.transmissionId || !transmission.transmissionSig) return null
+  return transmission
+}
+
+export async function verifyPaypalWebhook(
+  deps: { fetch?: typeof fetch; env?: (name: string) => string },
+  transmission: PaypalTransmission,
+  webhookEventBody: string,
+): Promise<boolean> {
+  const { callJson, requireEnv } = await import('@/server/payments-helpers');
+  const env = { env: deps.env };
+  const base = (deps.env?.('PAYPAL_API_BASE') || 'https://api-m.paypal.com').replace(/\/$/, '');
+  const doFetch = deps.fetch ?? (typeof fetch === 'function' ? fetch : undefined);
+  const tokenPayload = await callJson(
+    { fetch: doFetch, env: deps.env },
+    `${base}/v1/oauth2/token`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${Buffer.from(
+          `${requireEnv(env, 'PAYPAL_CLIENT_ID')}:${requireEnv(env, 'PAYPAL_CLIENT_SECRET')}`,
+          'utf8',
+        ).toString('base64')}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: 'grant_type=client_credentials',
+    },
+    'paypal_token',
+  );
+  const bearer = typeof tokenPayload.access_token === 'string' ? tokenPayload.access_token : ''
+  if (!bearer) return false
+  let event: Record<string, unknown>
+  try {
+    event = JSON.parse(webhookEventBody) as Record<string, unknown>
+  } catch {
+    return false
+  }
+  const verifyPayload = await callJson(
+    { fetch: doFetch, env: deps.env },
+    `${base}/v1/notifications/verify-webhook-signature`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        auth_algo: transmission.authAlgo,
+        cert_url: transmission.certUrl,
+        transmission_id: transmission.transmissionId,
+        transmission_sig: transmission.transmissionSig,
+        transmission_time: transmission.transmissionTime,
+        webhook_id: requireEnv(env, 'PAYPAL_WEBHOOK_ID'),
+        webhook_event: event,
+      }),
+    },
+    'paypal_verify',
+  )
+  return verifyPayload.verification_status === 'SUCCESS'
 }
 export function applyWebhookEvent(
   seen: Set<string>,

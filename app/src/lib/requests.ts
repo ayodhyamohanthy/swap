@@ -357,6 +357,10 @@ export function setRequestPaused(requestId: string, paused: boolean): SwapReques
 export function withdrawRequest(requestId: string): SwapRequest | undefined {
   const request = getRequest(requestId)
   if (!request) return undefined
+  /* Taking back is pre-payment only (docs/03); locked+ requests go through
+     cancel/confirm, never a silent withdraw. */
+  if (request.status !== 'draft' && request.status !== 'searching'
+    && request.status !== 'accepted_awaiting_payment') return undefined
   const updated: SwapRequest = { ...request, status: 'withdrawn', updated_at: now() }
   commit({
     ...ensureLoaded(),
@@ -380,6 +384,7 @@ export function acceptOffer(
   if (!offer) return {}
   const request = getRequest(offer.request_id)
   if (!request || request.status !== 'searching') return {}
+  if (offer.status !== 'sent') return {}
 
   const updatedOffer: SwapOffer = {
     ...offer,
@@ -400,9 +405,17 @@ export function acceptOffer(
 export function declineOffer(offerId: string): SwapOffer | undefined {
   const offer = ensureLoaded().offers.find((row) => row.id === offerId)
   if (!offer) return undefined
+  if (offer.status !== 'sent' && offer.status !== 'accepted') return undefined
+  const request = getRequest(offer.request_id)
   const updated: SwapOffer = { ...offer, status: 'declined', responded_at: now() }
+  /* Backing out before payment returns a waiting request to searching. */
+  const backToSearching = request?.status === 'accepted_awaiting_payment' && offer.status === 'accepted'
   commit({
     ...ensureLoaded(),
+    requests: backToSearching && request
+      ? snapshot.requests.map((row) => (row.id === request.id
+        ? { ...row, status: 'searching' as const, locked_offer_id: null, updated_at: now() } : row))
+      : snapshot.requests,
     offers: snapshot.offers.map((row) => (row.id === offerId ? updated : row)),
   })
   logActivity('offer_declined', {}, { type: 'swap_request', id: offer.request_id })
@@ -413,11 +426,15 @@ export function declineOffer(offerId: string): SwapOffer | undefined {
 export function lockRequest(requestId: string): SwapRequest | undefined {
   const request = getRequest(requestId)
   if (!request) return undefined
+  /* Locking is payment-gated: only an accepted-awaiting-payment request with
+     an accepted offer can lock (docs/03). */
+  if (request.status !== 'accepted_awaiting_payment') return undefined
   const accepted = offersFor(requestId).find((offer) => offer.status === 'accepted')
+  if (!accepted) return undefined
   const updated: SwapRequest = {
     ...request,
     status: 'locked',
-    locked_offer_id: accepted?.id ?? request.locked_offer_id,
+    locked_offer_id: accepted.id,
     updated_at: now(),
   }
   commit({

@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { ArrowLeftRight, Check } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { RouteChrome } from '@/components/app-shell'
@@ -66,7 +66,7 @@ function RequestNewScreen() {
           <CardTitle>{t('home.empty')}</CardTitle>
         </Card>
         <Button className="mt-4" asChild>
-          <a href="/trips/add">{t('home.addPnr')}</a>
+          <Link to="/trips/add">{t('home.addPnr')}</Link>
         </Button>
       </div>
     )

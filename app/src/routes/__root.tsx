@@ -16,6 +16,7 @@ export const Route = createRootRoute({
         name: 'viewport',
         content: 'width=device-width, initial-scale=1, viewport-fit=cover',
       },
+      // --color-primary (head meta cannot use var()); keep in step with styles.css
       { name: 'theme-color', content: '#1F6B45' },
       { name: 'description', content: translate(DEFAULT_LANG, 'meta.description') },
       { title: translate(DEFAULT_LANG, 'meta.title') },

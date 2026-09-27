@@ -13,7 +13,7 @@ export type SwapStatus =
   | 'confirmed' | 'voided' | 'disputed' | 'expired' | 'withdrawn'
 export type OfferStatus = 'sent' | 'accepted' | 'declined' | 'superseded' | 'expired'
 
-export interface RequestRow { id: string; requester_id: string; booking_id: string; status: SwapStatus }
+export interface RequestRow { id: string; requester_id: string; booking_id: string; status: SwapStatus; passenger_ids?: string[] }
 export interface OfferRow {
   id: string; request_id: string; acceptor_id: string
   acceptor_booking_id: string; acceptor_passenger_id: string
@@ -89,7 +89,7 @@ export function applyDeclineOffer(
 ): { offerStatus: OfferStatus; requestStatus: SwapStatus; activity: ActivityWrite } {
   if (offer.acceptor_id !== callerId) throw new SwapError('not_acceptor')
   if (offer.request_id !== request.id) throw new SwapError('wrong_request')
-  if (offer.status !== 'sent') throw new SwapError('offer_not_open')
+  if (offer.status !== 'sent' && offer.status !== 'accepted') throw new SwapError('offer_not_open')
   // Acceptor backs out before payment: request returns to searching
   // unless it already moved on (docs/03).
   const backToSearching = request.status === 'accepted_awaiting_payment'
@@ -122,6 +122,168 @@ export function applyLockRequest(
   }
 }
 
+export interface RowPatch { table: string; id: string; patch: Record<string, unknown>; key?: string }
+
+/** Accept: flip BOTH the offer and the request (rule 2 — first acceptance
+    moves searching -> accepted_awaiting_payment; rivals stay open until paid). */
+export function planAcceptOffer(
+  request: RequestRow, offer: OfferRow, callerId: string,
+): { patches: RowPatch[]; requestStatus: SwapStatus; offerStatus: OfferStatus; activity: ActivityWrite } {
+  const next = applyAcceptOffer(request, offer, callerId)
+  return {
+    patches: [
+      { table: 'swap_offers', id: offer.id, patch: { status: next.offerStatus, responded_at: new Date().toISOString() } },
+      { table: 'swap_requests', id: request.id, patch: { status: next.requestStatus } },
+    ],
+    requestStatus: next.requestStatus,
+    offerStatus: next.offerStatus,
+    activity: next.activity,
+  }
+}
+
+/** Decline/back-out: flip the offer and, when the request was waiting on this
+    acceptor's payment, return it to searching (docs/03). */
+export function planDeclineOffer(
+  request: RequestRow, offer: OfferRow, callerId: string,
+): { patches: RowPatch[]; requestStatus: SwapStatus; offerStatus: OfferStatus; activity: ActivityWrite } {
+  const next = applyDeclineOffer(request, offer, callerId)
+  const patches: RowPatch[] = [
+    { table: 'swap_offers', id: offer.id, patch: { status: next.offerStatus, responded_at: new Date().toISOString() } },
+  ]
+  if (next.requestStatus !== request.status) {
+    patches.push({ table: 'swap_requests', id: request.id, patch: { status: next.requestStatus, locked_offer_id: null } })
+  }
+  return { patches, requestStatus: next.requestStatus, offerStatus: next.offerStatus, activity: next.activity }
+}
+
+/** Lock (after a paid payment): the request locks onto the paid offer and
+    every rival open/accepted offer on the same request is superseded, so the
+    losers see "Someone else was faster" (docs/03). One berth can sit in only
+    one locked swap: pass the passenger sets of other locked requests and the
+    planner refuses the double-lock. */
+export function planLockRequest(
+  request: RequestRow, offer: OfferRow, siblings: OfferRow[], callerId: string,
+  input: { payment_id: string; lockedPassengerSets?: string[][] },
+): { patches: RowPatch[]; status: SwapStatus; activity: ActivityWrite } {
+  const next = applyLockRequest(request, offer, callerId, { payment_id: input.payment_id })
+  const mine = new Set(request.passenger_ids ?? [])
+  for (const set of input.lockedPassengerSets ?? []) {
+    if (set.some((id) => mine.has(id))) throw new SwapError('berth_already_locked')
+  }
+  const patches: RowPatch[] = [
+    { table: 'swap_requests', id: request.id, patch: { status: next.status, locked_offer_id: offer.id } },
+  ]
+  for (const sib of siblings) {
+    if (sib.id === offer.id) continue
+    if (sib.status === 'sent' || sib.status === 'accepted') {
+      patches.push({ table: 'swap_offers', id: sib.id, patch: { status: 'superseded' } })
+    }
+  }
+  return { patches, status: next.status, activity: next.activity }
+}
+
+export type SupaClient = NonNullable<Awaited<ReturnType<typeof getSupabase>>>
+
+export interface RowInsert { table: string; row: Record<string, unknown> }
+
+/** Insert rows (wallet awards, notifications, disputes) then the activity row. */
+export async function persistInserts(
+  client: SupaClient, inserts: RowInsert[], activity: ActivityWrite,
+): Promise<{ persisted: boolean; failed: string[] }> {
+  const failed: string[] = []
+  for (const ins of inserts) {
+    try {
+      const writer = (client.from(ins.table).insert(ins.row) as unknown as Promise<{ error: unknown }>)
+      const { error } = await writer
+      if (error) failed.push(ins.table)
+    } catch { failed.push(ins.table) }
+  }
+  try {
+    const logger = (client.from('activity_log').insert({
+      actor_id: activity.actor_id, actor_role: activity.actor_role,
+      action: activity.action, entity: activity.entity,
+      entity_id: activity.entity_id, meta: activity.meta,
+    }) as unknown as Promise<{ error: unknown }>)
+    const { error: logError } = await logger
+    if (logError) failed.push('activity_log')
+  } catch { failed.push('activity_log') }
+  return { persisted: failed.length === 0, failed }
+}
+
+/** Write every row patch, then the single activity_log row (best-effort;
+    returns per-patch results so the UI can commit locally on failure).
+    Status moves on swap_requests/swap_offers go through the SECURITY DEFINER
+    transition RPCs — authenticated clients hold no UPDATE grant there, so a
+    forged direct write cannot jump states (docs/03). */
+export async function persistMulti(
+  client: SupaClient, patches: RowPatch[], activity: ActivityWrite,
+): Promise<{ persisted: boolean; failed: string[] }> {
+  const rpc = client.rpc.bind(client) as unknown as (
+    fn: string,
+    args: Record<string, string | null>,
+  ) => Promise<{ error: unknown }>
+  const failed: string[] = []
+  for (const write of patches) {
+    try {
+      const status = (write.patch as Record<string, unknown>).status
+      if ((write.table === 'swap_requests' || write.table === 'swap_offers') && typeof status === 'string') {
+        const fn = write.table === 'swap_requests' ? 'apply_request_transition' : 'apply_offer_transition'
+        const args: Record<string, string | null> = write.table === 'swap_requests'
+          ? {
+              p_req: write.id, p_status: status,
+              p_locked_offer: typeof (write.patch as Record<string, unknown>).locked_offer_id === 'string'
+                ? (write.patch as Record<string, unknown>).locked_offer_id as string : null,
+            }
+          : {
+              p_offer: write.id, p_status: status,
+              p_responded: typeof (write.patch as Record<string, unknown>).responded_at === 'string'
+                ? (write.patch as Record<string, unknown>).responded_at as string : null,
+            }
+        const { error } = await rpc(fn, args)
+        if (error) failed.push(write.id)
+        continue
+      }
+      const updater = (client.from(write.table).update(write.patch).eq(write.key ?? 'id', write.id) as unknown as Promise<{ error: unknown }>)
+      const { error } = await updater
+      if (error) failed.push(write.id)
+    } catch { failed.push(write.id) }
+  }
+  try {
+    const logger = (client.from('activity_log').insert({
+      actor_id: activity.actor_id, actor_role: activity.actor_role,
+      action: activity.action, entity: activity.entity,
+      entity_id: activity.entity_id, meta: activity.meta,
+    }) as unknown as Promise<{ error: unknown }>)
+    const { error: logError } = await logger
+    if (logError) failed.push('activity_log')
+  } catch { failed.push('activity_log') }
+  return { persisted: failed.length === 0, failed }
+}
+
+/** Caller id comes from the session when the backend is configured; the
+    client-supplied id is only the offline-first fallback (docs/08). */
+export async function resolveCaller(client: SupaClient | null, fallbackId: string): Promise<string> {
+  if (!client) return fallbackId
+  try {
+    const { data } = await client.auth.getUser()
+    if (data?.user?.id) return data.user.id
+  } catch { /* fall through to the supplied id */ }
+  return fallbackId
+}
+
+/** Re-read a row server-side so forged client copies cannot move states. */
+export async function refetchRow<T>(
+  client: SupaClient | null, table: string, id: string, fallback: T,
+): Promise<T> {
+  if (!client) return fallback
+  try {
+    const query = (client.from(table).select('*').eq('id', id).single() as unknown as Promise<{ data: T | null; error: unknown }>)
+    const { data, error } = await query
+    if (!error && data) return data
+  } catch { /* fall through to the supplied row */ }
+  return fallback
+}
+
 async function persistTransition(
   table: string, id: string, patch: Record<string, unknown>, activity: ActivityWrite,
 ): Promise<{ persisted: boolean }> {
@@ -145,7 +307,10 @@ async function persistTransition(
 export const sendRequest = createServerFn({ method: 'POST' })
   .validator((input: { request: RequestRow; callerId: string; booking_id: string }) => input)
   .handler(async ({ data }) => {
-    const next = applySendRequest(data.request, data.callerId, { booking_id: data.booking_id })
+    const client = await getSupabase()
+    const callerId = await resolveCaller(client, data.callerId)
+    const request = await refetchRow(client, 'swap_requests', data.request.id, data.request)
+    const next = applySendRequest(request, callerId, { booking_id: data.booking_id })
     const { persisted } = await persistTransition('swap_requests', data.request.id, { status: next.status }, next.activity)
     return { status: next.status, activity: next.activity, persisted }
   })
@@ -153,15 +318,23 @@ export const sendRequest = createServerFn({ method: 'POST' })
 export const acceptOffer = createServerFn({ method: 'POST' })
   .validator((input: { request: RequestRow; offer: OfferRow; callerId: string }) => input)
   .handler(async ({ data }) => {
-    const next = applyAcceptOffer(data.request, data.offer, data.callerId)
-    const { persisted } = await persistTransition('swap_offers', data.offer.id, { status: next.offerStatus }, next.activity)
-    return { requestStatus: next.requestStatus, offerStatus: next.offerStatus, activity: next.activity, persisted }
+    const client = await getSupabase()
+    const callerId = await resolveCaller(client, data.callerId)
+    const request = await refetchRow(client, 'swap_requests', data.request.id, data.request)
+    const offer = await refetchRow(client, 'swap_offers', data.offer.id, data.offer)
+    const next = planAcceptOffer(request, offer, callerId)
+    if (!client) return { requestStatus: next.requestStatus, offerStatus: next.offerStatus, activity: next.activity, persisted: false as const, failed: [] as string[] }
+    const { persisted, failed } = await persistMulti(client, next.patches, next.activity)
+    return { requestStatus: next.requestStatus, offerStatus: next.offerStatus, activity: next.activity, persisted, failed }
   })
 
 export const withdrawRequest = createServerFn({ method: 'POST' })
   .validator((input: { request: RequestRow; callerId: string }) => input)
   .handler(async ({ data }) => {
-    const next = applyWithdrawRequest(data.request, data.callerId)
+    const client = await getSupabase()
+    const callerId = await resolveCaller(client, data.callerId)
+    const request = await refetchRow(client, 'swap_requests', data.request.id, data.request)
+    const next = applyWithdrawRequest(request, callerId)
     const { persisted } = await persistTransition('swap_requests', data.request.id, { status: next.status }, next.activity)
     return { status: next.status, activity: next.activity, persisted }
   })
@@ -169,18 +342,25 @@ export const withdrawRequest = createServerFn({ method: 'POST' })
 export const declineOffer = createServerFn({ method: 'POST' })
   .validator((input: { request: RequestRow; offer: OfferRow; callerId: string }) => input)
   .handler(async ({ data }) => {
-    const next = applyDeclineOffer(data.request, data.offer, data.callerId)
-    const { persisted } = await persistTransition('swap_offers', data.offer.id, { status: next.offerStatus }, next.activity)
-    return { offerStatus: next.offerStatus, requestStatus: next.requestStatus, activity: next.activity, persisted }
+    const client = await getSupabase()
+    const callerId = await resolveCaller(client, data.callerId)
+    const request = await refetchRow(client, 'swap_requests', data.request.id, data.request)
+    const offer = await refetchRow(client, 'swap_offers', data.offer.id, data.offer)
+    const next = planDeclineOffer(request, offer, callerId)
+    if (!client) return { offerStatus: next.offerStatus, requestStatus: next.requestStatus, activity: next.activity, persisted: false as const, failed: [] as string[] }
+    const { persisted, failed } = await persistMulti(client, next.patches, next.activity)
+    return { offerStatus: next.offerStatus, requestStatus: next.requestStatus, activity: next.activity, persisted, failed }
   })
 
 export const lockRequest = createServerFn({ method: 'POST' })
-  .validator((input: { request: RequestRow; offer: OfferRow; callerId: string; payment_id: string }) => input)
+  .validator((input: { request: RequestRow; offer: OfferRow; siblings?: OfferRow[]; callerId: string; payment_id: string }) => input)
   .handler(async ({ data }) => {
-    const next = applyLockRequest(data.request, data.offer, data.callerId, { payment_id: data.payment_id })
-    const { persisted } = await persistTransition(
-      'swap_requests', data.request.id,
-      { status: next.status, locked_offer_id: data.offer.id }, next.activity,
-    )
-    return { status: next.status, activity: next.activity, persisted }
+    const client = await getSupabase()
+    const callerId = await resolveCaller(client, data.callerId)
+    const request = await refetchRow(client, 'swap_requests', data.request.id, data.request)
+    const offer = await refetchRow(client, 'swap_offers', data.offer.id, data.offer)
+    const next = planLockRequest(request, offer, data.siblings ?? [], callerId, { payment_id: data.payment_id })
+    if (!client) return { status: next.status, activity: next.activity, persisted: false as const, failed: [] as string[] }
+    const { persisted, failed } = await persistMulti(client, next.patches, next.activity)
+    return { status: next.status, activity: next.activity, persisted, failed }
   })

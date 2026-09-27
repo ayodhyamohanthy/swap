@@ -127,7 +127,7 @@ function MatchesScreen() {
           return (
             <label
               key={candidate.id}
-              className="flex cursor-pointer items-center gap-3 rounded-card border border-line bg-card p-3 shadow-soft"
+              className="flex min-h-12 cursor-pointer items-center gap-3 rounded-card border border-line bg-card p-3 shadow-soft"
             >
               <input
                 type="checkbox"

@@ -488,6 +488,13 @@ export interface CreditInput {
   expires_at?: string | null
 }
 
+/** Fixed credit values per kind (rules 3, 6) — anything else is rejected so the
+    local ledger can never mint arbitrary credit that the database would refuse. */
+const CREDIT_AMOUNTS: Record<CreditInput['kind'], number> = {
+  acceptor_credit: 5000,
+  swap_to_credit: 9900,
+}
+
 /**
  * The ONLY way credit enters the ledger (`wallet_tx`, docs/02).
  *
@@ -502,8 +509,8 @@ export interface CreditInput {
  * appends an activity_log row.
  */
 export function credit(input: CreditInput): WalletTx {
-  if (!Number.isInteger(input.amountPaise) || input.amountPaise <= 0) {
-    throw new Error('credit_amount_must_be_positive_paise')
+  if (input.amountPaise !== CREDIT_AMOUNTS[input.kind]) {
+    throw new Error('credit_amount_must_match_kind')
   }
   const expires = new Date()
   expires.setMonth(expires.getMonth() + 12)
@@ -513,7 +520,7 @@ export function credit(input: CreditInput): WalletTx {
     amount_paise: input.amountPaise,
     kind: input.kind,
     ref_request_id: input.ref_request_id ?? null,
-    expires_at: input.expires_at ?? expires.toISOString(),
+    expires_at: expires.toISOString(),
     created_at: new Date().toISOString(),
   }
   commit({ ...snapshot, wallet: [...snapshot.wallet, row] })

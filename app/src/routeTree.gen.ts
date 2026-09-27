@@ -53,10 +53,12 @@ import { Route as PayRequestIdDoneRouteImport } from './routes/pay.$requestId.do
 import { Route as PayRequestIdMethodRouteImport } from './routes/pay.$requestId.method'
 import { Route as PayRequestIdPaypalRouteImport } from './routes/pay.$requestId.paypal'
 import { Route as PayRequestIdStatusRouteImport } from './routes/pay.$requestId.status'
+import { Route as PayRequestIdUpiRouteImport } from './routes/pay.$requestId.upi'
 import { Route as ProfilePaymentsIndexRouteImport } from './routes/profile.payments.index'
 import { Route as ProfilePaymentsIdRouteImport } from './routes/profile.payments.$id'
 import { Route as RequestIdIndexRouteImport } from './routes/request.$id.index'
 import { Route as RequestIdMatchesRouteImport } from './routes/request.$id.matches'
+import { Route as SwapsIdIndexRouteImport } from './routes/swaps.$id.index'
 import { Route as SwapsIdCancelRouteImport } from './routes/swaps.$id.cancel'
 import { Route as SwapsIdConfirmRouteImport } from './routes/swaps.$id.confirm'
 import { Route as SwapsIdDoneRouteImport } from './routes/swaps.$id.done'
@@ -284,6 +286,11 @@ const PayRequestIdStatusRoute = PayRequestIdStatusRouteImport.update({
   path: '/status',
   getParentRoute: () => PayRequestIdRoute,
 } as any)
+const PayRequestIdUpiRoute = PayRequestIdUpiRouteImport.update({
+  id: '/upi',
+  path: '/upi',
+  getParentRoute: () => PayRequestIdRoute,
+} as any)
 const ProfilePaymentsIndexRoute = ProfilePaymentsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -303,6 +310,11 @@ const RequestIdMatchesRoute = RequestIdMatchesRouteImport.update({
   id: '/matches',
   path: '/matches',
   getParentRoute: () => RequestIdRoute,
+} as any)
+const SwapsIdIndexRoute = SwapsIdIndexRouteImport.update({
+  id: '/$id/',
+  path: '/$id/',
+  getParentRoute: () => SwapsRoute,
 } as any)
 const SwapsIdCancelRoute = SwapsIdCancelRouteImport.update({
   id: '/$id/cancel',
@@ -382,6 +394,7 @@ export interface FileRoutesByFullPath {
   '/pay/$requestId/method': typeof PayRequestIdMethodRoute
   '/pay/$requestId/paypal': typeof PayRequestIdPaypalRoute
   '/pay/$requestId/status': typeof PayRequestIdStatusRoute
+  '/pay/$requestId/upi': typeof PayRequestIdUpiRoute
   '/profile/payments/$id': typeof ProfilePaymentsIdRoute
   '/request/$id/matches': typeof RequestIdMatchesRoute
   '/swaps/$id/cancel': typeof SwapsIdCancelRoute
@@ -395,6 +408,7 @@ export interface FileRoutesByFullPath {
   '/pay/$requestId/': typeof PayRequestIdIndexRoute
   '/profile/payments/': typeof ProfilePaymentsIndexRoute
   '/request/$id/': typeof RequestIdIndexRoute
+  '/swaps/$id/': typeof SwapsIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -432,6 +446,7 @@ export interface FileRoutesByTo {
   '/pay/$requestId/method': typeof PayRequestIdMethodRoute
   '/pay/$requestId/paypal': typeof PayRequestIdPaypalRoute
   '/pay/$requestId/status': typeof PayRequestIdStatusRoute
+  '/pay/$requestId/upi': typeof PayRequestIdUpiRoute
   '/profile/payments/$id': typeof ProfilePaymentsIdRoute
   '/request/$id/matches': typeof RequestIdMatchesRoute
   '/swaps/$id/cancel': typeof SwapsIdCancelRoute
@@ -445,6 +460,7 @@ export interface FileRoutesByTo {
   '/pay/$requestId': typeof PayRequestIdIndexRoute
   '/profile/payments': typeof ProfilePaymentsIndexRoute
   '/request/$id': typeof RequestIdIndexRoute
+  '/swaps/$id': typeof SwapsIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -490,6 +506,7 @@ export interface FileRoutesById {
   '/pay/$requestId/method': typeof PayRequestIdMethodRoute
   '/pay/$requestId/paypal': typeof PayRequestIdPaypalRoute
   '/pay/$requestId/status': typeof PayRequestIdStatusRoute
+  '/pay/$requestId/upi': typeof PayRequestIdUpiRoute
   '/profile/payments/$id': typeof ProfilePaymentsIdRoute
   '/request/$id/matches': typeof RequestIdMatchesRoute
   '/swaps/$id/cancel': typeof SwapsIdCancelRoute
@@ -503,6 +520,7 @@ export interface FileRoutesById {
   '/pay/$requestId/': typeof PayRequestIdIndexRoute
   '/profile/payments/': typeof ProfilePaymentsIndexRoute
   '/request/$id/': typeof RequestIdIndexRoute
+  '/swaps/$id/': typeof SwapsIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -548,6 +566,7 @@ export interface FileRouteTypes {
     | '/pay/$requestId/method'
     | '/pay/$requestId/paypal'
     | '/pay/$requestId/status'
+    | '/pay/$requestId/upi'
     | '/profile/payments/$id'
     | '/request/$id/matches'
     | '/swaps/$id/cancel'
@@ -561,6 +580,7 @@ export interface FileRouteTypes {
     | '/pay/$requestId/'
     | '/profile/payments/'
     | '/request/$id/'
+    | '/swaps/$id/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -598,6 +618,7 @@ export interface FileRouteTypes {
     | '/pay/$requestId/method'
     | '/pay/$requestId/paypal'
     | '/pay/$requestId/status'
+    | '/pay/$requestId/upi'
     | '/profile/payments/$id'
     | '/request/$id/matches'
     | '/swaps/$id/cancel'
@@ -611,6 +632,7 @@ export interface FileRouteTypes {
     | '/pay/$requestId'
     | '/profile/payments'
     | '/request/$id'
+    | '/swaps/$id'
   id:
     | '__root__'
     | '/'
@@ -655,6 +677,7 @@ export interface FileRouteTypes {
     | '/pay/$requestId/method'
     | '/pay/$requestId/paypal'
     | '/pay/$requestId/status'
+    | '/pay/$requestId/upi'
     | '/profile/payments/$id'
     | '/request/$id/matches'
     | '/swaps/$id/cancel'
@@ -668,6 +691,7 @@ export interface FileRouteTypes {
     | '/pay/$requestId/'
     | '/profile/payments/'
     | '/request/$id/'
+    | '/swaps/$id/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1006,6 +1030,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PayRequestIdStatusRouteImport
       parentRoute: typeof PayRequestIdRoute
     }
+    '/pay/$requestId/upi': {
+      id: '/pay/$requestId/upi'
+      path: '/upi'
+      fullPath: '/pay/$requestId/upi'
+      preLoaderRoute: typeof PayRequestIdUpiRouteImport
+      parentRoute: typeof PayRequestIdRoute
+    }
     '/profile/payments/': {
       id: '/profile/payments/'
       path: '/'
@@ -1033,6 +1064,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/request/$id/matches'
       preLoaderRoute: typeof RequestIdMatchesRouteImport
       parentRoute: typeof RequestIdRoute
+    }
+    '/swaps/$id/': {
+      id: '/swaps/$id/'
+      path: '/$id'
+      fullPath: '/swaps/$id/'
+      preLoaderRoute: typeof SwapsIdIndexRouteImport
+      parentRoute: typeof SwapsRoute
     }
     '/swaps/$id/cancel': {
       id: '/swaps/$id/cancel'
@@ -1152,6 +1190,7 @@ interface SwapsRouteChildren {
   SwapsIdRateRoute: typeof SwapsIdRateRoute
   SwapsIdShareRoute: typeof SwapsIdShareRoute
   SwapsIdSummaryRoute: typeof SwapsIdSummaryRoute
+  SwapsIdIndexRoute: typeof SwapsIdIndexRoute
 }
 
 const SwapsRouteChildren: SwapsRouteChildren = {
@@ -1163,6 +1202,7 @@ const SwapsRouteChildren: SwapsRouteChildren = {
   SwapsIdRateRoute: SwapsIdRateRoute,
   SwapsIdShareRoute: SwapsIdShareRoute,
   SwapsIdSummaryRoute: SwapsIdSummaryRoute,
+  SwapsIdIndexRoute: SwapsIdIndexRoute,
 }
 
 const SwapsRouteWithChildren = SwapsRoute._addFileChildren(SwapsRouteChildren)
@@ -1186,6 +1226,7 @@ interface PayRequestIdRouteChildren {
   PayRequestIdMethodRoute: typeof PayRequestIdMethodRoute
   PayRequestIdPaypalRoute: typeof PayRequestIdPaypalRoute
   PayRequestIdStatusRoute: typeof PayRequestIdStatusRoute
+  PayRequestIdUpiRoute: typeof PayRequestIdUpiRoute
   PayRequestIdIndexRoute: typeof PayRequestIdIndexRoute
 }
 
@@ -1194,6 +1235,7 @@ const PayRequestIdRouteChildren: PayRequestIdRouteChildren = {
   PayRequestIdMethodRoute: PayRequestIdMethodRoute,
   PayRequestIdPaypalRoute: PayRequestIdPaypalRoute,
   PayRequestIdStatusRoute: PayRequestIdStatusRoute,
+  PayRequestIdUpiRoute: PayRequestIdUpiRoute,
   PayRequestIdIndexRoute: PayRequestIdIndexRoute,
 }
 

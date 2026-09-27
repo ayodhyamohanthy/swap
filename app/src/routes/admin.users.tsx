@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import type { RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
 import { Pill } from '@/components/ui/pill'
@@ -11,6 +12,7 @@ import { useAppState, useCreditPaise } from '@/lib/use-store'
    The real gate for any write is `is_staff()` in Postgres via `@/server/admin`. */
 
 export const Route = createFileRoute('/admin/users')({
+  staticData: { chrome: 'setup' } satisfies RouteChrome,
   component: AdminUsers,
 })
 

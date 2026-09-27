@@ -175,3 +175,45 @@ describe('admin money is paise (rule 1)', () => {
     expect(PRICE_PAISE).toBe(FEE_PAISE + THANK_YOU_PAISE)
   })
 })
+
+describe('server admin planners move money and state, then log (docs/04-D)', () => {
+  it('moves a dead paid swap to ₹99 requester credit (rule 6)', async () => {
+    const { planAdminAction } = await import('@/server/admin')
+    const plan = planAdminAction('credit_added', 'req_1', { payerId: 'u_pay', reason: 'no show' })
+    expect(plan.updates).toContainEqual({ table: 'swap_requests', id: 'req_1', patch: { status: 'voided' } })
+    expect(plan.inserts).toContainEqual({
+      table: 'wallet_tx',
+      row: expect.objectContaining({ user_id: 'u_pay', amount_paise: 9900, kind: 'swap_to_credit', ref_request_id: 'req_1' }),
+    })
+    expect(plan.activityAction).toBe('credit_added')
+  })
+
+  it('confirms a swap and awards the acceptor ₹50 (rule 3)', async () => {
+    const { planAdminAction } = await import('@/server/admin')
+    const plan = planAdminAction('confirmation', 'req_2', { acceptorId: 'u_acc' })
+    expect(plan.updates).toContainEqual({ table: 'swap_requests', id: 'req_2', patch: { status: 'confirmed' } })
+    expect(plan.inserts).toContainEqual({
+      table: 'wallet_tx',
+      row: expect.objectContaining({ user_id: 'u_acc', amount_paise: 5000, kind: 'acceptor_credit' }),
+    })
+  })
+
+  it('resolves a dispute to voided with credit, or confirmed with award', async () => {
+    const { planAdminAction } = await import('@/server/admin')
+    const voided = planAdminAction('dispute_resolved', 'dsp_1', { requestId: 'req_3', payerId: 'u_pay', resolution: 'voided', reason: 'no show' })
+    expect(voided.updates).toContainEqual({ table: 'swap_requests', id: 'req_3', patch: { status: 'voided' } })
+    expect(voided.inserts.some((i) => i.table === 'wallet_tx' && (i.row as { amount_paise: number }).amount_paise === 9900)).toBe(true)
+    const done = planAdminAction('dispute_resolved', 'dsp_2', { requestId: 'req_4', acceptorId: 'u_acc', resolution: 'confirmed' })
+    expect(done.updates).toContainEqual({ table: 'swap_requests', id: 'req_4', patch: { status: 'confirmed' } })
+    expect(done.inserts.some((i) => i.table === 'wallet_tx' && (i.row as { amount_paise: number }).amount_paise === 5000)).toBe(true)
+  })
+
+  it('blocks by pausing and rejects adjust without a valid amount', async () => {
+    const { planAdminAction } = await import('@/server/admin')
+    const blocked = planAdminAction('user_blocked', 'u_bad', { reason: 'spam' })
+    expect(blocked.updates).toContainEqual({ table: 'settings', id: 'u_bad', key: 'user_id', patch: { paused: true } })
+    expect(() => planAdminAction('admin_adjust', 'u_x', { amountPaise: 0 })).toThrow('adjust_amount_invalid')
+    const adjust = planAdminAction('admin_adjust', 'u_x', { amountPaise: -500, reason: 'correction' })
+    expect(adjust.inserts[0].row).toMatchObject({ user_id: 'u_x', amount_paise: -500, kind: 'admin_adjust' })
+  })
+})

@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import type { RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
 import { Pill } from '@/components/ui/pill'
@@ -11,6 +12,7 @@ import { getTrip } from '@/lib/store'
    PNR (rule 13). Status mirrors docs/03 so staff read the same words the app does. */
 
 export const Route = createFileRoute('/admin/swaps')({
+  staticData: { chrome: 'setup' } satisfies RouteChrome,
   component: AdminSwaps,
 })
 

@@ -15,9 +15,18 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   applyWebhookEvent,
   parseWebhook,
+  paypalTransmission,
   signatureHeader,
+  verifyPaypalWebhook,
   verifyRazorpayWebhook,
 } from '@/server/webhooks'
+import {
+  planAcceptOffer,
+  planDeclineOffer,
+  planLockRequest,
+  type OfferRow,
+  type RequestRow,
+} from '@/server/functions'
 import { buildQuote } from '@/lib/payments'
 import { FEE_PAISE, PRICE_PAISE, THANK_YOU_PAISE } from '@/lib/money'
 import { creditExpiresAt, resolveConfirmations } from '@/lib/outcomes'
@@ -172,8 +181,19 @@ describe('rule 4: credit lowers fees but is never cash', () => {
     expect(quote.provider).toBe('credit')
 
     /* More credit than the price is never over-charged. */
-    credit({ to: 'acceptor', amountPaise: 50000, kind: 'acceptor_credit', expiresMonths: 12 })
+    credit({ to: 'acceptor', amountPaise: THANK_YOU_PAISE, kind: 'acceptor_credit' })
+    credit({ to: 'acceptor', amountPaise: THANK_YOU_PAISE, kind: 'acceptor_credit' })
     expect(buildQuote(creditPaise()).creditUsed).toBe(PRICE_PAISE)
+  })
+
+  it('rejects credit amounts that do not match the kind (rules 3, 6)', () => {
+    expect(() =>
+      credit({ to: 'acceptor', amountPaise: 50000, kind: 'acceptor_credit', expiresMonths: 12 }),
+    ).toThrow('credit_amount_must_match_kind')
+    expect(() =>
+      credit({ to: 'requester', amountPaise: 100, kind: 'swap_to_credit', expiresMonths: 12 }),
+    ).toThrow('credit_amount_must_match_kind')
+    expect(creditPaise()).toBe(0)
   })
 
   it('expires credit 12 months after it is earned', () => {
@@ -184,7 +204,7 @@ describe('rule 4: credit lowers fees but is never cash', () => {
     )
   })
 
-  it('excludes expired credit from the spendable balance', () => {
+  it('ignores caller-supplied expiry: credit always lives 12 months (rule 4)', () => {
     credit({
       to: 'acceptor',
       amountPaise: THANK_YOU_PAISE,
@@ -192,7 +212,7 @@ describe('rule 4: credit lowers fees but is never cash', () => {
       expiresMonths: 12,
       expires_at: new Date(Date.now() - 1000).toISOString(),
     })
-    expect(creditPaise()).toBe(0)
+    expect(creditPaise()).toBe(THANK_YOU_PAISE)
   })
 
   it('splits ₹99 into ₹49 fee + ₹50 credit with no leftovers', () => {
@@ -286,10 +306,10 @@ describe('withdrawing before payment costs nothing', () => {
 })
 
 describe('webhook payload parsing (docs/06)', () => {
-  it('reads a Razorpay capture and uses the payment id as the idempotency key', () => {
+  it('reads a real Razorpay capture (payload.payment.entity.id)', () => {
     const body = JSON.stringify({
       event: 'payment.captured',
-      payload: { payment: { entity_id: 'pay_123', amount: 9900 } },
+      payload: { payment: { entity: { id: 'pay_123', amount: 9900 } } },
     })
     expect(parseWebhook('razorpay', { rawBody: body, headers: {} })).toEqual({
       status: 'ok',
@@ -299,10 +319,33 @@ describe('webhook payload parsing (docs/06)', () => {
     })
   })
 
+  it('still accepts the flat entity_id shape', () => {
+    const body = JSON.stringify({
+      event: 'payment.captured',
+      payload: { payment: { entity_id: 'pay_flat' } },
+    })
+    expect(parseWebhook('razorpay', { rawBody: body, headers: {} })).toMatchObject({
+      status: 'ok',
+      providerRef: 'pay_flat',
+    })
+  })
+
+  it('reads order.paid from payload.order.entity', () => {
+    const body = JSON.stringify({
+      event: 'order.paid',
+      payload: { order: { entity: { id: 'order_9' } } },
+    })
+    expect(parseWebhook('razorpay', { rawBody: body, headers: {} })).toMatchObject({
+      status: 'ok',
+      providerRef: 'order_9',
+      kind: 'completed',
+    })
+  })
+
   it('reads a Razorpay failure', () => {
     const body = JSON.stringify({
       event: 'payment.failed',
-      payload: { payment: { entity_id: 'pay_456' } },
+      payload: { payment: { entity: { id: 'pay_456' } } },
     })
     expect(parseWebhook('razorpay', { rawBody: body, headers: {} })).toMatchObject({
       status: 'ok',
@@ -361,5 +404,93 @@ describe('webhook payload parsing (docs/06)', () => {
     expect(signatureHeader('razorpay', headers)).toBe('abc')
     expect(signatureHeader('paypal', headers)).toBe('def')
     expect(signatureHeader('razorpay', {})).toBe('')
+  })
+})
+
+describe('server planners persist every row of a transition (docs/03)', () => {
+  const request: RequestRow = { id: 'r1', requester_id: 'u_req', booking_id: 'b1', status: 'searching', passenger_ids: ['p1'] }
+  const offer: OfferRow = { id: 'o1', request_id: 'r1', acceptor_id: 'u_acc', acceptor_booking_id: 'b2', acceptor_passenger_id: 'p2', matched_choice_rank: 1, status: 'sent' }
+  const rival: OfferRow = { ...offer, id: 'o2', acceptor_id: 'u_other', status: 'sent' }
+
+  it('accept flips the offer AND the request (rule 2)', () => {
+    const plan = planAcceptOffer(request, offer, 'u_acc')
+    expect(plan.requestStatus).toBe('accepted_awaiting_payment')
+    expect(plan.offerStatus).toBe('accepted')
+    expect(plan.patches).toContainEqual({ table: 'swap_offers', id: 'o1', patch: expect.objectContaining({ status: 'accepted' }) })
+    expect(plan.patches).toContainEqual({ table: 'swap_requests', id: 'r1', patch: { status: 'accepted_awaiting_payment' } })
+    expect(plan.activity.action).toBe('offer_accepted')
+  })
+
+  it('rivals stay open on accept and are superseded only on lock', () => {
+    const accepted = planAcceptOffer(request, offer, 'u_acc')
+    expect(accepted.patches.some((p) => p.id === 'o2')).toBe(false)
+    const locked = planLockRequest(
+      { ...request, status: 'accepted_awaiting_payment' },
+      { ...offer, status: 'accepted' },
+      [rival],
+      'u_req',
+      { payment_id: 'pay_1' },
+    )
+    expect(locked.status).toBe('locked')
+    expect(locked.patches).toContainEqual({ table: 'swap_offers', id: 'o2', patch: { status: 'superseded' } })
+  })
+
+  it('back-out before payment returns the request to searching', () => {
+    const plan = planDeclineOffer(
+      { ...request, status: 'accepted_awaiting_payment' },
+      { ...offer, status: 'accepted' },
+      'u_acc',
+    )
+    expect(plan.offerStatus).toBe('declined')
+    expect(plan.patches).toContainEqual({ table: 'swap_requests', id: 'r1', patch: { status: 'searching', locked_offer_id: null } })
+  })
+
+  it('refuses to lock one berth into two swaps', () => {
+    expect(() =>
+      planLockRequest(
+        { ...request, status: 'accepted_awaiting_payment' },
+        { ...offer, status: 'accepted' },
+        [],
+        'u_req',
+        { payment_id: 'pay_1', lockedPassengerSets: [['p9'], ['p1']] },
+      ),
+    ).toThrow('berth_already_locked')
+  })
+
+  it('rejects forged callers and wrong states', () => {
+    expect(() => planAcceptOffer(request, offer, 'u_stranger')).toThrow('not_acceptor')
+    expect(() => planLockRequest(request, offer, [], 'u_req', { payment_id: 'pay_1' })).toThrow('not_awaiting_payment')
+  })
+})
+
+describe('PayPal webhook verification (docs/06)', () => {
+  const transmission = {
+    transmissionId: 't1',
+    transmissionTime: '2026-01-01T00:00:00Z',
+    certUrl: 'https://api.paypal.com/certs',
+    authAlgo: 'SHA256withRSA',
+    transmissionSig: 'sig',
+  }
+  const stubFetch = (verifyStatus: string) => (async (url: string) => {
+    const body = url.includes('oauth2/token')
+      ? { access_token: 'tok' }
+      : { verification_status: verifyStatus }
+    return new Response(JSON.stringify(body), { status: 200 })
+  }) as typeof fetch
+  const env = (name: string) => ({
+    PAYPAL_API_BASE: 'https://api.test.paypal.com',
+    PAYPAL_CLIENT_ID: 'id',
+    PAYPAL_CLIENT_SECRET: 'secret',
+    PAYPAL_WEBHOOK_ID: 'wh',
+  }[name] ?? '')
+
+  it('accepts SUCCESS and rejects anything else', async () => {
+    await expect(verifyPaypalWebhook({ fetch: stubFetch('SUCCESS'), env }, transmission, '{}')).resolves.toBe(true)
+    await expect(verifyPaypalWebhook({ fetch: stubFetch('FAILURE'), env }, transmission, '{}')).resolves.toBe(false)
+  })
+
+  it('reads transmission headers case-insensitively', () => {
+    expect(paypalTransmission({ 'PayPal-Transmission-Id': 't1', 'PAYPAL-TRANSMISSION-SIG': 's' })?.transmissionId).toBe('t1')
+    expect(paypalTransmission({})).toBeNull()
   })
 })

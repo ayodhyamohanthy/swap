@@ -8,8 +8,9 @@
 -- 1. Create two users (Google sign-in once each, or dashboard Auth users).
 -- 2. Replace DEMO_A_ID / DEMO_B_ID below with their real auth uuids.
 -- 3. Apply: psql "$DATABASE_URL" -f app/supabase/seed.sql
--- The file is idempotent (re-runnable) and inserts nothing when the ids
--- below are still the zero placeholders.
+-- The file is idempotent (re-runnable) and inserts nothing unless both demo
+-- users already exist in auth.users (guarded by a temp table, so a fresh
+-- database gets no FK violations).
 -- =====================================================================
 
 -- Replace these two constants with real auth.users ids.
@@ -18,18 +19,32 @@
 
 BEGIN;
 
+-- Guard: every row below points at the two demo auth.users. Without them the
+-- whole seed is a no-op (no FK violations on a fresh database).
+CREATE TEMPORARY TABLE IF NOT EXISTS seed_demo_users (id uuid) ON COMMIT DROP;
+INSERT INTO seed_demo_users (id)
+SELECT u.id FROM (VALUES
+  ('11111111-1111-1111-1111-111111111111'::uuid),
+  ('22222222-2222-2222-2222-222222222222'::uuid)
+) AS v (id)
+JOIN auth.users u ON u.id = v.id;
+
 -- Profiles for the two demo travellers (first name + initial only).
 INSERT INTO public.profiles (id, first_name, last_initial, language, rating)
-VALUES
-  ('11111111-1111-1111-1111-111111111111', 'Priya', 'S', 'en', 4.5),
-  ('22222222-2222-2222-2222-222222222222', 'Arjun', 'M', 'en', 4.0)
+SELECT v.id, v.first_name, v.last_initial, v.language, v.rating FROM (VALUES
+  ('11111111-1111-1111-1111-111111111111'::uuid, 'Priya', 'S', 'en', 4.5),
+  ('22222222-2222-2222-2222-222222222222'::uuid, 'Arjun', 'M', 'en', 4.0)
+) AS v (id, first_name, last_initial, language, rating)
+JOIN seed_demo_users s ON s.id = v.id
 ON CONFLICT (id) DO UPDATE SET first_name = EXCLUDED.first_name;
 
 -- Acceptor filters: both open, default daily cap (docs/04-B step 2).
 INSERT INTO public.settings (user_id, paused, max_requests_per_day, notify_push)
-VALUES
-  ('11111111-1111-1111-1111-111111111111', false, 3, false),
-  ('22222222-2222-2222-2222-222222222222', false, 3, false)
+SELECT v.id, false, 3, false FROM (VALUES
+  ('11111111-1111-1111-1111-111111111111'::uuid),
+  ('22222222-2222-2222-2222-222222222222'::uuid)
+) AS v (id)
+JOIN seed_demo_users s ON s.id = v.id
 ON CONFLICT (user_id) DO NOTHING;
 
 -- Same train 12951, same date, same class 3A, overlapping NDLS leg.
@@ -37,55 +52,62 @@ ON CONFLICT (user_id) DO NOTHING;
 INSERT INTO public.bookings
   (id, user_id, pnr_hash, pnr_last4, train_no, train_name, journey_date,
    from_code, to_code, class, is_chair_car, source, open_to_swap)
-VALUES
-  ('a0000000-0000-0000-0000-000000000001',
-   '11111111-1111-1111-1111-111111111111',
+SELECT v.id, v.user_id, v.pnr_hash, v.pnr_last4, v.train_no, v.train_name, v.journey_date,
+   v.from_code, v.to_code, v.class, v.is_chair_car, v.source, v.open_to_swap FROM (VALUES
+  ('a0000000-0000-0000-0000-000000000001'::uuid,
+   '11111111-1111-1111-1111-111111111111'::uuid,
    '5863135310b54e178ee3a4dc2a54260768c9886974041131e0a86be8e8ab8a71',
-   '9630', '12951', 'Mumbai Rajdhani', '2026-11-12',
-   'MMCT', 'NDLS', '3A', false, 'typed', true),
-  ('a0000000-0000-0000-0000-000000000002',
-   '22222222-2222-2222-2222-222222222222',
+   '9630', '12951', 'Mumbai Rajdhani', '2026-11-12'::date,
+   'MMCT', 'NDLS', '3A'::travel_class, false, 'typed', true),
+  ('a0000000-0000-0000-0000-000000000002'::uuid,
+   '22222222-2222-2222-2222-222222222222'::uuid,
    'b5a51ea6615cd5cf89f231ad49daadb0dff5fb373e85fd4be28f1f96bd8a58ed',
-   '7190', '12951', 'Mumbai Rajdhani', '2026-11-12',
-   'BRC', 'NDLS', '3A', false, 'typed', true)
+   '7190', '12951', 'Mumbai Rajdhani', '2026-11-12'::date,
+   'BRC', 'NDLS', '3A'::travel_class, false, 'typed', true)
+) AS v (id, user_id, pnr_hash, pnr_last4, train_no, train_name, journey_date, from_code, to_code, class, is_chair_car, source, open_to_swap)
+JOIN seed_demo_users s ON s.id = v.user_id
 ON CONFLICT (id) DO NOTHING;
 
 -- One confirmed traveller per booking; berth numbers stay masked until a
 -- request locks (server functions reveal them only to the two parties).
 INSERT INTO public.passengers
   (id, booking_id, label, coach, berth_no, berth_type, status, quota)
-VALUES
-  ('b0000000-0000-0000-0000-000000000001',
-   'a0000000-0000-0000-0000-000000000001',
-   'Passenger 1', 'B3', '27', 'UB', 'CNF', 'GN'),
-  ('b0000000-0000-0000-0000-000000000002',
-   'a0000000-0000-0000-0000-000000000002',
-   'Passenger 1', 'B3', '32', 'LB', 'CNF', 'GN')
+SELECT v.id, v.booking_id, v.label, v.coach, v.berth_no, v.berth_type, v.status, v.quota FROM (VALUES
+  ('b0000000-0000-0000-0000-000000000001'::uuid,
+   'a0000000-0000-0000-0000-000000000001'::uuid,
+   'Passenger 1', 'B3', '27', 'UB'::berth_type, 'CNF'::ticket_status, 'GN'::quota),
+  ('b0000000-0000-0000-0000-000000000002'::uuid,
+   'a0000000-0000-0000-0000-000000000002'::uuid,
+   'Passenger 1', 'B3', '32', 'LB'::berth_type, 'CNF'::ticket_status, 'GN'::quota)
+) AS v (id, booking_id, label, coach, berth_no, berth_type, status, quota)
+WHERE EXISTS (SELECT 1 FROM public.bookings b WHERE b.id = v.booking_id)
 ON CONFLICT (id) DO NOTHING;
 
 -- Priya wants a lower berth (1st choice LB); Arjun's LB matches.
 INSERT INTO public.swap_requests
   (id, requester_id, booking_id, passenger_ids, choices, same_coach,
    keep_together, reason, status)
-VALUES
-  ('c0000000-0000-0000-0000-000000000001',
-   '11111111-1111-1111-1111-111111111111',
-   'a0000000-0000-0000-0000-000000000001',
+SELECT
+   'c0000000-0000-0000-0000-000000000001'::uuid,
+   '11111111-1111-1111-1111-111111111111'::uuid,
+   'a0000000-0000-0000-0000-000000000001'::uuid,
    ARRAY['b0000000-0000-0000-0000-000000000001']::uuid[],
    ARRAY['LB', 'MB']::berth_type[], false, false,
-   'Travelling with family', 'searching')
+   'Travelling with family', 'searching'::request_status
+WHERE EXISTS (SELECT 1 FROM public.bookings b WHERE b.id = 'a0000000-0000-0000-0000-000000000001')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.swap_offers
   (id, request_id, acceptor_id, acceptor_booking_id, acceptor_passenger_id,
    matched_choice_rank, status)
-VALUES
-  ('d0000000-0000-0000-0000-000000000001',
-   'c0000000-0000-0000-0000-000000000001',
-   '22222222-2222-2222-2222-222222222222',
-   'a0000000-0000-0000-0000-000000000002',
-   'b0000000-0000-0000-0000-000000000002',
-   1, 'sent')
+SELECT
+   'd0000000-0000-0000-0000-000000000001'::uuid,
+   'c0000000-0000-0000-0000-000000000001'::uuid,
+   '22222222-2222-2222-2222-222222222222'::uuid,
+   'a0000000-0000-0000-0000-000000000002'::uuid,
+   'b0000000-0000-0000-0000-000000000002'::uuid,
+   1, 'sent'::offer_status
+WHERE EXISTS (SELECT 1 FROM public.swap_requests r WHERE r.id = 'c0000000-0000-0000-0000-000000000001')
 ON CONFLICT (id) DO NOTHING;
 
 -- Every state change writes activity_log (here: the seeded request).

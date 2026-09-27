@@ -194,3 +194,49 @@ describe('credit cannot be minted by a passenger (rules 3-6)', () => {
     expect(inStore).toEqual(inSql)
   })
 })
+
+describe('part 7 hardening (privacy, money, transitions, safety)', () => {
+  it('never lets the client UPDATE a payment row', () => {
+    expect(SCHEMA).toMatch(/DROP POLICY IF EXISTS payments_payer ON public\.payments/i)
+    expect(SCHEMA).toMatch(/CREATE POLICY payments_payer_read/i)
+    expect(SCHEMA).toMatch(/CREATE POLICY payments_payer_create/i)
+    expect(SCHEMA).toMatch(/REVOKE UPDATE ON TABLE public\.payments FROM authenticated/i)
+  })
+
+  it('hides raw PNR hashes and berth numbers behind safe views', () => {
+    expect(SCHEMA).toMatch(/DROP POLICY IF EXISTS profiles_match_read/i)
+    expect(SCHEMA).toMatch(/DROP POLICY IF EXISTS bookings_match_read/i)
+    expect(SCHEMA).toMatch(/DROP POLICY IF EXISTS passengers_match_read/i)
+    expect(SCHEMA).toMatch(/CREATE OR REPLACE VIEW public\.match_cards WITH \(security_invoker = true\)/i)
+    expect(SCHEMA).toMatch(/CREATE OR REPLACE VIEW public\.locked_berths WITH \(security_invoker = true\)/i)
+    expect(SCHEMA).toMatch(/GRANT SELECT ON TABLE public\.match_cards TO authenticated/i)
+    expect(SCHEMA).toMatch(/GRANT SELECT ON TABLE public\.locked_berths TO authenticated/i)
+  })
+
+  it('enforces webhook idempotency at the database', () => {
+    expect(SCHEMA).toMatch(/CREATE UNIQUE INDEX.*payments_provider_ref_uidx/si)
+  })
+
+  it('constrains wallet amounts and expiry per kind (rules 3-6)', () => {
+    expect(SCHEMA).toMatch(/wallet_tx_amount_check/i)
+    expect(SCHEMA).toMatch(/wallet_tx_expiry_check/i)
+    expect(SCHEMA).toMatch(/expires_at[\s\S]{0,80}12 months/i)
+  })
+
+  it('guards request/offer transitions with triggers (docs/03)', () => {
+    expect(SCHEMA).toMatch(/check_swap_request_transition/i)
+    expect(SCHEMA).toMatch(/check_swap_offer_transition/i)
+    expect(SCHEMA).toMatch(/REVOKE DELETE ON TABLE public\.swap_requests FROM authenticated/i)
+    expect(SCHEMA).toMatch(/REVOKE DELETE ON TABLE public\.swap_offers FROM authenticated/i)
+  })
+
+  it('keeps confirmations and chat creation parties-only', () => {
+    expect(SCHEMA).toMatch(/confirmations_self_write[\s\S]{0,200}is_request_party/si)
+    expect(SCHEMA).toMatch(/CREATE POLICY chats_party_create/i)
+  })
+
+  it('flags risky messages and rate-limits senders server-side', () => {
+    expect(SCHEMA).toMatch(/check_message_safety/i)
+    expect(SCHEMA).toMatch(/messages_safety_guard/i)
+  })
+})

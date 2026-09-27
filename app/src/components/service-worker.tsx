@@ -7,6 +7,8 @@ import { useEffect } from 'react'
 export function ServiceWorkerRegistrar() {
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
+    /* Build-time guard first: any dev server on any hostname stays worker-free. */
+    if (import.meta.env.DEV) return
 
     const url = new URL(window.location.href)
     if (url.searchParams.get('sw') === 'off') {

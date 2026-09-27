@@ -36,3 +36,14 @@ describe('chat outbox', () => {
     expect(pendingCount()).toBe(2)
   })
 })
+
+describe('outbox robustness', () => {
+  it('survives corrupt storage and missing chats', () => {
+    window.localStorage.setItem('seatswap.outbox.v1', 'not-json{')
+    expect(pending('c9')).toEqual([])
+    expect(flush('c9')).toEqual([])
+    expect(pendingCount()).toBe(0)
+    expect(enqueue('c9', 'after corruption')).toBe(1)
+    expect(pending('c9')).toEqual(['after corruption'])
+  })
+})

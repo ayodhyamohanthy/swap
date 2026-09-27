@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import type { RouteChrome } from '@/components/app-shell'
 import { Card, CardBody } from '@/components/ui/card'
 import { Pill } from '@/components/ui/pill'
 import { activityToCsv, downloadCsv } from '@/lib/admin'
@@ -10,6 +11,7 @@ import { useAppState } from '@/lib/use-store'
    channel, and it never promises the traveller a reply time (rule 7). */
 
 export const Route = createFileRoute('/admin/reports')({
+  staticData: { chrome: 'setup' } satisfies RouteChrome,
   component: AdminReports,
 })
 

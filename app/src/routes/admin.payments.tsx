@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import type { RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
 import { Pill } from '@/components/ui/pill'
@@ -11,6 +12,7 @@ import { FEE_PAISE, THANK_YOU_PAISE, formatRupees } from '@/lib/money'
    and the group price is ₹199 for up to 3 swaps. */
 
 export const Route = createFileRoute('/admin/payments')({
+  staticData: { chrome: 'setup' } satisfies RouteChrome,
   component: AdminPayments,
 })
 

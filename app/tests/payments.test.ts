@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { GROUP_PRICE_PAISE, PRICE_PAISE } from '@/lib/money'
 import { buildQuote, nextPayState, outcomeToCredit, receiptNumber, splitReceipt } from '@/lib/payments'
+import { planConsumeCredit } from '@/server/payments'
 
 describe('buildQuote', () => {
   it('charges full price with no credit', () => {
@@ -68,5 +69,32 @@ describe('outcomeToCredit', () => {
 describe('receiptNumber', () => {
   it('formats SS-#####', () => {
     expect(receiptNumber(10482)).toMatch(/^SS-\d{5}$/)
+  })
+})
+
+describe('planConsumeCredit', () => {
+  const tx = (id: string, amount_paise: number, expires_at: string | null) => ({ id, amount_paise, expires_at })
+  it('spends oldest-expiry-first and stops at the need', () => {
+    const rows = [
+      tx('late', 5000, '2027-06-01T00:00:00.000Z'),
+      tx('early', 5000, '2026-12-01T00:00:00.000Z'),
+      tx('never', 5000, null),
+    ]
+    const plan = planConsumeCredit(rows, 7000, Date.parse('2026-11-12T00:00:00.000Z'))
+    expect(plan.usedTxIds).toEqual(['early', 'late'])
+    expect(plan.usedTotal).toBe(7000)
+  })
+  it('skips expired and non-positive rows', () => {
+    const rows = [
+      tx('dead', 5000, '2026-01-01T00:00:00.000Z'),
+      tx('neg', -2000, null),
+      tx('good', 5000, '2027-01-01T00:00:00.000Z'),
+    ]
+    const plan = planConsumeCredit(rows, 9900, Date.parse('2026-11-12T00:00:00.000Z'))
+    expect(plan.usedTxIds).toEqual(['good'])
+    expect(plan.usedTotal).toBe(5000)
+  })
+  it('needs nothing when nothing is owed', () => {
+    expect(planConsumeCredit([], 0, Date.now())).toEqual({ usedTxIds: [], usedTotal: 0 })
   })
 })

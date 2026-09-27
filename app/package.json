@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "description": "SeatSwap app — Build Plan steps 1 (Foundation) and 2 (Trips).",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite dev",
     "build": "vite build && node scripts/postbuild.mjs && node scripts/verify-dist.mjs",
