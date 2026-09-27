@@ -112,7 +112,7 @@ function DoneScreen() {
           {receipt.lines.map((line) => (
             <div key={line.label} className="flex items-center justify-between py-1">
               <dt className="text-muted">
-                {line.label === 'thank_you' ? t('pay.receiptThanksFor', { name }) : t(LINE_KEY[line.label as keyof typeof LINE_KEY])}
+                {line.label === 'thank_you' ? t('pay.receiptThanksFor', { name }) : line.label === 'credit_used' ? t('pay.creditUsed', { amount: Math.abs(line.amountPaise) / 100 }) : t(LINE_KEY[line.label as keyof typeof LINE_KEY])}
               </dt>
               <dd className="font-head font-bold text-ink">{formatRupees(line.amountPaise)}</dd>
             </div>

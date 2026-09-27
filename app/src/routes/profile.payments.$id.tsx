@@ -57,7 +57,11 @@ function ReceiptScreen() {
         <dl className="mt-2 text-body">
           {receipt.lines.map((line) => (
             <div key={line.label} className="flex items-center justify-between py-1">
-              <dt className="text-muted">{t(LINE_KEY[line.label as keyof typeof LINE_KEY])}</dt>
+              <dt className="text-muted">
+                {line.label === 'credit_used'
+                  ? t('pay.creditUsed', { amount: Math.abs(line.amountPaise) / 100 })
+                  : t(LINE_KEY[line.label as keyof typeof LINE_KEY])}
+              </dt>
               <dd className="font-head font-bold text-ink">{formatRupees(line.amountPaise)}</dd>
             </div>
           ))}
