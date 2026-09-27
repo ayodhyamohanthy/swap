@@ -14,8 +14,12 @@ export function CardTitle({ className, ...props }: HTMLAttributes<HTMLHeadingEle
   return <h2 className={cn('text-section text-ink', className)} {...props} />
 }
 
-export function CardBody({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('text-body text-muted', className)} {...props} />
+/* A card body is a generic container: callers nest lists, buttons and even
+   other paragraphs inside it, so it must not be a <p> (invalid HTML, and React
+   reports a hydration error). Tailwind's preflight resets margins either way,
+   so the visual result is unchanged. */
+export function CardBody({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn('text-body text-muted', className)} {...props} />
 }
 
 export function CardRow({
