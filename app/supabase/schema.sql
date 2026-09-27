@@ -740,6 +740,8 @@ ALTER TABLE public.wallet_tx ALTER COLUMN expires_at
 ALTER TABLE public.wallet_tx ADD CONSTRAINT wallet_tx_amount_check CHECK (
   amount_paise <> 0 AND (
     (kind IN ('acceptor_credit', 'swap_to_credit') AND amount_paise IN (5000, 9900))
+    -- Unused group cover converts at the full ₹199 (docs/01, pay.groupUnder).
+    OR (kind = 'swap_to_credit' AND amount_paise = 19900)
     OR (kind = 'used' AND amount_paise < 0)
     OR (kind IN ('expired', 'admin_adjust'))
   )
