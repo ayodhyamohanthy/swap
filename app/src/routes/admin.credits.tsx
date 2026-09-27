@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { Field, Input } from '@/components/ui/input'
 import { Pill } from '@/components/ui/pill'
-import { creditsToCsv, downloadCsv, logDemoAdminAction, type AdminCreditRow } from '@/lib/admin'
+import { creditsToCsv, downloadCsv, runAdminAction, type AdminCreditRow } from '@/lib/admin'
 import { useI18n } from '@/lib/i18n'
 import { formatRupees } from '@/lib/money'
 import { useAppState } from '@/lib/use-store'
@@ -32,6 +32,8 @@ function AdminCredits() {
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
 
   const rows: AdminCreditRow[] = wallet.map((tx) => ({
     id: tx.id,
@@ -44,7 +46,8 @@ function AdminCredits() {
 
   const total = wallet.reduce((sum, row) => sum + row.amount_paise, 0)
 
-  function adjust() {
+  async function adjust() {
+    if (busy) return
     if (!reason.trim()) {
       setError(t('admin.adjustReasonRequired'))
       return
@@ -54,10 +57,18 @@ function AdminCredits() {
       setError(t('admin.adjustBadAmount'))
       return
     }
-    /* Every admin tap is itself audited (docs/04-D). */
-    logDemoAdminAction({ action: 'credit_added', target: 'local-device', reason: reason.trim() })
+    /* Every admin tap is itself audited (docs/04-D): server first, device log
+       as the honest fallback. */
+    setBusy(true)
+    const result = await runAdminAction('adjust_credit', {
+      target: 'local-device',
+      reason: reason.trim(),
+      amountPaise: rupees * 100,
+    })
+    setBusy(false)
     setError(null)
     setSaved(true)
+    setNotice(result.demo ? t('admin.actedDemo') : t('admin.acted'))
     setAmount('')
     setReason('')
   }
@@ -143,9 +154,12 @@ function AdminCredits() {
               }}
             />
           </Field>
-          <Button onClick={adjust}>{t('admin.adjustSave')}</Button>
+          <Button onClick={() => void adjust()} disabled={busy}>{t('admin.adjustSave')}</Button>
           {saved ? (
             <p className="mt-2 text-caption font-semibold text-primary">{t('admin.adjustSaved')}</p>
+          ) : null}
+          {notice ? (
+            <p className="mt-1 text-caption text-muted">{notice}</p>
           ) : null}
         </div>
       </Card>

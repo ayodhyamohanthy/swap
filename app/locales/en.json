@@ -703,6 +703,17 @@
     "adjustReasonRequired": "A reason is required.",
     "adjustBadAmount": "Enter a whole number of rupees.",
     "adjustSaved": "Credit added.",
-    "backToApp": "Back to the app"
+    "backToApp": "Back to the app",
+    "block": "Block",
+    "blocked": "Blocked.",
+    "close": "Close",
+    "closed": "Closed.",
+    "moveCredit": "Move ₹99 to credit",
+    "markDone": "Mark done",
+    "resolveVoid": "Resolve: no swap",
+    "resolveConfirm": "Resolve: swapped",
+    "reasonPh": "Reason — required for credit moves",
+    "acted": "Done.",
+    "actedDemo": "Logged on this device. The server applies it when connected."
   }
 }

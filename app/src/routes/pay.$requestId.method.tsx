@@ -55,6 +55,13 @@ function MethodScreen() {
   async function pay(provider: 'razorpay' | 'paypal', method: Method) {
     if (busy) return
     setBusy(true)
+    /* PayPal leaves the app to authorise, so it gets its own screen (design
+       28a) which redirects out and captures the order on the way back. */
+    if (provider === 'paypal') {
+      setBusy(false)
+      navigate({ to: '/pay/$requestId/paypal', params: { requestId }, search: { useCredit } })
+      return
+    }
     /* The SDK is loaded first so a phone with no network finds out here, before
        any payment row exists. */
     try {
@@ -97,7 +104,7 @@ function MethodScreen() {
     <div>
       <h1 className="text-title text-ink">{t('pay.methodTitle')}</h1>
       <Card className="mt-4">
-        <CardTitle>{t('pay.title', { name })} · {isGroup ? t('pay.pay199') : t('pay.pay99')}</CardTitle>
+        <CardTitle>{isGroup ? t('pay.groupTitle') : `${t('pay.title', { name })}`} · {isGroup ? t('pay.pay199') : t('pay.pay99')}</CardTitle>
         <CardBody>{t('pay.due', { amount: quote.due / 100 })} · {formatRupees(quote.due)}</CardBody>
       </Card>
 

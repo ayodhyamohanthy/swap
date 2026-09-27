@@ -1,8 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useState } from 'react'
 import type { RouteChrome } from '@/components/app-shell'
+import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
 import { Pill } from '@/components/ui/pill'
-import { activityToCsv, downloadCsv } from '@/lib/admin'
+import { activityToCsv, downloadCsv, runAdminAction } from '@/lib/admin'
 import { useI18n } from '@/lib/i18n'
 import { useAppState } from '@/lib/use-store'
 
@@ -21,6 +23,18 @@ function AdminReports() {
   const { t, date } = useI18n()
   const { activity } = useAppState()
   const rows = activity.filter((row) => REPORT_ACTIONS.has(row.action))
+  const [closed, setClosed] = useState<Set<string>>(new Set())
+  const [busy, setBusy] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+
+  async function close(id: string) {
+    if (busy) return
+    setBusy(id)
+    const result = await runAdminAction('close_report', { target: id })
+    setBusy(null)
+    if (!result.demo) setClosed((prev) => new Set(prev).add(id))
+    setNotice(result.demo ? t('admin.actedDemo') : t('admin.closed'))
+  }
 
   return (
     <div>
@@ -40,24 +54,45 @@ function AdminReports() {
         </Card>
       ) : (
         <ul className="mt-4 space-y-2">
-          {rows.map((row) => (
-            <li
-              key={row.id}
-              className="flex items-center justify-between gap-3 rounded-card border border-line bg-card p-3"
-            >
-              <span className="min-w-0">
-                <b className="block truncate font-head text-body text-ink">{row.action}</b>
-                <small className="block text-caption text-muted">
-                  {date(row.created_at.slice(0, 10))}
-                </small>
-              </span>
-              <Pill tone={row.action === 'report_filed' ? 'danger' : 'neutral'}>
-                {row.entity ?? '—'}
-              </Pill>
-            </li>
-          ))}
+          {rows.map((row) => {
+            const isClosed = closed.has(row.id) || row.action === 'report_closed'
+            return (
+              <li
+                key={row.id}
+                className="rounded-card border border-line bg-card p-3"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="min-w-0">
+                    <b className="block truncate font-head text-body text-ink">{row.action}</b>
+                    <small className="block text-caption text-muted">
+                      {date(row.created_at.slice(0, 10))}
+                    </small>
+                  </span>
+                  <Pill tone={row.action === 'report_filed' && !isClosed ? 'danger' : 'neutral'}>
+                    {isClosed ? t('admin.closed') : (row.entity ?? '—')}
+                  </Pill>
+                </div>
+                {!isClosed ? (
+                  <div className="mt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy === row.id}
+                      onClick={() => void close(row.id)}
+                    >
+                      {t('admin.close')}
+                    </Button>
+                  </div>
+                ) : null}
+              </li>
+            )
+          })}
         </ul>
       )}
+
+      {notice ? (
+        <p className="mt-3 text-caption font-semibold text-primary">{notice}</p>
+      ) : null}
 
       <p className="mt-3 text-caption text-muted">{t('admin.demoNote')}</p>
     </div>

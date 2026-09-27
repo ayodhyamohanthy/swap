@@ -1,9 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useState } from 'react'
 import type { RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
 import { Pill } from '@/components/ui/pill'
-import { downloadCsv, usersToCsv, type AdminUserRow } from '@/lib/admin'
+import { downloadCsv, runAdminAction, usersToCsv, type AdminUserRow } from '@/lib/admin'
 import { useI18n } from '@/lib/i18n'
 import { useAppState, useCreditPaise } from '@/lib/use-store'
 
@@ -20,6 +21,18 @@ function AdminUsers() {
   const { t, date } = useI18n()
   const { activity, settings } = useAppState()
   const creditPaise = useCreditPaise()
+  const [blocked, setBlocked] = useState<Set<string>>(new Set())
+  const [busy, setBusy] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+
+  async function block(id: string) {
+    if (busy) return
+    setBusy(id)
+    const result = await runAdminAction('block_user', { target: id, reason: 'admin console' })
+    setBusy(null)
+    if (!result.demo) setBlocked((prev) => new Set(prev).add(id))
+    setNotice(result.demo ? t('admin.actedDemo') : t('admin.blocked'))
+  }
 
   /* One row for the signed-in account, or a device-only placeholder. */
   const rows: AdminUserRow[] = [
@@ -46,24 +59,45 @@ function AdminUsers() {
       </Button>
 
       <ul className="mt-4 space-y-2">
-        {rows.map((row) => (
-          <li
-            key={row.id}
-            className="flex items-center justify-between gap-3 rounded-card border border-line bg-card p-3"
-          >
-            <span className="min-w-0">
-              <b className="block truncate font-head text-body text-ink">{row.first_name}</b>
-              <small className="block text-caption text-muted">
-                {date(row.created_at)} · {t('profile.credit')}{' '}
-                {Math.round(creditPaise / 100)}
-              </small>
-            </span>
-            <Pill tone={row.reported ? 'danger' : 'neutral'}>
-              {row.reported ? t('admin.reports') : t('admin.valid')}
-            </Pill>
-          </li>
-        ))}
+        {rows.map((row) => {
+          const isBlocked = blocked.has(row.id)
+          return (
+            <li
+              key={row.id}
+              className="rounded-card border border-line bg-card p-3"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="min-w-0">
+                  <b className="block truncate font-head text-body text-ink">{row.first_name}</b>
+                  <small className="block text-caption text-muted">
+                    {date(row.created_at)} · {t('profile.credit')}{' '}
+                    {Math.round(creditPaise / 100)}
+                  </small>
+                </span>
+                <Pill tone={row.reported || isBlocked ? 'danger' : 'neutral'}>
+                  {isBlocked ? t('admin.blocked') : row.reported ? t('admin.reports') : t('admin.valid')}
+                </Pill>
+              </div>
+              {!isBlocked ? (
+                <div className="mt-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy === row.id}
+                    onClick={() => void block(row.id)}
+                  >
+                    {t('admin.block')}
+                  </Button>
+                </div>
+              ) : null}
+            </li>
+          )
+        })}
       </ul>
+
+      {notice ? (
+        <p className="mt-3 text-caption font-semibold text-primary">{notice}</p>
+      ) : null}
 
       <Card className="mt-4">
         <CardBody>{t('admin.demoNote')}</CardBody>

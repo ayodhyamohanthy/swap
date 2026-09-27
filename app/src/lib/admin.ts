@@ -6,6 +6,14 @@
 
 import { logActivity, type ActivityRow } from './store'
 import { trackEvent } from './analytics'
+import {
+  adminAdjustCredit,
+  adminBlockUser,
+  adminCloseReport,
+  adminMarkDone,
+  adminMoveToCredit,
+  adminResolveDispute,
+} from '@/server/admin'
 
 export type AdminRole = 'admin' | 'support'
 
@@ -135,6 +143,62 @@ export interface DemoAdminAction {
 export function logDemoAdminAction(detail: DemoAdminAction): ActivityRow {
   trackEvent('admin_action', { action: detail.action })
   return logActivity('admin_action', { ...detail, demo: true }, { type: 'admin', id: detail.target })
+}
+
+export type ConsoleAdminAction =
+  | 'block_user'
+  | 'move_to_credit'
+  | 'mark_done'
+  | 'resolve_dispute'
+  | 'adjust_credit'
+  | 'close_report'
+
+export interface ConsoleAdminInput {
+  target: string
+  reason?: string
+  amountPaise?: number
+  acceptorId?: string
+  payerId?: string
+  requestId?: string
+  resolution?: 'confirmed' | 'voided'
+}
+
+/** Demo-visible action names for the local audit row. */
+const DEMO_ACTION: Record<ConsoleAdminAction, string> = {
+  block_user: 'user_blocked',
+  move_to_credit: 'credit_added',
+  mark_done: 'confirmation',
+  resolve_dispute: 'dispute_resolved',
+  adjust_credit: 'credit_added',
+  close_report: 'report_closed',
+}
+
+/**
+ * Run a console action against the server when a backend is configured;
+ * otherwise log it on this device so nothing is ever silently dropped
+ * (docs/04-D). Returns where the action landed.
+ */
+export async function runAdminAction(
+  action: ConsoleAdminAction,
+  input: ConsoleAdminInput,
+): Promise<{ persisted: boolean; demo: boolean }> {
+  const fns = {
+    block_user: adminBlockUser,
+    move_to_credit: adminMoveToCredit,
+    mark_done: adminMarkDone,
+    resolve_dispute: adminResolveDispute,
+    adjust_credit: adminAdjustCredit,
+    close_report: adminCloseReport,
+  } as const
+  try {
+    const result = await fns[action](input)
+    trackEvent('admin_action', { action: DEMO_ACTION[action], persisted: result.persisted })
+    if (!result.persisted) throw new Error('admin_not_persisted')
+    return { persisted: true, demo: false }
+  } catch {
+    logDemoAdminAction({ action: DEMO_ACTION[action], target: input.target, reason: input.reason })
+    return { persisted: false, demo: true }
+  }
 }
 
 export interface AdminOverviewInput {

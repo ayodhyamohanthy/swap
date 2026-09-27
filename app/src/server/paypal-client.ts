@@ -27,6 +27,12 @@ function apiBase(deps: ProviderDeps): string {
   return (deps.env?.('PAYPAL_API_BASE') || 'https://api-m.paypal.com').replace(/\/$/, '')
 }
 
+/** Absolute http(s) URL or nothing — PayPal redirects the browser to this. */
+export function isWebUrl(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 500) return false
+  return /^https?:\/\/[^\s"'<>]+$/i.test(value)
+}
+
 async function token(deps: ProviderDeps): Promise<string> {
   const clientId = requireEnv(deps, 'PAYPAL_CLIENT_ID')
   const clientSecret = requireEnv(deps, 'PAYPAL_CLIENT_SECRET')
@@ -55,9 +61,22 @@ function authHeaders(bearer: string): Record<string, string> {
 /** POST /v2/checkout/orders with intent CAPTURE. */
 export async function paypalCreateOrder(
   deps: ProviderDeps,
-  input: { amountPaise: number; requestId: string },
+  input: {
+    amountPaise: number
+    requestId: string
+    /** Where PayPal sends the payer back to authorise. Omit and PayPal falls
+        back to the dashboard default, which is never the PWA. */
+    returnUrl?: string
+    /** Where PayPal sends the payer who backs out — back to the method list. */
+    cancelUrl?: string
+  },
 ): Promise<PaypalOrderResult> {
   const bearer = await token(deps)
+  /* Only absolute http(s) URLs reach the wire: PayPal redirects the browser
+     there, so a stray value must never be smuggled into the order. */
+  const context: Record<string, string> = {}
+  if (isWebUrl(input.returnUrl)) context.return_url = input.returnUrl
+  if (isWebUrl(input.cancelUrl)) context.cancel_url = input.cancelUrl
   const payload = await callJson(
     deps,
     `${apiBase(deps)}/v2/checkout/orders`,
@@ -76,6 +95,7 @@ export async function paypalCreateOrder(
             },
           },
         ],
+        ...(Object.keys(context).length > 0 ? { application_context: context } : {}),
       }),
     },
     'paypal_order',

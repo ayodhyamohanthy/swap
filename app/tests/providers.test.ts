@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest'
 import { razorpayCreateOrder } from '@/server/razorpay-client'
 import {
+  isWebUrl,
   paypalCaptureOrder,
   paypalCaptureStatus,
   paypalCreateOrder,
@@ -259,5 +260,56 @@ describe('planCreditHoldRelease (rule 6)', () => {
     expect(planCreditHoldRelease({ ...base, userId: '' })).toBeNull()
     expect(planCreditHoldRelease({ ...base, requestId: '' })).toBeNull()
     expect(planCreditHoldRelease({ ...base, paymentCreatedAt: '' })).toBeNull()
+  })
+})
+
+/* Screen 25 (design 28a) redirects the payer to PayPal and back, so the order
+   has to carry a return URL. Without it PayPal sends the payer to whatever the
+   dashboard default is and the capture never happens. */
+describe('paypalCreateOrder return url', () => {
+  const ORDER = [
+    { match: '/oauth2/token', body: { access_token: 'T' } },
+    { match: '/v2/checkout/orders', body: { id: 'O', status: 'CREATED' } },
+  ]
+
+  it('sends the payer back to the app after they approve', async () => {
+    const { deps, calls } = stubFetch(ORDER)
+    await paypalCreateOrder(deps, {
+      amountPaise: 9900,
+      requestId: 'req_1',
+      returnUrl: 'https://app.test/pay/req_1/paypal',
+      cancelUrl: 'https://app.test/pay/req_1/method',
+    })
+    expect(JSON.parse(calls[1].body).application_context).toEqual({
+      return_url: 'https://app.test/pay/req_1/paypal',
+      cancel_url: 'https://app.test/pay/req_1/method',
+    })
+  })
+
+  it('omits application_context entirely when no URL is given', async () => {
+    const { deps, calls } = stubFetch(ORDER)
+    await paypalCreateOrder(deps, { amountPaise: 9900, requestId: 'req_1' })
+    expect(JSON.parse(calls[1].body).application_context).toBeUndefined()
+  })
+
+  it('refuses a value that is not an absolute http(s) URL', async () => {
+    const { deps, calls } = stubFetch(ORDER)
+    await paypalCreateOrder(deps, {
+      amountPaise: 9900,
+      requestId: 'req_1',
+      returnUrl: 'javascript:alert(1)',
+    })
+    expect(JSON.parse(calls[1].body).application_context).toBeUndefined()
+  })
+
+  it('accepts the two URL shapes PayPal can be handed', () => {
+    expect(isWebUrl('https://app.test/pay/req_1/paypal')).toBe(true)
+    expect(isWebUrl('http://localhost:3000/pay/req_1/paypal')).toBe(true)
+    expect(isWebUrl('javascript:alert(1)')).toBe(false)
+    expect(isWebUrl('//app.test/pay')).toBe(false)
+    expect(isWebUrl('app.test/pay')).toBe(false)
+    expect(isWebUrl('')).toBe(false)
+    expect(isWebUrl(undefined)).toBe(false)
+    expect(isWebUrl(`https://app.test/${'x'.repeat(600)}`)).toBe(false)
   })
 })

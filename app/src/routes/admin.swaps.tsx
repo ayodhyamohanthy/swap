@@ -1,9 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useState } from 'react'
 import type { RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
+import { Field, Input } from '@/components/ui/input'
 import { Pill } from '@/components/ui/pill'
-import { downloadCsv, swapsToCsv, type AdminSwapRow } from '@/lib/admin'
+import { downloadCsv, runAdminAction, swapsToCsv, type AdminSwapRow } from '@/lib/admin'
+import { applyResolution, voidSwap } from '@/lib/settle'
+import { resolveConfirmations } from '@/lib/outcomes'
 import { useI18n } from '@/lib/i18n'
 import { useRequestsState } from '@/lib/use-store'
 import { getTrip } from '@/lib/store'
@@ -19,6 +23,35 @@ export const Route = createFileRoute('/admin/swaps')({
 function AdminSwaps() {
   const { t, date } = useI18n()
   const { requests } = useRequestsState()
+  const [busy, setBusy] = useState<string | null>(null)
+  const [reasonFor, setReasonFor] = useState<string | null>(null)
+  const [reason, setReason] = useState('')
+  const [notice, setNotice] = useState<string | null>(null)
+
+  async function act(
+    action: 'move_to_credit' | 'mark_done',
+    row: AdminSwapRow,
+    extra: { reason?: string } = {},
+  ) {
+    if (busy) return
+    setBusy(row.id)
+    /* Local rows carry no server user ids, so money can only move where the
+       backend resolves the parties. On this device the same tap settles the
+       local swap through the same rules (settle.ts) and is audit-logged. */
+    const result = await runAdminAction(action, {
+      target: row.id,
+      reason: extra.reason,
+      requestId: row.id,
+    })
+    if (result.demo) {
+      if (action === 'move_to_credit') voidSwap(row.id)
+      else applyResolution(row.id, resolveConfirmations('swapped', 'swapped'))
+    }
+    setBusy(null)
+    setReasonFor(null)
+    setReason('')
+    setNotice(result.demo ? t('admin.actedDemo') : t('admin.acted'))
+  }
 
   const rows: AdminSwapRow[] = requests.map((request) => {
     const trip = getTrip(request.trip_id)
@@ -50,22 +83,71 @@ function AdminSwaps() {
         </Card>
       ) : (
         <ul className="mt-4 space-y-2">
-          {rows.map((row) => (
-            <li
-              key={row.id}
-              className="flex items-center justify-between gap-3 rounded-card border border-line bg-card p-3"
-            >
-              <span className="min-w-0">
-                <b className="block truncate font-head text-body text-ink">
-                  {row.train_no} · PNR ••{row.requester_last4}
-                </b>
-                <small className="block text-caption text-muted">{date(row.journey_date)}</small>
-              </span>
-              <Pill tone={row.status === 'locked' ? 'primary' : 'neutral'}>{row.status}</Pill>
-            </li>
-          ))}
+          {rows.map((row) => {
+            const actionable = row.status === 'locked' || row.status === 'disputed'
+            return (
+              <li
+                key={row.id}
+                className="rounded-card border border-line bg-card p-3"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="min-w-0">
+                    <b className="block truncate font-head text-body text-ink">
+                      {row.train_no} · PNR ••{row.requester_last4}
+                    </b>
+                    <small className="block text-caption text-muted">{date(row.journey_date)}</small>
+                  </span>
+                  <Pill tone={row.status === 'locked' ? 'primary' : 'neutral'}>{row.status}</Pill>
+                </div>
+                {actionable ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy === row.id}
+                      onClick={() => void act('mark_done', row)}
+                    >
+                      {t('admin.markDone')}
+                    </Button>
+                    {reasonFor === row.id ? (
+                      <span className="flex min-w-44 flex-1 gap-2">
+                        <Field label={t('admin.reasonPh')} htmlFor={`admin-reason-${row.id}`}>
+                          <Input
+                            id={`admin-reason-${row.id}`}
+                            value={reason}
+                            onChange={(e) => setReason(e.target.value)}
+                            placeholder={t('admin.reasonPh')}
+                          />
+                        </Field>
+                        <Button
+                          size="sm"
+                          disabled={busy === row.id || !reason.trim()}
+                          onClick={() => void act('move_to_credit', row, { reason: reason.trim() })}
+                        >
+                          {t('admin.moveCredit')}
+                        </Button>
+                      </span>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy === row.id}
+                        onClick={() => { setReasonFor(row.id); setReason(''); setNotice(null) }}
+                      >
+                        {t('admin.moveCredit')}
+                      </Button>
+                    )}
+                  </div>
+                ) : null}
+              </li>
+            )
+          })}
         </ul>
       )}
+
+      {notice ? (
+        <p className="mt-3 text-caption font-semibold text-primary">{notice}</p>
+      ) : null}
 
       <p className="mt-3 text-caption text-muted">{t('admin.demoNote')}</p>
     </div>

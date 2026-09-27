@@ -174,15 +174,26 @@ export const verifyRazorpaySignature = createServerFn({ method: 'POST' })
     return { ok: safeEqual(expected, data.signature, timingSafeEqual) }
   })
 export const createPaypalOrder = createServerFn({ method: 'POST' })
-  .validator((input: { requestId: string; isGroup?: boolean }) => input)
+  .validator(
+    (input: {
+      requestId: string
+      isGroup?: boolean
+      returnUrl?: string
+      cancelUrl?: string
+    }) => input,
+  )
   .handler(
     async ({
       data,
     }): Promise<{ id: string; currency: 'INR'; amount_paise: number; approval_url: string | null }> => {
-      /* Real v2 order. approval_url is where the browser redirects to authorise. */
+      /* Real v2 order. approval_url is where the browser redirects to authorise.
+         The browser owns the origin (the PWA is the deploy target), so it sends
+         the return/cancel URLs; only well-formed http(s) ones are forwarded. */
       const order = await paypalCreateOrder(depsFromEnv(), {
         amountPaise: priceFor(data.isGroup === true),
         requestId: data.requestId,
+        returnUrl: data.returnUrl,
+        cancelUrl: data.cancelUrl,
       })
       return {
         id: order.id,
