@@ -71,20 +71,33 @@ export function splitReceipt(duePaid: number, creditUsed: number, isGroup = fals
 /** Minimal wallet row shape the credit planner needs. */
 export interface CreditLedgerRow { id: string; amount_paise: number; expires_at: string | null }
 
-/** One rule for "can this credit row be spent right now?" (rule 4: 12 months).
-    The balance a checkout quotes and the rows it then plans to consume MUST
-    agree, or a wallet of expired credit quotes ₹0 due and locks a swap for
-    free. A row with no expiry, or an unparseable one, stays spendable rather
-    than silently becoming zero. */
-export function isCreditSpendable(row: CreditLedgerRow, nowMs: number): boolean {
-  if (row.amount_paise <= 0) return false
+/** Is this row still live? `wallet_tx` is a SIGNED ledger (docs/02: "balance =
+    sum(amount) where not expired", schema.part3): spends are `used` rows with a
+    negative amount and no expiry, so a row with no expiry is permanently live.
+    A row with an unparseable expiry is treated as live rather than silently
+    becoming zero. */
+export function isCreditLive(row: CreditLedgerRow, nowMs: number): boolean {
   if (row.expires_at === null || !Number.isFinite(Date.parse(row.expires_at))) return true
   return Date.parse(row.expires_at) > nowMs
 }
 
-/** Spendable credit balance in paise at `nowMs`. */
+/** A row a payment may actually CONSUME: positive and unexpired. Only these
+    are candidates to be spent; the balance below is a separate question. */
+export function isCreditSpendable(row: CreditLedgerRow, nowMs: number): boolean {
+  return row.amount_paise > 0 && isCreditLive(row, nowMs)
+}
+
+/** Spendable credit balance in paise at `nowMs` — the signed sum of every live
+    row, debits included, floored at zero.
+
+    Filtering negatives out (rather than subtracting them) let an already-spent
+    ₹99 keep funding swaps for ever: `[+9900, -9900]` still quoted 9900, so the
+    same credit paid for any number of ₹99 swaps and the ₹49 fee was never
+    collected. The local mirror already summed negatives (store.creditPaise),
+    so server and device disagreed about what a wallet was worth. */
 export function spendableCreditPaise(rows: CreditLedgerRow[], nowMs: number): number {
-  return rows.reduce((sum, r) => (isCreditSpendable(r, nowMs) ? sum + r.amount_paise : sum), 0)
+  const total = rows.reduce((sum, r) => (isCreditLive(r, nowMs) ? sum + r.amount_paise : sum), 0)
+  return Math.max(0, total)
 }
 
 /**

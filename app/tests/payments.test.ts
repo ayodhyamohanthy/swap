@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { GROUP_PRICE_PAISE, PRICE_PAISE } from '@/lib/money'
 import { buildQuote, nextPayState, outcomeToCredit, receiptNumber, splitReceipt } from '@/lib/payments'
 import { planConsumeCredit } from '@/server/payments'
-import { spendableCreditPaise, type CreditLedgerRow } from '@/lib/payments'
+import { isCreditSpendable, spendableCreditPaise, type CreditLedgerRow } from '@/lib/payments'
 
 describe('buildQuote', () => {
   it('charges full price with no credit', () => {
@@ -100,15 +100,16 @@ describe('planConsumeCredit', () => {
   })
 })
 
-/* Rule 4 + rule 2: a wallet holding ONLY expired credit is worth nothing. The
-   balance a checkout quotes and the rows it plans to consume must agree, or the
-   quote says "nothing due", no gateway is ever called, and the swap locks for
-   free. */
+/* wallet_tx is a SIGNED ledger (docs/02: "balance = sum(amount) where not
+   expired"; spends are negative `used` rows with no expiry). Reading it as
+   "sum of the positive rows" let spent credit fund swaps for ever. */
 describe('spendableCreditPaise', () => {
   const NOW = Date.parse('2026-09-27T00:00:00.000Z')
   const row = (over: Partial<CreditLedgerRow>): CreditLedgerRow => ({
     id: 'w1', amount_paise: 5000, expires_at: null, ...over,
   })
+  const spent = (id: string, paise: number): CreditLedgerRow =>
+    row({ id, amount_paise: -paise, expires_at: null })
 
   it('counts unexpired credit', () => {
     expect(spendableCreditPaise([row({}), row({ id: 'w2', expires_at: '2027-01-01T00:00:00.000Z' })], NOW)).toBe(10000)
@@ -116,6 +117,36 @@ describe('spendableCreditPaise', () => {
 
   it('ignores expired credit entirely', () => {
     expect(spendableCreditPaise([row({ expires_at: '2026-01-01T00:00:00.000Z' })], NOW)).toBe(0)
+  })
+
+  it('SUBTRACTS a spend instead of ignoring it', () => {
+    expect(spendableCreditPaise([row({ amount_paise: 9900 }), spent('u1', 9900)], NOW)).toBe(0)
+  })
+
+  it('spent credit cannot fund a second swap', () => {
+    /* The exploit: one earned ₹99, already spent on swap A, quoted as if it were
+       still there, so swap B and every swap after it cost SeatSwap nothing. */
+    const ledger = [row({ id: 'c1', amount_paise: 9900 }), spent('u1', 9900)]
+    expect(spendableCreditPaise(ledger, NOW)).toBe(0)
+    expect(buildQuote(spendableCreditPaise(ledger, NOW))).toEqual({
+      total: PRICE_PAISE, creditUsed: 0, due: PRICE_PAISE, provider: null,
+    })
+  })
+
+  it('a partial spend leaves only the remainder', () => {
+    expect(spendableCreditPaise([row({ amount_paise: 9900 }), spent('u1', 4000)], NOW)).toBe(5900)
+  })
+
+  it('never reports a negative balance', () => {
+    expect(spendableCreditPaise([row({ amount_paise: 1000 }), spent('u1', 9900)], NOW)).toBe(0)
+  })
+
+  it('an expired credit row does not cancel a spend that already happened', () => {
+    /* +9900 expires, the -9900 `used` row never does: the wallet is empty, not
+       negative, and the user simply sees no credit. */
+    expect(spendableCreditPaise(
+      [row({ amount_paise: 9900, expires_at: '2026-01-01T00:00:00.000Z' }), spent('u1', 9900)], NOW,
+    )).toBe(0)
   })
 
   it('agrees with planConsumeCredit on what is spendable', () => {
@@ -131,5 +162,27 @@ describe('spendableCreditPaise', () => {
     expect(buildQuote(spendableCreditPaise(rows, NOW))).toEqual({
       total: PRICE_PAISE, creditUsed: 0, due: PRICE_PAISE, provider: null,
     })
+  })
+})
+
+/* The plan only ever CONSUMES credit rows, so a debit is never a candidate —
+   otherwise it would re-spend the same rupee it just released. */
+describe('isCreditSpendable', () => {
+  const NOW = Date.parse('2026-09-27T00:00:00.000Z')
+  const row = (over: Partial<CreditLedgerRow>): CreditLedgerRow => ({
+    id: 'w1', amount_paise: 5000, expires_at: null, ...over,
+  })
+
+  it('accepts positive unexpired credit only', () => {
+    expect(isCreditSpendable(row({}), NOW)).toBe(true)
+    expect(isCreditSpendable(row({ amount_paise: 0 }), NOW)).toBe(false)
+    expect(isCreditSpendable(row({ amount_paise: -9900 }), NOW)).toBe(false)
+    expect(isCreditSpendable(row({ expires_at: '2026-01-01T00:00:00.000Z' }), NOW)).toBe(false)
+  })
+
+  it('never plans a debit row for consumption', () => {
+    const plan = planConsumeCredit([row({ id: 'c1', amount_paise: 9900 }), row({ id: 'u1', amount_paise: -9900 })], 9900, NOW)
+    expect(plan.usedTxIds).toEqual(['c1'])
+    expect(plan.usedTotal).toBe(9900)
   })
 })
