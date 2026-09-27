@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as CheckRouteImport } from './routes/check'
 import { Route as GoodbyeRouteImport } from './routes/goodbye'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as SigninRouteImport } from './routes/signin'
@@ -75,6 +76,11 @@ const IndexRoute = IndexRouteImport.update({
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CheckRoute = CheckRouteImport.update({
+  id: '/check',
+  path: '/check',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GoodbyeRoute = GoodbyeRouteImport.update({
@@ -355,6 +361,7 @@ const SwapsIdSummaryRoute = SwapsIdSummaryRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/check': typeof CheckRoute
   '/goodbye': typeof GoodbyeRoute
   '/profile': typeof ProfileRouteWithChildren
   '/signin': typeof SigninRoute
@@ -413,6 +420,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/check': typeof CheckRoute
   '/goodbye': typeof GoodbyeRoute
   '/signin': typeof SigninRoute
   '/updates': typeof UpdatesRoute
@@ -466,6 +474,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/check': typeof CheckRoute
   '/goodbye': typeof GoodbyeRoute
   '/profile': typeof ProfileRouteWithChildren
   '/signin': typeof SigninRoute
@@ -527,6 +536,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/check'
     | '/goodbye'
     | '/profile'
     | '/signin'
@@ -585,6 +595,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin'
+    | '/check'
     | '/goodbye'
     | '/signin'
     | '/updates'
@@ -637,6 +648,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/check'
     | '/goodbye'
     | '/profile'
     | '/signin'
@@ -697,6 +709,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
+  CheckRoute: typeof CheckRoute
   GoodbyeRoute: typeof GoodbyeRoute
   ProfileRoute: typeof ProfileRouteWithChildren
   SigninRoute: typeof SigninRoute
@@ -734,6 +747,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/check': {
+      id: '/check'
+      path: '/check'
+      fullPath: '/check'
+      preLoaderRoute: typeof CheckRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/goodbye': {
@@ -1260,6 +1280,7 @@ const RequestIdRouteWithChildren = RequestIdRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
+  CheckRoute: CheckRoute,
   GoodbyeRoute: GoodbyeRoute,
   ProfileRoute: ProfileRouteWithChildren,
   SigninRoute: SigninRoute,

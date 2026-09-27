@@ -4,9 +4,8 @@ import { AppFooter, type RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { Pill } from '@/components/ui/pill'
-import { useI18n } from '@/lib/i18n'
+import { readStoredLang, translate, useI18n } from '@/lib/i18n'
 import { BERTH_BERTH_TYPES, SEAT_TYPES, isChairCar, type TravelClass } from '@/lib/pnr'
-import { useTrips } from '@/lib/use-store'
 
 /* Screen 65 "Public train page" (docs/05): a berth-layout guide for search
    traffic. It is a public page, so it shows NO passenger data at all — no name,
@@ -14,6 +13,23 @@ import { useTrips } from '@/lib/use-store'
 
 export const Route = createFileRoute('/train/$number')({
   staticData: { chrome: 'plain' } satisfies RouteChrome,
+  /* Public search-traffic page (docs/01 growth): per-train title + description.
+     The head runs before React on first paint, so crawlers and share previews
+     see the train number without executing the app. */
+  head: ({ params }) => {
+    const lang = readStoredLang()
+    const title = translate(lang, 'trainPage.metaTitle', { n: params.number })
+    const description = translate(lang, 'trainPage.metaDesc', { n: params.number })
+    return {
+      meta: [
+        { title },
+        { name: 'description', content: description },
+        { property: 'og:title', content: title },
+        { property: 'og:description', content: description },
+        { property: 'og:type', content: 'website' },
+      ],
+    }
+  },
   component: TrainPage,
 })
 
@@ -24,12 +40,8 @@ const CHAIR_CLASSES: readonly TravelClass[] = ['CC', 'EC', '2S', '3E']
 function TrainPage() {
   const { number } = Route.useParams()
   const { t, type } = useI18n()
-  const trips = useTrips()
 
   const trainNo = number.trim()
-  /* If the traveller already added this train we can mark it; otherwise the
-     page stays generic. Either way no trip details are rendered. */
-  const onThisTrain = trips.some((trip) => trip.train_no === trainNo)
 
   return (
     <div>
@@ -75,12 +87,11 @@ function TrainPage() {
         </CardBody>
       </Card>
 
-      {onThisTrain ? (
-        <p className="mt-4 text-body font-semibold text-ink">{t('growth.berthCheck')}</p>
-      ) : null}
-
       <Button className="mt-4" asChild>
         <Link to="/trips/add">{t('trainPage.cta')}</Link>
+      </Button>
+      <Button variant="outline" className="mt-2" asChild>
+        <Link to="/check">{t('growth.berthCheck')}</Link>
       </Button>
 
       <AppFooter />

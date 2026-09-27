@@ -14,6 +14,10 @@
     "swaps": "Swaps",
     "profile": "Profile"
   },
+  "check": {
+    "resultTitle": "Your berth",
+    "needSms": "No berth found in that text. Paste the full IRCTC booking SMS."
+  },
   "common": {
     "back": "Back",
     "close": "Close",
@@ -648,6 +652,8 @@
     "home": "Back to home"
   },
   "trainPage": {
+    "metaTitle": "Train {n} berth layout — SeatSwap",
+    "metaDesc": "Berth layout for train {n}: lower, middle and upper berths, chair-car seats and a coach guide. Swap berths with SeatSwap — you pay only if someone says yes.",
     "title": "Train {n}",
     "layout": "Berth layout",
     "body": "Coach map for train {n}. Exact berths are shared only after payment.",
