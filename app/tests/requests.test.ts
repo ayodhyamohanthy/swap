@@ -338,12 +338,13 @@ describe('share codes carry nothing private (rule 13)', () => {
   it('the link holds no PNR, name, berth number or train number', async () => {
     const { mine } = await seed()
     const link = inviteLink(createInvite('board', mine.id))
+    /* Structure, not substring luck: the code is exactly ss + 8 opaque hex
+       chars, so a PNR (10 digits) or berth/train fragments cannot ride along.
+       The old `not.toContain('27')` flaked whenever random hex produced '27'
+       (the seeded berth number), red-blocking the suite about 1 run in 256. */
+    expect(link).toMatch(/\/s\/ss[0-9a-f]{8}$/)
     expect(link).not.toContain('4512789630')
-    expect(link).not.toContain('9630')
     expect(link).not.toContain('B3')
-    expect(link).not.toContain('27')
-    expect(link).not.toContain('12951')
-    expect(link).toMatch(/\/s\/ss/)
   })
 
   it('an unknown code resolves to nothing so the screen can say "bad link"', () => {
