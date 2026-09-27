@@ -308,14 +308,16 @@ export function applyWebhookEvent(
     return { deduped: false, payStatus: 'paid',
       effects: ['lock_request', 'supersede_offers', 'reveal_berths', 'notify_both', 'activity_log'] }
   }
-  return { deduped: false, payStatus: 'failed', effects: ['activity_log'] }
+  return { deduped: false, payStatus: 'failed', effects: ['release_credit_hold', 'activity_log'] }
 }
 export { paypalWebhookId }
 /* Webhook HTTP contract (docs/06): POST /api/public/webhooks/razorpay with
    X-Razorpay-Signature, and POST /api/public/webhooks/paypal verified via
    PayPal verify-webhook-signature. Both are idempotent on provider_ref;
-   paid → lock + supersede + notify + activity_log. Wire these handlers in
-   step 3+ hosting; the pure applyWebhookEvent above is what they call. */
+   paid → lock + supersede + notify + activity_log. Failed → release any
+   credit hold (planCreditHoldRelease) + activity_log; never a bank refund
+   except a gateway-level failure the bank auto-returns. Wire these handlers
+   in step 3+ hosting; the pure applyWebhookEvent above is what they call. */
 export const WEBHOOK_PATHS = {
   razorpay: '/api/public/webhooks/razorpay',
   paypal: '/api/public/webhooks/paypal',

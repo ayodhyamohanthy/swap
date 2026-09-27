@@ -1,7 +1,9 @@
 import { Link, Outlet, createFileRoute } from '@tanstack/react-router'
+import { useState } from 'react'
 import { AppFooter } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
+import { Switch } from '@/components/ui/switch'
 import { useI18n } from '@/lib/i18n'
 import { acceptedOffer, getRequest, type RequestStatus } from '@/lib/requests'
 import { buildQuote, priceFor } from '@/lib/payments'
@@ -61,7 +63,9 @@ export function PayScreen() {
   const offer = acceptedOffer(requestId)
   const name = offer?.acceptor_name ?? t('common.traveller')
   const isGroup = isGroupRequestId(requestId)
-  const quote = buildQuote(credit, isGroup)
+  /* Design 03c: the traveller chooses whether credit lowers this payment. */
+  const [useCredit, setUseCredit] = useState(true)
+  const quote = buildQuote(useCredit ? credit : 0, isGroup)
   return (
     <div>
       <h1 className="text-title text-ink">{t('pay.title', { name })}</h1>
@@ -93,6 +97,26 @@ export function PayScreen() {
       </Card>
       <p className="mt-3 text-body text-muted">{t('pay.lock')}</p>
       <p className="mt-1 text-body font-semibold text-ink">{t('pay.under')}</p>
+      {credit > 0 ? (
+        <Card className="mt-4 flex items-center gap-3">
+          <span className="flex-1">
+            <b className="block font-head text-body text-ink">
+              {t('pay.haveCredit', { amount: Math.round(credit / 100) })}
+            </b>
+            <span className="block text-caption text-muted">
+              {t('pay.reduceBy', { amount: quote.creditUsed / 100 })}
+            </span>
+          </span>
+          <Switch
+            checked={useCredit}
+            aria-label={t('pay.haveCredit', { amount: Math.round(credit / 100) })}
+            onCheckedChange={setUseCredit}
+          />
+        </Card>
+      ) : null}
+      <p className="mt-3 font-head text-section font-bold text-ink">
+        {t('pay.youPay', { amount: quote.due / 100 })}
+      </p>
       {paid && paid.status !== 'failed' ? (
         <Button className="mt-4" asChild>
           <Link to="/pay/$requestId/status" params={{ requestId }} search={{ state: 'pending' }}>
@@ -101,7 +125,12 @@ export function PayScreen() {
         </Button>
       ) : (
         <Button className="mt-4" asChild>
-          <Link to="/pay/$requestId/method" params={{ requestId }}>{t('common.continue')}</Link>
+          <Link
+            to="/pay/$requestId/method" params={{ requestId }}
+            search={{ useCredit: useCredit ? 1 : 0 }}
+          >
+            {t('common.continue')}
+          </Link>
         </Button>
       )}
       <AppFooter />

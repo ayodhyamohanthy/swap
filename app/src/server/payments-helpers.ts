@@ -19,7 +19,7 @@ export function paypalWebhookId(): string {
    shape and response handling get real tests. The server functions are thin. */
 
 export interface ProviderDeps {
-  /** Defaults to globalThis.fetch; tests pass a stub. */
+  /** Defaults to globalThis.fetch; tests supply a stub. */
   fetch?: typeof fetch
   env?: (name: string) => string
 }
@@ -79,4 +79,36 @@ export function requireEnv(deps: ProviderDeps, name: string): string {
   const value = deps.env?.(name) ?? ''
   if (!value) throw new Error(`missing_env:${name}`)
   return value
+}
+
+/* Credit-hold release plan (rule 6). When a gateway payment fails AFTER a
+   credit hold was written at order time, the hold must be deleted — never
+   left spent, never "refunded" through a provider. The executor deletes the
+   rows matching this spec, then writes activity_log. */
+export interface CreditHoldRelease {
+  table: 'wallet_tx'
+  user_id: string
+  ref_request_id: string
+  kind: 'used'
+  /** Only holds written for this checkout (at or after the payment row). */
+  created_at_gte: string
+  /** Exact hold amount; never releases a different spend. */
+  amount_paise: number
+}
+export function planCreditHoldRelease(input: {
+  userId: string
+  requestId: string
+  creditUsedPaise: number
+  paymentCreatedAt: string
+}): CreditHoldRelease | null {
+  if (!Number.isInteger(input.creditUsedPaise) || input.creditUsedPaise <= 0) return null
+  if (!input.userId || !input.requestId || !input.paymentCreatedAt) return null
+  return {
+    table: 'wallet_tx',
+    user_id: input.userId,
+    ref_request_id: input.requestId,
+    kind: 'used',
+    created_at_gte: input.paymentCreatedAt,
+    amount_paise: -input.creditUsedPaise,
+  }
 }

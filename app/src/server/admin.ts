@@ -100,7 +100,9 @@ export function planAdminAction(
         activityAction: 'credit_added',
       }
     case 'admin_adjust':
-      /* Staff correction with a mandatory reason; any nonzero amount. */
+      /* Staff correction with a mandatory reason; any nonzero amount.
+         Rule 4: credit always expires 12 months after it is granted — staff
+         adjustments are credit too, so they expire like everything else. */
       if (!Number.isInteger(opts.amountPaise) || opts.amountPaise === 0) throw new Error('adjust_amount_invalid')
       return {
         updates: [],
@@ -108,7 +110,7 @@ export function planAdminAction(
           table: 'wallet_tx',
           row: {
             user_id: target, amount_paise: opts.amountPaise, kind: 'admin_adjust',
-            ref_request_id: opts.requestId ?? null, expires_at: null,
+            ref_request_id: opts.requestId ?? null, expires_at: twelveMonthsOut(),
           },
         }],
         activityAction: 'credit_added',

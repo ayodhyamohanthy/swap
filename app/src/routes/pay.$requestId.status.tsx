@@ -69,10 +69,10 @@ function StatusScreen() {
           <CardBody>{t('pay.failed')}</CardBody>
           <div className="mt-3 flex flex-col gap-2">
             <Button asChild>
-              <Link to="/pay/$requestId/method" params={{ requestId }}>{t('pay.tryAgain')}</Link>
+              <Link to="/pay/$requestId/method" params={{ requestId }} search={{ useCredit: 1 }}>{t('pay.tryAgain')}</Link>
             </Button>
             <Button variant="outline" asChild>
-              <Link to="/pay/$requestId/method" params={{ requestId }}>{t('pay.otherWay')}</Link>
+              <Link to="/pay/$requestId/method" params={{ requestId }} search={{ useCredit: 1 }}>{t('pay.otherWay')}</Link>
             </Button>
           </div>
         </Card>
@@ -92,7 +92,7 @@ function StatusScreen() {
         {t('pay.checkStatus')}
       </Button>
       <Button className="mt-2" variant="ghost" asChild>
-        <Link to="/pay/$requestId/method" params={{ requestId }}>{t('pay.otherWay')}</Link>
+        <Link to="/pay/$requestId/method" params={{ requestId }} search={{ useCredit: 1 }}>{t('pay.otherWay')}</Link>
       </Button>
       <AppFooter />
     </div>

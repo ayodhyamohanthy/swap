@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/input'
 import { useI18n } from '@/lib/i18n'
 import { trackEvent } from '@/lib/analytics'
 import { demoRequest } from '@/lib/demo-swap'
-import { offersFor } from '@/lib/requests'
+import { acceptedOffer, offersFor, revealedBerths } from '@/lib/requests'
 
 /* After-confirm states (docs/04 A14, designs 2c/20b/20c/25b/26a):
    swapped vs earned-50 vs added-to-credit vs answers-don't-match vs
@@ -46,26 +46,69 @@ function SwapDoneScreen() {
   if (state === 'credit') return <CreditState />
   if (state === 'review') return <ReviewState name={name} />
   if (state === 'partner') return <PartnerState id={id} name={name} />
-  const title = state === 'earned' ? t('confirm.earned50', { name }) : t('confirm.swapped')
-  const body = state === 'earned' ? t('confirm.waiting', { name }) : t('confirm.share')
+  if (state === 'earned') {
+    return (
+      <div>
+        <Card className="mt-4">
+          <CardTitle>{t('confirm.earned50', { name })}</CardTitle>
+          <CardBody>{t('confirm.waiting', { name })}</CardBody>
+        </Card>
+        <Button className="mt-4" asChild>
+          <Link to="/swaps/$id/rate" params={{ id }}>
+            {t('rating.title')}
+          </Link>
+        </Button>
+        <Button className="mt-2" variant="outline" asChild>
+          <Link to="/swaps/$id/share" params={{ id }}>
+            {t('confirm.share')}
+          </Link>
+        </Button>
+        <Button className="mt-2" variant="ghost" asChild>
+          <Link to="/">{t('confirm.addTrip')}</Link>
+        </Button>
+        <AppFooter />
+      </div>
+    )
+  }
+  return <SwappedState id={id} name={name} />
+}
+
+/* Design 02c: the new berth card, summary + family-share actions, and the
+   acceptor's earned ₹50 line (rule 3 — credit lands only on confirmed done). */
+function SwappedState({ id, name }: { id: string; name: string }) {
+  const { t, type } = useI18n()
+  const berths = revealedBerths(id)
+  const offer = acceptedOffer(id)
   return (
     <div>
+      <h1 className="mt-2 text-center text-title text-ink">{t('confirm.swapped')}</h1>
       <Card className="mt-4">
-        <CardTitle>{title}</CardTitle>
-        <CardBody>{body}</CardBody>
+        <CardBody className="text-muted">{t('confirmExtra.newBerth')}</CardBody>
+        <p className="font-head text-title font-bold text-ink">
+          {berths?.theirs ?? t('matches.berthMasked')}
+        </p>
+        {offer ? (
+          <CardBody>{type(offer.acceptor_berth_type)}</CardBody>
+        ) : null}
       </Card>
       <Button className="mt-4" asChild>
-        <Link to="/swaps/$id/rate" params={{ id }}>
-          {t('rating.title')}
+        <Link to="/swaps/$id/summary" params={{ id }}>
+          {t('confirmExtra.viewSummary')}
         </Link>
       </Button>
       <Button className="mt-2" variant="outline" asChild>
         <Link to="/swaps/$id/share" params={{ id }}>
-          {t('confirm.share')}
+          {t('confirmExtra.shareFamily')}
         </Link>
       </Button>
+      <Card className="mt-4 border-accent/40 bg-accent-soft">
+        <CardBody className="font-semibold text-ink">{t('confirmExtra.earnedLine', { name })}</CardBody>
+        <CardBody>{t('confirmExtra.kinder')}</CardBody>
+      </Card>
       <Button className="mt-2" variant="ghost" asChild>
-        <Link to="/">{t('confirm.addTrip')}</Link>
+        <Link to="/swaps/$id/rate" params={{ id }}>
+          {t('rating.title')}
+        </Link>
       </Button>
       <AppFooter />
     </div>

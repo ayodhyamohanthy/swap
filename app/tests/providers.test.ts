@@ -8,7 +8,7 @@ import {
   paypalCreateOrder,
 } from '@/server/paypal-client'
 import { paiseToDecimalString } from '@/lib/money'
-import { ProviderUnavailableError, type ProviderDeps } from '@/server/payments-helpers'
+import { ProviderUnavailableError, planCreditHoldRelease, type ProviderDeps } from '@/server/payments-helpers'
 
 const ENV: Record<string, string> = {
   RAZORPAY_KEY_ID: 'rzp_test_key',
@@ -237,5 +237,27 @@ describe('paypalCaptureOrder', () => {
     const result = await paypalCaptureOrder(deps, { orderId: 'ORDER-9' })
     expect(result.status).toBe('paid')
     expect(result.provider_ref).toBeNull()
+  })
+})
+
+describe('planCreditHoldRelease (rule 6)', () => {
+  const base = { userId: 'u_1', requestId: 'req_1', creditUsedPaise: 5000, paymentCreatedAt: '2026-09-27T00:00:00.000Z' }
+  it('targets exactly the hold written for this checkout', () => {
+    expect(planCreditHoldRelease(base)).toEqual({
+      table: 'wallet_tx',
+      user_id: 'u_1',
+      ref_request_id: 'req_1',
+      kind: 'used',
+      created_at_gte: '2026-09-27T00:00:00.000Z',
+      amount_paise: -5000,
+    })
+  })
+  it('plans nothing when no credit was held', () => {
+    expect(planCreditHoldRelease({ ...base, creditUsedPaise: 0 })).toBeNull()
+  })
+  it('rejects incomplete specs rather than releasing the wrong spend', () => {
+    expect(planCreditHoldRelease({ ...base, userId: '' })).toBeNull()
+    expect(planCreditHoldRelease({ ...base, requestId: '' })).toBeNull()
+    expect(planCreditHoldRelease({ ...base, paymentCreatedAt: '' })).toBeNull()
   })
 })

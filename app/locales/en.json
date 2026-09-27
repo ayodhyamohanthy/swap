@@ -270,6 +270,9 @@
     "creditUsed": "Credit used ₹{amount}",
     "creditLine": "₹{amount} credit applied",
     "due": "To pay ₹{amount}",
+    "haveCredit": "You have ₹{amount} credit",
+    "reduceBy": "Reduce your payment by ₹{amount}",
+    "youPay": "You pay ₹{amount}",
     "under": "No swap? ₹99 goes to your credit",
     "lock": "The swap locks once you pay. Until then, your other matches can still accept.",
     "methodTitle": "Choose how to pay",
@@ -425,6 +428,13 @@
     "confirm": "Cancel swap",
     "keep": "Keep swap",
     "done": "Swap cancelled. ₹99 is in your credit."
+  },
+  "confirmExtra": {
+    "newBerth": "Your new berth",
+    "earnedLine": "{name} earned ₹50 credit",
+    "kinder": "Thanks for being part of a kinder journey",
+    "viewSummary": "View swap summary",
+    "shareFamily": "Share with family"
   },
   "outcome": {
     "creditTitle": "Added to your credit",

@@ -36,7 +36,7 @@ export type { CreditLedgerRow } from '@/lib/payments'
 export { planConsumeCredit } from '@/lib/payments'
 import { planConsumeCredit, type CreditLedgerRow } from '@/lib/payments'
 export const createRazorpayOrder = createServerFn({ method: 'POST' })
-  .validator((input: { requestId: string; isGroup?: boolean; callerId?: string }) => input)
+  .validator((input: { requestId: string; isGroup?: boolean; useCredit?: boolean; callerId?: string }) => input)
   .handler(async ({ data }): Promise<RazorpayOrder & { payment_id: string; provider: 'razorpay' | 'credit' }> => {
     /* docs/06 Razorpay 1: only the requester, only while awaiting payment, for
        price-minus-credit with oldest-first consumption. A payment row is
@@ -54,17 +54,24 @@ export const createRazorpayOrder = createServerFn({ method: 'POST' })
     const { data: ledger, error: ledgerError } = await walletQuery
     if (ledgerError) throw new Error('wallet_unreadable')
     const quote = buildQuote(
-      (ledger ?? []).reduce((sum, r) => sum + (r.amount_paise > 0 ? r.amount_paise : 0), 0),
+      data.useCredit === false
+        ? 0
+        : (ledger ?? []).reduce((sum, r) => sum + (r.amount_paise > 0 ? r.amount_paise : 0), 0),
       isGroup,
     )
     const consumed = planConsumeCredit(ledger ?? [], quote.creditUsed, Date.now())
+    /* The spend is a hold: it is released below if the gateway order fails,
+       and by the failed-webhook path if capture never happens (rule 6: a
+       gateway that never captured must never cost credit). */
+    let holdId: string | null = null
     if (consumed.usedTotal > 0) {
       const useRow = (client.from('wallet_tx').insert({
         user_id: callerId, amount_paise: -consumed.usedTotal, kind: 'used',
         ref_request_id: data.requestId, expires_at: null,
-      }) as unknown as Promise<{ error: unknown }>)
-      const { error: useError } = await useRow
-      if (useError) throw new Error('credit_unusable')
+      }).select('id').single() as unknown as Promise<{ data: { id: string } | null; error: unknown }>)
+      const { data: held, error: useError } = await useRow
+      if (useError || !held) throw new Error('credit_unusable')
+      holdId = held.id
     }
     if (quote.due === 0) {
       /* Fully covered by credit: no gateway order; instant lock path. */
@@ -91,11 +98,21 @@ export const createRazorpayOrder = createServerFn({ method: 'POST' })
     /* Real Orders API call. A failure here throws ProviderUnavailableError, which
        the pay screen maps to "could not start payment — try again" WITHOUT locking
        anything (docs/06: nothing is held until money is actually captured). */
-    const order = await razorpayCreateOrder(depsFromEnv(), {
-      amountPaise: quote.due,
-      receipt: created.id,
-      requestId: data.requestId,
-    })
+    let order
+    try {
+      order = await razorpayCreateOrder(depsFromEnv(), {
+        amountPaise: quote.due,
+        receipt: created.id,
+        requestId: data.requestId,
+      })
+    } catch (err) {
+      if (holdId) {
+        try {
+          await (client.from('wallet_tx').delete().eq('id', holdId) as unknown as Promise<{ error: unknown }>)
+        } catch { /* hold release is best-effort; the failed payment row shows no capture */ }
+      }
+      throw err
+    }
     return {
       order_id: order.order_id,
       amount_paise: order.amount_paise,

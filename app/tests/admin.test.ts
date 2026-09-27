@@ -215,5 +215,11 @@ describe('server admin planners move money and state, then log (docs/04-D)', () 
     expect(() => planAdminAction('admin_adjust', 'u_x', { amountPaise: 0 })).toThrow('adjust_amount_invalid')
     const adjust = planAdminAction('admin_adjust', 'u_x', { amountPaise: -500, reason: 'correction' })
     expect(adjust.inserts[0].row).toMatchObject({ user_id: 'u_x', amount_paise: -500, kind: 'admin_adjust' })
+    /* Rule 4: even staff-granted credit expires 12 months out — never null. */
+    const grant = planAdminAction('admin_adjust', 'u_x', { amountPaise: 5000, reason: 'goodwill' })
+    const exp = Date.parse((grant.inserts[0].row as { expires_at: string }).expires_at)
+    const year = 365 * 24 * 3600 * 1000
+    expect(exp).toBeGreaterThan(Date.now() + year - 30 * 24 * 3600 * 1000)
+    expect(exp).toBeLessThan(Date.now() + year + 40 * 24 * 3600 * 1000)
   })
 })

@@ -460,7 +460,7 @@ export function lockRequest(requestId: string): SwapRequest | undefined {
 
 /**
  * Move a locked swap to its terminal state (docs/03). Money has already moved,
- * so the only legal sources are `locked` and — after admin review — `disputed`.
+ * so the only valid sources are `locked` and — after admin review — `disputed`.
  * Credit for the outcome is issued by `lib/settle`, never here.
  */
 export function settleRequest(

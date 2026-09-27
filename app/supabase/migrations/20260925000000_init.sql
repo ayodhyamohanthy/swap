@@ -917,7 +917,7 @@ REVOKE UPDATE ON TABLE public.swap_offers FROM authenticated;
 
 -- --------------------------------- transition RPC authorization (part 7b)
 -- The machine alone is not enough: strangers must not move other people's
--- rows even along legal edges. Both RPCs require party-or-staff, except for
+-- rows even along permitted edges. Both RPCs require party-or-staff, except for
 -- service_role writers (webhooks, scheduled jobs), which carry no JWT user.
 CREATE OR REPLACE FUNCTION public.apply_request_transition(
   p_req uuid, p_status request_status, p_locked_offer uuid DEFAULT NULL

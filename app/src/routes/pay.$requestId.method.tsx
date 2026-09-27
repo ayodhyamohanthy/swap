@@ -20,6 +20,9 @@ import { useCreditPaise } from '@/lib/use-store'
    status screen — it never claims a payment happened. */
 export const Route = createFileRoute('/pay/$requestId/method')({
   staticData: { chrome: 'plain' } satisfies RouteChrome,
+  validateSearch: (s: Record<string, unknown>) => ({
+    useCredit: s.useCredit === 0 || s.useCredit === '0' ? 0 : 1,
+  }),
   component: MethodScreen,
 })
 
@@ -39,12 +42,13 @@ const OTHERS: Method[] = [
 
 function MethodScreen() {
   const { requestId } = Route.useParams()
+  const { useCredit } = Route.useSearch()
   const { t } = useI18n()
   const navigate = useNavigate()
   const toast = useToast()
   const credit = useCreditPaise()
   const isGroup = isGroupRequestId(requestId)
-  const quote = buildQuote(credit, isGroup)
+  const quote = buildQuote(useCredit === 1 ? credit : 0, isGroup)
   const [busy, setBusy] = useState(false)
   const name = acceptedOffer(requestId)?.acceptor_name ?? t('common.traveller')
 
@@ -59,12 +63,12 @@ function MethodScreen() {
       /* CDN blocked: the local checkout still records the attempt honestly. */
     }
     try {
-      const ticket = beginCheckout(requestId, provider, isGroup)
+      const ticket = beginCheckout(requestId, provider, isGroup, useCredit === 1)
       if (ticket.settled) {
         navigate({ to: '/pay/$requestId/done', params: { requestId } })
         return
       }
-      if (method.waits) navigate({ to: '/pay/$requestId/upi', params: { requestId } })
+      if (method.waits) navigate({ to: '/pay/$requestId/upi', params: { requestId }, search: { useCredit } })
       else navigate({ to: '/pay/$requestId/status', params: { requestId }, search: { state: 'pending' } })
     } catch (err) {
       toast.show(t(err instanceof CheckoutError && err.code === 'not_awaiting_payment' ? 'pay.notYet' : 'pay.alreadyPaid'))

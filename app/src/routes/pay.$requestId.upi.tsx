@@ -11,10 +11,14 @@ import { usePaymentFor } from '@/lib/use-store'
    from here — only status checks and a way back to other methods. */
 export const Route = createFileRoute('/pay/$requestId/upi')({
   staticData: { chrome: 'plain' } satisfies RouteChrome,
+  validateSearch: (s: Record<string, unknown>) => ({
+    useCredit: s.useCredit === 0 || s.useCredit === '0' ? 0 : 1,
+  }),
   component: UpiScreen,
 })
 function UpiScreen() {
   const { requestId } = Route.useParams()
+  const { useCredit } = Route.useSearch()
   const { t } = useI18n()
   const payment = usePaymentFor(requestId)
   const due = payment ? payment.amount_paise - payment.credit_used_paise : 0
@@ -38,7 +42,7 @@ function UpiScreen() {
         </Link>
       </Button>
       <Button className="mt-2" variant="ghost" asChild>
-        <Link to="/pay/$requestId/method" params={{ requestId }}>
+        <Link to="/pay/$requestId/method" params={{ requestId }} search={{ useCredit }}>
           {t('pay.upiRetry')}
         </Link>
       </Button>

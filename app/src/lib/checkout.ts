@@ -62,6 +62,7 @@ export function beginCheckout(
   requestId: string,
   provider: Exclude<CheckoutProvider, 'credit'>,
   isGroup = false,
+  useCredit = true,
 ): CheckoutTicket {
   const request = getRequest(requestId)
   if (!request) throw new CheckoutError('request_not_found')
@@ -73,7 +74,7 @@ export function beginCheckout(
     return ticket(existing, request.status === 'locked' || existing.status === 'paid')
   }
 
-  const quote = buildQuote(creditAvailable(), isGroup)
+  const quote = buildQuote(useCredit ? creditAvailable() : 0, isGroup)
   if (quote.due === 0) {
     /* Fully covered by credit: no provider call, instant lock (docs/06). */
     const row = startPayment({
