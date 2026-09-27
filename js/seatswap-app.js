@@ -578,6 +578,24 @@ const SeatSwapApp = (() => {
       location.hash = '#/goodbye';
     });
   }
+  /* Screen 54 "Swapping for my parents / easy mode" (design 10b). */
+  function easyMode() {
+    const easy = SeatSwapI18n.isEasy();
+    return `${innerHead()}<main class="body center">
+      <h1 class="h-title" style="font-size:40px;line-height:1.15">${esc(T('profile.easyTitle'))}</h1>
+      <p class="subtitle">${esc(T('profile.easyBody'))}</p>
+      <section class="menu" style="text-align:left">
+        <div class="setrow"><span class="mlab">${esc(T('profile.easy'))}</span>
+          <label class="switch"><input type="checkbox" id="easyBox" ${easy ? 'checked' : ''} /><span class="tr"></span><span class="th"></span></label></div>
+      </section>
+      <a class="btn" href="#/trips/add">${esc(T('trip.ask'))}</a>
+      ${footer(false)}</main>`;
+  }
+  function wireEasy(root) {
+    bindBack(root);
+    const ez = root.querySelector('#easyBox');
+    if (ez) ez.addEventListener('change', () => SeatSwapI18n.setEasy(ez.checked));
+  }
   function goodbye() {
     return `<main class="body body--setup center">
       <p class="wordmark wordmark--center">${esc(T('brand.wordmark'))}</p>
@@ -614,6 +632,7 @@ const SeatSwapApp = (() => {
     if (parts[0] === 'swaps' && !parts[1]) return { name: 'swaps' };
     if (parts[0] === 'profile' && parts[1] === 'settings') return { name: 'settings' };
     if (parts[0] === 'profile' && parts[1] === 'delete') return { name: 'delAccount' };
+    if (parts[0] === 'profile' && parts[1] === 'easy') return { name: 'easyMode' };
     if (parts[0] === 'profile') return { name: 'profile' };
     if (parts[0] === 'train' && parts[1]) return { name: 'train', n: decodeURIComponent(parts[1]) };
     if (parts[0] === 's' && parts[1]) return { name: 'invite', code: decodeURIComponent(parts[1]) };
@@ -672,6 +691,7 @@ const SeatSwapApp = (() => {
     else if (r.name === 'profile') { html = profile(); tab = 'profile'; }
     else if (r.name === 'settings') { html = settings(); tab = 'profile'; }
     else if (r.name === 'delAccount') { html = delAccount(); tab = 'profile'; }
+    else if (r.name === 'easyMode') { html = easyMode(); tab = 'profile'; }
     else if (r.name === 'train') { html = trainPage(r.n); tab = 'home'; }
     else if (extra[r.name]) { const e = extra[r.name].render(r); html = e.html; tab = e.tab || 'home'; }
     el.innerHTML = html;
@@ -747,6 +767,7 @@ const SeatSwapApp = (() => {
     if (r.name === 'profile') wireProfile(el);
     if (r.name === 'settings') wireSettings(el);
     if (r.name === 'delAccount') wireDel(el);
+    if (r.name === 'easyMode') wireEasy(el);
     window.scrollTo(0, 0);
   }
 

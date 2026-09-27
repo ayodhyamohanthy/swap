@@ -61,8 +61,7 @@ export function PayScreen() {
   const offer = acceptedOffer(requestId)
   const name = offer?.acceptor_name ?? t('common.traveller')
   const isGroup = isGroupRequestId(requestId)
-  const quote = buildQuote(useCreditPaise(), isGroup)
-  const paid = paymentFor(requestId)
+  const quote = buildQuote(credit, isGroup)
   return (
     <div>
       <h1 className="text-title text-ink">{t('pay.title', { name })}</h1>

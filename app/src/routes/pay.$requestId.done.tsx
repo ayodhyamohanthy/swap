@@ -7,6 +7,7 @@ import { acceptedOffer, getRequest, revealedBerths } from '@/lib/requests'
 import { splitReceipt } from '@/lib/payments'
 import { formatRupees } from '@/lib/money'
 import { isGroupRequestId } from '@/lib/groups'
+import { gatewayLive } from '@/lib/checkout'
 import { usePaymentFor } from '@/lib/use-store'
 import { payGate } from './pay.$requestId'
 
@@ -18,12 +19,12 @@ export const Route = createFileRoute('/pay/$requestId/done')({
   component: DoneScreen,
 })
 
-const LINE_KEY: Record<string, string> = {
+const LINE_KEY = {
   fee: 'pay.receiptFee',
   thank_you: 'pay.receiptThanks',
   group_cover: 'pay.groupCover',
   credit_used: 'pay.creditUsed',
-}
+} as const
 
 function DoneScreen() {
   const { requestId } = Route.useParams()
@@ -72,7 +73,7 @@ function DoneScreen() {
           {receipt.lines.map((line) => (
             <div key={line.label} className="flex items-center justify-between py-1">
               <dt className="text-muted">
-                {line.label === 'thank_you' ? t('pay.receiptThanksFor', { name }) : t(LINE_KEY[line.label])}
+                {line.label === 'thank_you' ? t('pay.receiptThanksFor', { name }) : t(LINE_KEY[line.label as keyof typeof LINE_KEY])}
               </dt>
               <dd className="font-head font-bold text-ink">{formatRupees(line.amountPaise)}</dd>
             </div>
@@ -83,6 +84,9 @@ function DoneScreen() {
           </div>
         </dl>
       </Card>
+      {!gatewayLive() ? (
+        <p className="mt-2 text-caption text-muted">{t('payments.demo')}</p>
+      ) : null}
 
       <Card className="mt-3">
         <CardTitle>{t('pay.berthReveal')}</CardTitle>

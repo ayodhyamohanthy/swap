@@ -86,7 +86,11 @@ const JOURNEY = {
     ok(m0.status === 200 && m0.data.candidates.length === 1, 'one eligible candidate (same service, same segment)');
     const c = m0.data.candidates[0];
     const raw = JSON.stringify(c);
-    ok(!raw.includes('21') && !raw.includes('"berth"') && !raw.includes('berth":21'), 'candidate payload has no exact berth number');
+    /* NOTE: no bare '21' substring check — timestamps/uids contain '21'
+       intermittently. Assert on structure + berth-scoped values instead. */
+    ok(Object.keys(c).sort().join(',') === 'candidateId,coarseRegion,fit,maskedName,searching', 'candidate DTO shape is fixed');
+    ok(c.coarseRegion && Object.keys(c.coarseRegion).sort().join(',') === 'berthType,berthTypeLabel,coach', 'coarse region limited to coach + berth type');
+    ok(!/"berth[^"]*"\s*:\s*"?21"?/.test(raw), 'candidate payload has no exact berth number');
     ok(!raw.includes(jidB) && !raw.includes('userId'), 'candidate payload has no journey/user ids');
     ok(!raw.includes('female') && !raw.includes('same-gender'), 'candidate payload never exposes gender');
     ok(c.maskedName === 'Priya S.', 'masked name format "Priya S."');
@@ -122,7 +126,9 @@ const JOURNEY = {
     const xr = await call('/api/exchange-requests', { method: 'POST', token: tokenA, body: { journeyId: jidA, candidateId: c.candidateId } });
     ok(xr.status === 200 && xr.data.request.state === 'pending', 'exchange request created');
     ok(xr.data.request.counterpart === 'Priya S.', 'request shows masked counterpart only');
-    ok(!JSON.stringify(xr.data).includes('21'), 'request payload hides accepter exact seat');
+    const rq = xr.data.request;
+    ok(Object.keys(rq).sort().join(',') === 'counterpart,createdAt,id,role,serviceKey,state', 'request DTO shape is fixed');
+    ok(!('reveal' in rq) && !/"berth[^"]*"\s*:\s*"?21"?/.test(JSON.stringify(rq)), 'request payload hides accepter exact seat');
     const xr2 = await call('/api/exchange-requests', { method: 'POST', token: tokenA, body: { journeyId: jidA, candidateId: c.candidateId } });
     ok(xr2.data.request.id === xr.data.request.id, 'duplicate request returns existing');
     const listB = await call('/api/exchange-requests', { token: tokenB });

@@ -1,4 +1,4 @@
-import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { CreditCard, Smartphone, Wallet } from 'lucide-react'
 import { AppFooter, type RouteChrome } from '@/components/app-shell'
@@ -24,16 +24,17 @@ export const Route = createFileRoute('/pay/$requestId/method')({
 })
 
 /** UPI methods wait for approval in the app; cards and net banking do not. */
-type Method = { label: string; Icon: typeof Wallet; waits: boolean }
+type MethodKey = 'pay.otherUpi' | 'pay.debitCard' | 'pay.netBanking'
+type Method = { label: string; i18nKey?: MethodKey; Icon: typeof Wallet; waits: boolean }
 const UPI_APPS: Method[] = [
   { label: 'GPay', Icon: Wallet, waits: true },
   { label: 'PhonePe', Icon: Wallet, waits: true },
   { label: 'Paytm', Icon: Wallet, waits: true },
 ]
 const OTHERS: Method[] = [
-  { label: 'pay.otherUpi', Icon: Smartphone, waits: true },
-  { label: 'pay.debitCard', Icon: CreditCard, waits: false },
-  { label: 'pay.netBanking', Icon: Wallet, waits: false },
+  { label: 'pay.otherUpi', i18nKey: 'pay.otherUpi', Icon: Smartphone, waits: true },
+  { label: 'pay.debitCard', i18nKey: 'pay.debitCard', Icon: CreditCard, waits: false },
+  { label: 'pay.netBanking', i18nKey: 'pay.netBanking', Icon: Wallet, waits: false },
 ]
 
 function MethodScreen() {
@@ -66,7 +67,7 @@ function MethodScreen() {
       if (method.waits) navigate({ to: '/pay/$requestId/upi', params: { requestId } })
       else navigate({ to: '/pay/$requestId/status', params: { requestId }, search: { state: 'pending' } })
     } catch (err) {
-      toast.show(err instanceof CheckoutError ? t(`pay.${checkoutFail(err.code)}`) : t('pay.notYet'))
+      toast.show(t(err instanceof CheckoutError && err.code === 'not_awaiting_payment' ? 'pay.notYet' : 'pay.alreadyPaid'))
     } finally {
       setBusy(false)
     }
@@ -108,7 +109,7 @@ function MethodScreen() {
           >
             <method.Icon aria-hidden className="size-5 text-primary" />
             <span className="font-head font-bold text-ink">
-              {method.label.startsWith('pay.') ? t(method.label) : method.label}
+              {method.i18nKey ? t(method.i18nKey) : method.label}
             </span>
           </button>
         ))}
@@ -133,9 +134,4 @@ function MethodScreen() {
       <AppFooter />
     </div>
   )
-}
-
-function checkoutFail(code: string): string {
-  if (code === 'not_awaiting_payment') return 'notYet'
-  return 'alreadyPaid'
 }

@@ -12,7 +12,9 @@
       "Shell(ls:*)",
       "Shell(node -e const l=require('lucide-react');for(const i of ['TimerReset','Footprints','FileClock','Zap','Tag','Wallet','Landmark','CreditCard','Smartphone','Clock'])console.log(i, !!l[i]) 2 > /dev/null)",
       "Shell(node -e import('lucide-react').then(l=>{for(const i of ['TimerReset','Footprints','FileClock','Zap','Tag','Wallet','Landmark','CreditCard','Smartphone','Clock'])console.log(i, !!l[i])}))",
-      "Shell(node /private/tmp/commandcode-501/-Users-ayodhyarammohanthy-Documents-GitHub-swap/a0d9314d-2a34-4087-bba6-177cbebc7cd5/scratchpad/add-hi-keys.mjs)"
+      "Shell(node /private/tmp/commandcode-501/-Users-ayodhyarammohanthy-Documents-GitHub-swap/a0d9314d-2a34-4087-bba6-177cbebc7cd5/scratchpad/add-hi-keys.mjs)",
+      "Shell(node -e  const hi=require('./locales/hi.json'), en=require('./locales/en.json'); const flat=(o,p='')=>Object.entries(o).flatMap(([k,v])=>typeof v==='object'&&v?flat(v,p+k+'.'):[p+k]); const ek=new Set(flat(en)),hk=new Set(flat(hi)); console.log('missing in hi:',[...ek].filter(k=>!hk.has(k))); console.log('missing in en:',[...hk].filter(k=>!ek.has(k))); console.log('hi upiTitle:', hi.pay.upiTitle); console.log('hi upiApprove:', hi.pay.upiApprove); console.log('hi netBanking:', hi.pay.netBanking);)",
+      "Shell(awk:*)"
     ],
     "deny": [],
     "defaultMode": "default"
