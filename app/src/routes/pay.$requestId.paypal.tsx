@@ -53,12 +53,12 @@ function PaypalScreen() {
   const captured = useRef<string | null>(null)
 
   const quote = buildQuote(useCredit === 1 ? credit : 0, isGroup)
-  /* The USD figure is an estimate only (docs/06) — the charge is always the
-     INR amount, so a partly credit-covered order estimates on what is left. */
-  const usd = formatUsdTenths(usdTenthsFor(Math.max(charged, 1)))
   /* Card total is the gateway's own number, so a credit-covered order shows the
      reduced amount rather than the full price. */
   const charged = payment ? payment.amount_paise - payment.credit_used_paise : quote.due
+  /* The USD figure is an estimate only (docs/06) — the charge is always the
+     INR amount, so a partly credit-covered order estimates on what is left. */
+  const usd = formatUsdTenths(usdTenthsFor(Math.max(charged, 1)))
 
   /* Return leg: PayPal sent the payer back with an order id to capture. */
   useEffect(() => {

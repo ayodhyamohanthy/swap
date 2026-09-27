@@ -1,4 +1,4 @@
-/* QA gate — build plan step 14, part 1: 360 px layout + offline.
+/* QA gate - build plan step 14, part 1: 360 px layout + offline.
    Runs without a server, a phone, or a gateway (see qa-webhooks.test.ts for
    the replay half and qa-placeholders.test.ts for the punch-list). */
 
@@ -10,10 +10,12 @@ import en from '../locales/en.json'
 import hi from '../locales/hi.json'
 import { CATALOGS } from '@/lib/i18n'
 import { enqueue, flush } from '@/lib/outbox'
-import { acceptOffer, createRequest, getRequest, lockRequest, offersFor, resetRequests, sendRequest } from '@/lib/requests'
+import { acceptOffer, createRequest, getRequest, lockRequest } from '@/lib/requests'
+import { offersFor, resetRequests, sendRequest } from '@/lib/requests'
 import { addTrip, getTrip, listTrips, resetStore, setOpenToSwap } from '@/lib/store'
 
 const APP = join(import.meta.dirname, '..')
+const DAY = '2026-11-12'
 
 function read(rel: string): string {
   return readFileSync(join(APP, rel), 'utf8')
@@ -21,6 +23,16 @@ function read(rel: string): string {
 
 function templateVars(template: string): string[] {
   return [...template.matchAll(/\{(\w+)\}/g)].map((m) => m[1])
+}
+
+function catalogValue(catalog: typeof en, key: string): string | undefined {
+  let current: unknown = catalog
+  for (const part of key.split('.')) {
+    if (typeof current !== 'object' || current === null) return undefined
+    current = (current as Record<string, unknown>)[part]
+  }
+  return typeof current === 'string' ? current : undefined
+}
 
 async function seedLocked() {
   const mine = await addTrip({
@@ -115,8 +127,6 @@ describe('offline (step 14: trips + summary readable, chat queued, shell cached)
   })
 
   it('keeps the worker offline contract: pages first-network, payments never cached', () => {
-    /* The built worker is minified, so assert on the shared options source —
-       the same file verify-dist.mjs checks at build time. */
     const src = readFileSync(join(APP, 'pwa.workbox.mjs'), 'utf8')
     expect(src).toContain("handler: 'NetworkFirst'")
     expect(src).toContain("handler: 'NetworkOnly'")
@@ -126,16 +136,3 @@ describe('offline (step 14: trips + summary readable, chat queued, shell cached)
     expect(src).toContain('api')
   })
 })
-
-}
-
-function catalogValue(catalog: typeof en, key: string): string | undefined {
-  let current: unknown = catalog
-  for (const part of key.split('.')) {
-    if (typeof current !== 'object' || current === null) return undefined
-    current = (current as Record<string, unknown>)[part]
-  }
-  return typeof current === 'string' ? current : undefined
-}
-
-const DAY = '2026-11-12'
