@@ -21,7 +21,8 @@ import {
 } from './store'
 import { buildQuote } from './payments'
 import { isSupabaseConfigured } from './supabase'
-import { getRequest, lockRequest, type RequestStatus } from './requests'
+import { getGroup, isGroupRequestId, markGroupPaid } from './groups'
+import { getRequest, lockRequest, type RequestStatus, type SwapRequest } from './requests'
 
 export type CheckoutProvider = 'razorpay' | 'paypal' | 'credit'
 
@@ -54,6 +55,51 @@ export function payableStatus(status: RequestStatus | undefined): 'payable' | 'a
 }
 
 /**
+ * Group checkout (docs/01, docs/04 C): one ₹199 payment marks the whole trip
+ * paid. Idempotent like startPayment: an already-paid group never charges
+ * twice. Credit may cover part or all of it, oldest-first, spent only when
+ * money lands (rule 6).
+ */
+export function beginGroupCheckout(
+  groupId: string,
+  provider: Exclude<CheckoutProvider, 'credit'>,
+  useCredit = true,
+): CheckoutTicket {
+  const group = getGroup(groupId)
+  if (!group) throw new CheckoutError('request_not_found')
+  if (group.paid) {
+    const row = paymentFor(groupId)
+    if (!row) throw new CheckoutError('payment_not_found')
+    return ticket(row, true)
+  }
+  const existing = paymentFor(groupId)
+  if (existing && (existing.status === 'paid' || existing.status === 'pending')) {
+    return ticket(existing, existing.status === 'paid')
+  }
+  const quote = buildQuote(useCredit ? creditAvailable() : 0, true)
+  if (quote.due === 0) {
+    const row = startPayment({
+      request_id: groupId,
+      provider: 'credit',
+      amount_paise: quote.total,
+      credit_used_paise: quote.creditUsed,
+      status: 'paid',
+    })
+    spendCredit(row)
+    markGroupPaid(groupId)
+    return ticket(row, true)
+  }
+  const created = startPayment({
+    request_id: groupId,
+    provider,
+    amount_paise: quote.total,
+    credit_used_paise: quote.creditUsed,
+  })
+  const pending = setPaymentStatus(created.id, 'pending') ?? created
+  return ticket(pending, false)
+}
+
+/**
  * Open the payment for a request and take it as far as it goes without money:
  * credit-only settles and locks here; a gateway payment is left `pending` for
  * `confirmCaptured` (the webhook, or the status screen while offline).
@@ -64,6 +110,11 @@ export function beginCheckout(
   isGroup = false,
   useCredit = true,
 ): CheckoutTicket {
+  /* Group trips pay ₹199 once (docs/01, docs/04 C): no acceptance needed, the
+     payment marks the group paid and covers up to GROUP_MAX_SWAPS locks. */
+  if (isGroup || isGroupRequestId(requestId)) {
+    return beginGroupCheckout(requestId, provider, useCredit)
+  }
   const request = getRequest(requestId)
   if (!request) throw new CheckoutError('request_not_found')
   const state = payableStatus(request.status)
@@ -107,12 +158,23 @@ export function beginCheckout(
 export function confirmCaptured(requestId: string, providerRef?: string): CheckoutTicket {
   const row = paymentFor(requestId)
   if (!row) throw new CheckoutError('payment_not_found')
-  const request = getRequest(requestId)
-  if (!request) throw new CheckoutError('request_not_found')
-  if (row.status === 'paid') return ticket(row, request.status === 'locked')
+  if (row.status === 'paid') {
+    if (isGroupRequestId(requestId)) {
+      /* Heal a crash between payment and marking (idempotent). */
+      markGroupPaid(requestId)
+      return ticket(row, true)
+    }
+    const request = getRequest(requestId)
+    if (!request) throw new CheckoutError('request_not_found')
+    return ticket(row, request.status === 'locked')
+  }
   if (row.status === 'failed') throw new CheckoutError('payment_failed')
   const paid = setPaymentStatus(row.id, 'paid', providerRef) ?? row
   spendCredit(paid)
+  if (isGroupRequestId(requestId)) {
+    markGroupPaid(requestId)
+    return ticket(paid, true)
+  }
   lockRequest(requestId)
   return ticket(paid, true)
 }
@@ -123,6 +185,23 @@ export function markFailed(requestId: string): CheckoutTicket {
   if (!row) throw new CheckoutError('payment_not_found')
   const failed = setPaymentStatus(row.id, 'failed') ?? row
   return ticket(failed, false)
+}
+
+/**
+ * Lock a member swap covered by a paid group trip (docs/04 C): no per-swap
+ * payment, but the group must be paid and the GROUP_MAX_SWAPS cap enforced.
+ * Throws `not_awaiting_payment`, `group_unpaid`, or `group_swap_cap`.
+ */
+export function lockCoveredRequest(requestId: string): SwapRequest {
+  const request = getRequest(requestId)
+  if (!request) throw new CheckoutError('request_not_found')
+  if (request.status !== 'accepted_awaiting_payment') throw new CheckoutError('not_awaiting_payment')
+  if (!request.group_id) throw new CheckoutError('group_unpaid')
+  const group = getGroup(request.group_id)
+  if (!group?.paid) throw new CheckoutError('group_unpaid')
+  const locked = lockRequest(requestId)
+  if (!locked) throw new CheckoutError('not_awaiting_payment')
+  return locked
 }
 
 function spendCredit(row: PaymentRow): void {

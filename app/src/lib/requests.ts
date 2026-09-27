@@ -14,7 +14,9 @@ import type { BerthType } from './pnr'
 import { rankMatches, type CandidateSpec, type RequesterSpec } from './matching'
 import { needsCreditReminder } from './jobs'
 import { trackEvent } from './analytics'
-import { logActivity, listTrips, getTrip, getSnapshot, type Trip } from './store'
+import { GROUP_MAX_SWAPS } from './money'
+import { getGroup, groupForTrip } from './groups'
+import { logActivity, listTrips, getTrip, getSnapshot, paymentFor, type Trip } from './store'
 
 export type RequestStatus =
   | 'draft'
@@ -42,6 +44,9 @@ export interface SwapRequest {
   id: string
   trip_id: string
   requester_id: string | null
+  /** Family trip this request belongs to (docs/02 `swap_requests.group_id`).
+      A paid group covers up to GROUP_MAX_SWAPS locks without per-swap pay. */
+  group_id: string | null
   choices: BerthType[]
   same_coach: boolean
   keep_together: boolean
@@ -105,8 +110,10 @@ function readState(): RequestsState {
     if (!raw) return emptyState()
     const parsed = JSON.parse(raw) as Partial<RequestsState>
     const offers = Array.isArray(parsed.offers) ? parsed.offers : []
+    const requests = Array.isArray(parsed.requests) ? parsed.requests : []
     return {
-      requests: Array.isArray(parsed.requests) ? parsed.requests : [],
+      /* Rows stored before `group_id` existed belong to no trip group. */
+      requests: requests.map((request) => ({ ...request, group_id: request.group_id ?? null })),
       /* Rows stored before `acceptor_berth_no` existed stay unknown (null) —
          never backfilled or guessed. */
       offers: offers.map((offer) => ({ ...offer, acceptor_berth_no: offer.acceptor_berth_no ?? null })),
@@ -228,6 +235,8 @@ export interface CreateRequestInput {
   same_coach?: boolean
   keep_together?: boolean
   reason_key?: ReasonKey | null
+  /** Override the trip's family trip (rare; defaults to the trip's group). */
+  group_id?: string | null
 }
 
 export function createRequest(input: CreateRequestInput): SwapRequest {
@@ -239,6 +248,8 @@ export function createRequest(input: CreateRequestInput): SwapRequest {
     id: newId('req'),
     trip_id: input.trip_id,
     requester_id: null,
+    /* Family coverage follows the trip (docs/04 C); explicit wins. */
+    group_id: input.group_id !== undefined ? input.group_id : (groupForTrip(input.trip_id)?.id ?? null),
     choices: input.choices.slice(0, 3),
     same_coach: input.same_coach ?? false,
     keep_together: input.keep_together ?? false,
@@ -435,6 +446,16 @@ export function lockRequest(requestId: string): SwapRequest | undefined {
   if (request.status !== 'accepted_awaiting_payment') return undefined
   const accepted = offersFor(requestId).find((offer) => offer.status === 'accepted')
   if (!accepted) return undefined
+  /* Group bundle cap (docs/01): a paid ₹199 trip covers at most
+     GROUP_MAX_SWAPS locks; further swaps pay per-request, so a lock backed
+     by its own paid payment always goes through. */
+  if (request.group_id) {
+    const group = getGroup(request.group_id)
+    const ownPaid = paymentFor(requestId)?.status === 'paid'
+    if (group?.paid && !ownPaid && groupLockedCount(request.group_id) >= GROUP_MAX_SWAPS) {
+      throw new Error('group_swap_cap')
+    }
+  }
   const updated: SwapRequest = {
     ...request,
     status: 'locked',
@@ -456,6 +477,17 @@ export function lockRequest(requestId: string): SwapRequest | undefined {
   logActivity('swap_locked', { offer: updated.locked_offer_id }, { type: 'swap_request', id: requestId })
   trackEvent('swap_locked', {})
   return updated
+}
+
+/**
+ * Locked + confirmed swaps already covered by a group trip (docs/01: at most
+ * GROUP_MAX_SWAPS per paid ₹199 trip).
+ */
+export function groupLockedCount(groupId: string): number {
+  return ensureLoaded().requests.filter(
+    (request) =>
+      request.group_id === groupId && (request.status === 'locked' || request.status === 'confirmed'),
+  ).length
 }
 
 /**

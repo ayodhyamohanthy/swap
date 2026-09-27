@@ -210,7 +210,8 @@ ALTER TABLE public.swap_requests ADD CONSTRAINT swap_requests_locked_offer_fk FO
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.payments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  request_id uuid NOT NULL REFERENCES public.swap_requests (id) ON DELETE CASCADE,
+  request_id uuid REFERENCES public.swap_requests (id) ON DELETE CASCADE,
+  group_id uuid REFERENCES public.group_trips (id) ON DELETE CASCADE,
   payer_id uuid NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
   provider pay_provider NOT NULL,
   provider_ref text,
@@ -223,6 +224,15 @@ CREATE TABLE IF NOT EXISTS public.payments (
 );
 CREATE INDEX IF NOT EXISTS payments_request_idx ON public.payments (request_id);
 CREATE INDEX IF NOT EXISTS payments_payer_idx ON public.payments (payer_id);
+CREATE INDEX IF NOT EXISTS payments_group_idx ON public.payments (group_id);
+-- A payment targets exactly one thing: a single swap request, or one group
+-- trip (docs/01: ₹199 covers up to 3 swaps). Payer-only RLS below is
+-- target-agnostic, so group payments inherit the same self-only reads.
+ALTER TABLE public.payments DROP CONSTRAINT IF EXISTS payments_target;
+ALTER TABLE public.payments
+  ADD CONSTRAINT payments_target CHECK (
+    (request_id IS NULL) != (group_id IS NULL)
+  );
 
 -- ---------------------------------------------------------------------
 -- receipts: one receipt per payment, shown on the Swap summary card.

@@ -58,6 +58,45 @@ function DoneScreen() {
   const name = acceptedOffer(requestId)?.acceptor_name ?? t('common.traveller')
   const receipt = splitReceipt(payment.amount_paise, payment.credit_used_paise, isGroup)
   const berths = revealedBerths(requestId)
+  if (isGroup) {
+    /* A group payment covers the trip, not one swap: no berth reveal here,
+       just the receipt and the way back to the family trip. */
+    const groupId = requestId
+    return (
+      <div>
+        <h1 className="text-title text-ink">{t('pay.done')}</h1>
+        <p className="mt-1 text-body text-muted">
+          {t('pay.paidLine', {
+            amount: formatRupees(payment.amount_paise),
+            method: payment.provider === 'credit' ? t('profile.credit') : payment.provider === 'paypal' ? 'PayPal' : 'Razorpay',
+          })}
+        </p>
+        <Card className="mt-4">
+          <CardTitle>{t('pay.receipt', { n: payment.receipt_number ?? '' })}</CardTitle>
+          <dl className="mt-2 text-body">
+            {receipt.lines.map((line) => (
+              <div key={line.label} className="flex items-center justify-between py-1">
+                <dt className="text-muted">{t(LINE_KEY[line.label as keyof typeof LINE_KEY])}</dt>
+                <dd className="font-head font-bold text-ink">{formatRupees(line.amountPaise)}</dd>
+              </div>
+            ))}
+            <div className="mt-1 flex items-center justify-between border-t border-line pt-2">
+              <dt className="font-head font-bold text-ink">{t('payments.total', { amount: receipt.total / 100 })}</dt>
+              <dd className="font-head text-title font-bold text-primary">{formatRupees(receipt.total)}</dd>
+            </div>
+          </dl>
+        </Card>
+        <p className="mt-3 text-body text-muted">{t('groups.paid')}</p>
+        <Button className="mt-4" asChild>
+          <Link to="/groups/$id" params={{ id: groupId }}>{t('pay.seeDetails')}</Link>
+        </Button>
+        <Button variant="ghost" className="mt-2" asChild>
+          <Link to="/profile/payments/$id" params={{ id: payment.id }}>{t('pay.download')}</Link>
+        </Button>
+        <AppFooter />
+      </div>
+    )
+  }
   return (
     <div>
       <h1 className="text-title text-ink">{t('pay.done')}</h1>

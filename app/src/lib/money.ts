@@ -11,6 +11,8 @@ export const FEE_PAISE = 4900 as const
 export const THANK_YOU_PAISE = 5000 as const
 /** ₹199 — group trip, covers up to 3 swaps (docs/01, build step 10). */
 export const GROUP_PRICE_PAISE = 19900 as const
+/** A paid group trip covers at most this many locked swaps (docs/01). */
+export const GROUP_MAX_SWAPS = 3 as const
 /** Credit is valid for 12 months from the day it is earned. */
 export const CREDIT_VALIDITY_MONTHS = 12 as const
 

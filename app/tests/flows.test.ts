@@ -461,6 +461,28 @@ describe('server planners persist every row of a transition (docs/03)', () => {
     expect(() => planAcceptOffer(request, offer, 'u_stranger')).toThrow('not_acceptor')
     expect(() => planLockRequest(request, offer, [], 'u_req', { payment_id: 'pay_1' })).toThrow('not_awaiting_payment')
   })
+
+  it('enforces the group bundle cap: 3 covered locks, then group_swap_cap', () => {
+    const grouped = { ...request, status: 'accepted_awaiting_payment' as const, group_id: 'g1' }
+    const accepted = { ...offer, status: 'accepted' as const }
+    const covered = { paid: true, lockedCount: 3 }
+    expect(() =>
+      planLockRequest(grouped, accepted, [], 'u_req', { payment_id: null, group: covered }),
+    ).toThrow('group_swap_cap')
+    /* A lock backed by its own paid payment (the 4th+ swap paying ₹99)
+       always goes through. */
+    expect(
+      planLockRequest(grouped, accepted, [], 'u_req', { payment_id: 'pay_4th', group: covered }).status,
+    ).toBe('locked')
+    /* Under the cap, covered locks pass. */
+    expect(
+      planLockRequest(grouped, accepted, [], 'u_req', { payment_id: null, group: { paid: true, lockedCount: 2 } }).status,
+    ).toBe('locked')
+    /* Unpaid group, no bundle: covered locks are refused. */
+    expect(() =>
+      planLockRequest(grouped, accepted, [], 'u_req', { payment_id: null, group: { paid: false, lockedCount: 0 } }),
+    ).toThrow('group_unpaid')
+  })
 })
 
 describe('PayPal webhook verification (docs/06)', () => {

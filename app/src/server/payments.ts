@@ -11,11 +11,12 @@ export type RequestStatus = 'draft' | 'searching' | 'accepted_awaiting_payment'
   | 'locked' | 'confirmed' | 'voided' | 'disputed' | 'expired' | 'withdrawn'
 export interface SwapRequestRow { id: string; requester_id: string; status: RequestStatus }
 export interface PaymentRow {
-  id: string; request_id: string; payer_id: string
+  id: string; request_id: string | null; group_id: string | null; payer_id: string
   provider: 'razorpay' | 'paypal' | 'credit'; provider_ref: string | null
   amount_paise: number; credit_used_paise: number; currency: 'INR'
   status: 'created' | 'pending' | 'paid' | 'failed'
 }
+export interface GroupRow { id: string; organiser_id: string; name: string }
 export interface RazorpayOrder {
   order_id: string; amount_paise: number; currency: 'INR'
   receipt: string; key_id: string; credit_used_paise: number
@@ -45,10 +46,23 @@ export const createRazorpayOrder = createServerFn({ method: 'POST' })
     if (!client) throw new Error('backend_unconfigured')
     const callerId = await resolveCaller(client, data.callerId ?? '')
     if (!callerId) throw new Error('not_signed_in')
-    const request = await refetchRow<SwapRequestRow | null>(client, 'swap_requests', data.requestId, null)
-    if (!request) throw new Error('request_not_found')
-    assertCanPay(request, callerId)
     const isGroup = data.isGroup === true
+    /* Group trips pay ₹199 once (docs/01, docs/04 C): the organiser pays, no
+       acceptance needed. The payment targets the group, not one swap. */
+    let target: { request_id: string | null; group_id: string | null }
+    if (isGroup) {
+      const group = await refetchRow<GroupRow | null>(client, 'group_trips', data.requestId, null)
+      if (!group) throw new Error('request_not_found')
+      if (group.organiser_id !== callerId) throw new Error('not_requester')
+      const prior = await (client.from('payments').select('id').eq('group_id', group.id).or('status.eq.paid,status.eq.pending').limit(1) as unknown as Promise<{ data: Array<{ id: string }> | null; error: unknown }>)
+      if (!prior.error && (prior.data?.length ?? 0) > 0) throw new Error('already_paid')
+      target = { request_id: null, group_id: group.id }
+    } else {
+      const request = await refetchRow<SwapRequestRow | null>(client, 'swap_requests', data.requestId, null)
+      if (!request) throw new Error('request_not_found')
+      assertCanPay(request, callerId)
+      target = { request_id: data.requestId, group_id: null }
+    }
     const total = priceFor(isGroup)
     const walletQuery = (client.from('wallet_tx').select('id,amount_paise,expires_at').eq('user_id', callerId) as unknown as Promise<{ data: CreditLedgerRow[] | null; error: unknown }>)
     const { data: ledger, error: ledgerError } = await walletQuery
@@ -76,7 +90,7 @@ export const createRazorpayOrder = createServerFn({ method: 'POST' })
     if (quote.due === 0) {
       /* Fully covered by credit: no gateway order; instant lock path. */
       const payRow = (client.from('payments').insert({
-        request_id: data.requestId, payer_id: callerId, provider: 'credit',
+        ...target, payer_id: callerId, provider: 'credit',
         provider_ref: null, amount_paise: total, credit_used_paise: consumed.usedTotal,
         currency: 'INR', status: 'paid',
       }).select('id').single() as unknown as Promise<{ data: { id: string } | null; error: unknown }>)
@@ -89,7 +103,7 @@ export const createRazorpayOrder = createServerFn({ method: 'POST' })
       }
     }
     const payRow = (client.from('payments').insert({
-      request_id: data.requestId, payer_id: callerId, provider: 'razorpay',
+      ...target, payer_id: callerId, provider: 'razorpay',
       provider_ref: null, amount_paise: total, credit_used_paise: consumed.usedTotal,
       currency: 'INR', status: 'created',
     }).select('id').single() as unknown as Promise<{ data: { id: string } | null; error: unknown }>)

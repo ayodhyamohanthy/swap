@@ -70,10 +70,17 @@ export function getGroup(id: string): GroupTrip | undefined {
   return load().find((group) => group.id === id)
 }
 
+/** The family trip a trip belongs to, if any (a trip links to one group). */
+export function groupForTrip(tripId: string): GroupTrip | undefined {
+  return load().find((group) => group.trip_ids.includes(tripId))
+}
+
 /** Create a family trip from existing local PNRs (docs/04 C). */
 export function createGroup(name: string, tripIds: string[]): GroupTrip {
+  /* Date.now alone collides for groups made in the same millisecond (tests do
+     this constantly); the random tail keeps ids unique. */
   const group: GroupTrip = {
-    id: `grp_${Date.now().toString(36)}`,
+    id: `grp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
     name: name.trim() || 'Family trip',
     trip_ids: tripIds,
     paid: false,

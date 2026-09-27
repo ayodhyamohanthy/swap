@@ -7,13 +7,14 @@
 
 import { createServerFn } from '@tanstack/react-start'
 import { getSupabase } from '@/lib/supabase'
+import { GROUP_MAX_SWAPS } from '@/lib/money'
 
 export type SwapStatus =
   | 'draft' | 'searching' | 'accepted_awaiting_payment' | 'locked'
   | 'confirmed' | 'voided' | 'disputed' | 'expired' | 'withdrawn'
 export type OfferStatus = 'sent' | 'accepted' | 'declined' | 'superseded' | 'expired'
 
-export interface RequestRow { id: string; requester_id: string; booking_id: string; status: SwapStatus; passenger_ids?: string[] }
+export interface RequestRow { id: string; requester_id: string; booking_id: string; status: SwapStatus; passenger_ids?: string[]; group_id?: string | null }
 export interface OfferRow {
   id: string; request_id: string; acceptor_id: string
   acceptor_booking_id: string; acceptor_passenger_id: string
@@ -106,7 +107,7 @@ export function applyDeclineOffer(
 
 export function applyLockRequest(
   request: RequestRow, offer: OfferRow, callerId: string,
-  input: { payment_id: string },
+  input: { payment_id: string | null },
 ): { status: SwapStatus; activity: ActivityWrite } {
   if (request.requester_id !== callerId) throw new SwapError('not_requester')
   if (request.status !== 'accepted_awaiting_payment') throw new SwapError('not_awaiting_payment')
@@ -163,9 +164,18 @@ export function planDeclineOffer(
     planner refuses the double-lock. */
 export function planLockRequest(
   request: RequestRow, offer: OfferRow, siblings: OfferRow[], callerId: string,
-  input: { payment_id: string; lockedPassengerSets?: string[][] },
+  input: { payment_id?: string | null; lockedPassengerSets?: string[][]; group?: { paid: boolean; lockedCount: number } | null },
 ): { patches: RowPatch[]; status: SwapStatus; activity: ActivityWrite } {
-  const next = applyLockRequest(request, offer, callerId, { payment_id: input.payment_id })
+  const next = applyLockRequest(request, offer, callerId, { payment_id: input.payment_id ?? null })
+  /* Group bundle cap (docs/01): a paid ₹199 trip covers at most
+     GROUP_MAX_SWAPS locks. A lock backed by its own paid payment (the 4th+
+     swap paying per-request) always goes through — only covered locks count. */
+  if (request.group_id) {
+    if (!input.group?.paid) throw new SwapError('group_unpaid')
+    if (!input.payment_id && (input.group.lockedCount ?? 0) >= GROUP_MAX_SWAPS) {
+      throw new SwapError('group_swap_cap')
+    }
+  }
   const mine = new Set(request.passenger_ids ?? [])
   for (const set of input.lockedPassengerSets ?? []) {
     if (set.some((id) => mine.has(id))) throw new SwapError('berth_already_locked')
@@ -353,14 +363,37 @@ export const declineOffer = createServerFn({ method: 'POST' })
   })
 
 export const lockRequest = createServerFn({ method: 'POST' })
-  .validator((input: { request: RequestRow; offer: OfferRow; siblings?: OfferRow[]; callerId: string; payment_id: string }) => input)
+  .validator((input: { request: RequestRow; offer: OfferRow; siblings?: OfferRow[]; callerId: string; payment_id?: string | null; group?: { paid: boolean; lockedCount: number } | null }) => input)
   .handler(async ({ data }) => {
     const client = await getSupabase()
     const callerId = await resolveCaller(client, data.callerId)
     const request = await refetchRow(client, 'swap_requests', data.request.id, data.request)
     const offer = await refetchRow(client, 'swap_offers', data.offer.id, data.offer)
-    const next = planLockRequest(request, offer, data.siblings ?? [], callerId, { payment_id: data.payment_id })
+    const group = await groupCoverage(client, request.group_id ?? null, data.group ?? null)
+    const next = planLockRequest(request, offer, data.siblings ?? [], callerId, { payment_id: data.payment_id ?? null, group })
     if (!client) return { status: next.status, activity: next.activity, persisted: false as const, failed: [] as string[] }
     const { persisted, failed } = await persistMulti(client, next.patches, next.activity)
     return { status: next.status, activity: next.activity, persisted, failed }
   })
+
+/** Group bundle state for the lock cap (docs/01): paid = a paid group payment
+    exists; lockedCount = locked + confirmed member swaps. Offline (no client)
+    falls back to the caller-supplied snapshot. */
+export async function groupCoverage(
+  client: SupaClient | null,
+  groupId: string | null,
+  fallback: { paid: boolean; lockedCount: number } | null,
+): Promise<{ paid: boolean; lockedCount: number } | null> {
+  if (!groupId) return null
+  if (!client) return fallback
+  try {
+    const gq = await (client.from('group_trips').select('id').eq('id', groupId).single() as unknown as Promise<{ data: { id: string } | null; error: unknown }>)
+    if (gq.error || !gq.data) return fallback
+    const pq = await (client.from('payments').select('id').eq('group_id', groupId).eq('status', 'paid').limit(1) as unknown as Promise<{ data: Array<{ id: string }> | null; error: unknown }>)
+    const lq = await (client.from('swap_requests').select('id').eq('group_id', groupId).or('status.eq.locked,status.eq.confirmed') as unknown as Promise<{ data: Array<{ id: string }> | null; error: unknown }>)
+    if (pq.error || lq.error) return fallback
+    return { paid: (pq.data?.length ?? 0) > 0, lockedCount: lq.data?.length ?? 0 }
+  } catch {
+    return fallback
+  }
+}

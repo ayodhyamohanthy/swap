@@ -1,15 +1,17 @@
-import { Link, Outlet, createFileRoute } from '@tanstack/react-router'
+import { Link, Outlet, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { AppFooter } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { useI18n } from '@/lib/i18n'
-import { acceptedOffer, getRequest, type RequestStatus } from '@/lib/requests'
+import { useToast } from '@/components/ui/toast'
+import { acceptedOffer, getRequest, groupLockedCount, type RequestStatus } from '@/lib/requests'
+import { lockCoveredRequest, CheckoutError } from '@/lib/checkout'
 import { buildQuote, priceFor } from '@/lib/payments'
-import { formatRupees } from '@/lib/money'
+import { GROUP_MAX_SWAPS, formatRupees } from '@/lib/money'
 import { useCreditPaise, usePaymentFor } from '@/lib/use-store'
-import { isGroupRequestId } from '@/lib/groups'
+import { getGroup, isGroupRequestId } from '@/lib/groups'
 
 /* Pay screen (docs/04 A9): breakdown 49+50, credit line if balance>0,
    lock note, No-swap-to-credit. Sending requests is free; pay after accept. */
@@ -33,14 +35,81 @@ export function payGate(status: RequestStatus | undefined): 'payable' | 'paid' |
 export function PayScreen() {
   const { requestId } = Route.useParams()
   const { t } = useI18n()
+  const toast = useToast()
+  const navigate = useNavigate()
   const credit = useCreditPaise()
   const paid = usePaymentFor(requestId)
   const request = getRequest(requestId)
-  const gate = payGate(request?.status)
+  const group = isGroupRequestId(requestId) ? getGroup(requestId) : undefined
+  const gate = group ? (group.paid ? 'paid' : 'payable') : payGate(request?.status)
+
+  if (isGroupRequestId(requestId) && group?.paid) {
+    /* The ₹199 already landed: point back at the family trip. */
+    return (
+      <div>
+        <Card className="mt-4">
+          <CardTitle>{t('pay.groupTitle')}</CardTitle>
+          <CardBody>{t('groups.paid')}</CardBody>
+        </Card>
+        <Button className="mt-4" asChild>
+          <Link to="/groups/$id" params={{ id: requestId }}>
+            {t('common.continue')}
+          </Link>
+        </Button>
+        <AppFooter />
+      </div>
+    )
+  }
+
+  /* A member swap covered by a paid group trip locks with no extra charge
+     (docs/04 C) — unless the group already covers GROUP_MAX_SWAPS, in which
+     case this swap pays the normal per-request ₹99 below. */
+  const covering =
+    !isGroupRequestId(requestId) && request?.group_id
+      ? getGroup(request.group_id)
+      : undefined
+  const covered =
+    gate === 'payable' && covering?.paid && groupLockedCount(covering.id) < GROUP_MAX_SWAPS
+  if (covered && covering) {
+    const lockIt = () => {
+      try {
+        const locked = lockCoveredRequest(requestId)
+        navigate({ to: '/swaps/$id', params: { id: locked.id } })
+      } catch (err) {
+        toast.show(t(err instanceof CheckoutError ? 'pay.coveredCap' : 'pay.notYet'))
+      }
+    }
+    return (
+      <div>
+        <Card className="mt-4">
+          <CardTitle>{t('pay.coveredTitle')}</CardTitle>
+          <CardBody>{t('pay.coveredBody')}</CardBody>
+        </Card>
+        <Button className="mt-4" onClick={lockIt}>
+          {t('pay.lockCovered')}
+        </Button>
+        <AppFooter />
+      </div>
+    )
+  }
 
   if (gate !== 'payable') {
     /* Rule 2: there is nothing to pay before an acceptance, and nothing twice
        after a payment. Never a dead end — always a way back to the request. */
+    if (isGroupRequestId(requestId)) {
+      return (
+        <div>
+          <Card className="mt-4">
+            <CardTitle>{t('pay.groupTitle')}</CardTitle>
+            <CardBody>{t('groups.none')}</CardBody>
+          </Card>
+          <Button className="mt-4" asChild>
+            <Link to="/">{t('common.continue')}</Link>
+          </Button>
+          <AppFooter />
+        </div>
+      )
+    }
     return (
       <div>
         <Card className="mt-4">
@@ -68,7 +137,7 @@ export function PayScreen() {
   const quote = buildQuote(useCredit ? credit : 0, isGroup)
   return (
     <div>
-      <h1 className="text-title text-ink">{t('pay.title', { name })}</h1>
+      <h1 className="text-title text-ink">{isGroup ? t('pay.groupTitle') : t('pay.title', { name })}</h1>
       <p className="mt-1 font-head text-section font-bold text-ink">
         {isGroup ? t('pay.pay199') : t('pay.pay99')}
       </p>
@@ -95,8 +164,8 @@ export function PayScreen() {
           </div>
         </dl>
       </Card>
-      <p className="mt-3 text-body text-muted">{t('pay.lock')}</p>
-      <p className="mt-1 text-body font-semibold text-ink">{t('pay.under')}</p>
+      <p className="mt-3 text-body text-muted">{isGroup ? t('pay.groupLock') : t('pay.lock')}</p>
+      <p className="mt-1 text-body font-semibold text-ink">{isGroup ? t('pay.groupUnder') : t('pay.under')}</p>
       {credit > 0 ? (
         <Card className="mt-4 flex items-center gap-3">
           <span className="flex-1">
