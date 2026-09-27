@@ -13,10 +13,12 @@ import {
 import {
   isCreditExpired,
   isRequestExpired,
+  isUnusedGroupCover,
   needsCreditReminder,
   shouldAutoConfirm,
   shouldNotifyChartTime,
 } from '@/lib/jobs'
+import { GROUP_PRICE_PAISE } from '@/lib/money'
 
 async function logEffect(
   client: SupaClient | null,
@@ -103,4 +105,43 @@ export const chartTimeNotify = createServerFn({ method: 'POST' })
       }
     }
     return { notify: notify.map((t) => t.id), persisted, activity: 'chart_prepared' as const }
+  })
+
+/* Unused group cover → organiser credit (docs/01, pay.groupUnder, rule 6):
+   a paid ₹199 trip whose journey ended with zero covered swaps becomes
+   swap_to_credit, never a bank refund. Partially used bundles are spent.
+   wallet_tx.ref_request_id stays NULL (FK to swap_requests); the group id
+   rides in the activity meta. */
+export const expireUnusedGroupCover = createServerFn({ method: 'POST' })
+  .validator(
+    (input: {
+      nowMs: number
+      groups: Array<{ id: string; organiserId: string; journeyEndMs: number; lockedCount: number; paid: boolean }>
+    }) => input,
+  )
+  .handler(async ({ data }) => {
+    const convertible = data.groups.filter(
+      (g) => g.paid && isUnusedGroupCover(data.nowMs, g.journeyEndMs, g.lockedCount),
+    )
+    const client = await getSupabase()
+    let persisted = 0
+    if (client) {
+      const exp = new Date(data.nowMs)
+      exp.setMonth(exp.getMonth() + 12)
+      for (const group of convertible) {
+        const done = await persistInserts(
+          client,
+          [{
+            table: 'wallet_tx',
+            row: {
+              user_id: group.organiserId, amount_paise: GROUP_PRICE_PAISE, kind: 'swap_to_credit',
+              ref_request_id: null, expires_at: exp.toISOString(),
+            },
+          }],
+          { actor_id: 'system', actor_role: 'support', action: 'credit_added', entity: 'group', entity_id: group.id, meta: { amount_paise: GROUP_PRICE_PAISE, kind: 'swap_to_credit' } },
+        )
+        if (done.persisted) persisted += 1
+      }
+    }
+    return { converted: convertible.map((g) => g.id), persisted, activity: 'credit_added' as const }
   })

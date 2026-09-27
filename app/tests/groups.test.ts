@@ -203,3 +203,17 @@ describe('group checkout (docs/01, docs/04 C)', () => {
     expect(() => lockCoveredRequest(request.id)).toThrow('not_awaiting_payment')
   })
 })
+
+describe('unused group cover converts to credit (docs/01, rule 6)', () => {
+  const DAY = Date.parse('2026-11-12T00:00:00Z')
+  it('converts only paid trips past journey end with zero covered swaps', async () => {
+    const { isUnusedGroupCover } = await import('@/lib/jobs')
+    const after = DAY + 86400000
+    expect(isUnusedGroupCover(after, DAY, 0)).toBe(true)
+    /* Journey not over yet. */
+    expect(isUnusedGroupCover(DAY - 1000, DAY, 0)).toBe(false)
+    /* Partially used bundles are spent, never converted. */
+    expect(isUnusedGroupCover(after, DAY, 1)).toBe(false)
+    expect(isUnusedGroupCover(after, DAY, 3)).toBe(false)
+  })
+})

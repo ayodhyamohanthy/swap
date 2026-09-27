@@ -35,3 +35,10 @@ export function needsCreditReminder(nowMs: number, expiresAtMs: number): boolean
 export function shouldNotifyChartTime(prevChart: boolean, nextChart: boolean): boolean {
   return prevChart === false && nextChart === true
 }
+
+/** Unused group cover (docs/01, pay.groupUnder): a paid ₹199 trip whose journey
+    ended with zero locked/confirmed swaps converts to organiser credit. Only
+    the fully-unused case converts — a bundle that covered 1-2 swaps is spent. */
+export function isUnusedGroupCover(nowMs: number, journeyEndMs: number, lockedCount: number): boolean {
+  return lockedCount === 0 && nowMs > journeyEndMs
+}

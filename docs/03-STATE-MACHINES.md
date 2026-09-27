@@ -34,6 +34,8 @@ locked, no answer from one side within 12 h after arrival ─> treated as confir
 | Nobody accepts | ₹0 charged | – | – |
 | Payment failed at bank | ₹0 (bank auto-return) | – | – |
 | Dispute | held until admin decides | held | – |
+| Group trip paid, journey ends, zero swaps covered | +₹199 credit to organiser | – | – |
+| Group trip paid, 1–2 swaps covered | bundle spent, no conversion | per-swap rules above | keeps ₹199 |
 
 Credit used on a payment: up to the full ₹99 may be covered by credit; `provider = 'credit'` when fully covered.
 
