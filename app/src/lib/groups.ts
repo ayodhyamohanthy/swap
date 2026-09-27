@@ -53,8 +53,12 @@ export function getGroupsSnapshot(): GroupTrip[] {
   return load()
 }
 
+/* Stable empty reference (see requests.ts): a fresh [] each call makes React
+   treat the snapshot as changed and loop. */
+const EMPTY_GROUPS: GroupTrip[] = []
+
 export function getGroupsServerSnapshot(): GroupTrip[] {
-  return []
+  return EMPTY_GROUPS
 }
 
 export function resetGroups(): void {

@@ -159,8 +159,12 @@ export function getRequestsSnapshot(): RequestsState {
   return ensureLoaded()
 }
 
+/* Stable module-level reference: useSyncExternalStore requires the server
+   snapshot to be cached, otherwise React re-renders forever (and warns). */
+const SERVER_SNAPSHOT: RequestsState = emptyState()
+
 export function getRequestsServerSnapshot(): RequestsState {
-  return emptyState()
+  return SERVER_SNAPSHOT
 }
 
 export function resetRequests(): void {
