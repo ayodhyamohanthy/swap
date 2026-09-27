@@ -10,8 +10,17 @@ import { enqueue, flush, pending } from '@/lib/outbox'
 import { trackEvent } from '@/lib/analytics'
 import { useOnline } from '@/lib/use-online'
 import { demoRequest } from '@/lib/demo-swap'
+import { getSupabase } from '@/lib/supabase'
+import { fileReport, blockUser } from '@/lib/safety'
+import { getOrCreateChat, fetchMessages, sendMessage, isValidUuid } from '@/lib/chat-sync'
 
-interface Msg { id: number; mine: boolean; text: string; hidden: boolean; queued?: boolean }
+interface Msg {
+  id: number | string
+  mine: boolean
+  text: string
+  hidden: boolean
+  queued?: boolean
+}
 /* Locked-swap chat (docs/04 A12): bubbles + quick replies + guard + report. */
 export const Route = createFileRoute('/chat/$id')({
   staticData: { chrome: 'plain' } satisfies RouteChrome,
@@ -32,6 +41,51 @@ function ChatScreen() {
   const [reported, setReported] = useState(false)
   const [sentAt, setSentAt] = useState<number[]>([])
   const online = useOnline()
+
+  const [activeChatId, setActiveChatId] = useState<string | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    async function initChat() {
+      const client = await getSupabase()
+      if (!client || !active) return
+      try {
+        const { data } = await client.auth.getUser()
+        if (!active) return
+        const uid = data?.user?.id ?? null
+        setCurrentUserId(uid)
+
+        if (isValidUuid(id) && uid) {
+          const { chatId } = await getOrCreateChat(id, client)
+          if (!active) return
+          if (chatId) {
+            setActiveChatId(chatId)
+            const { messages } = await fetchMessages(chatId, uid, client)
+            if (!active) return
+            if (messages.length > 0) {
+              setMsgs(
+                messages.map((m) => ({
+                  id: m.id,
+                  mine: m.mine,
+                  text: m.text,
+                  hidden: m.hidden,
+                  queued: false,
+                })),
+              )
+            }
+          }
+        }
+      } catch {
+        /* Fallback to local-first */
+      }
+    }
+    void initChat()
+    return () => {
+      active = false
+    }
+  }, [id])
+
   /* A reload while offline must not lose queued text: show it as queued. */
   useEffect(() => {
     const texts = pending(id)
@@ -44,11 +98,17 @@ function ChatScreen() {
   /* Docs/08: queued messages send themselves when the connection returns. */
   useEffect(() => {
     if (!online) return
-    if (flush(id).length === 0) return
+    const flushedTexts = flush(id)
+    if (flushedTexts.length === 0) return
     setMsgs((m) => (m.some((msg) => msg.queued)
       ? m.map((msg) => (msg.queued ? { ...msg, queued: false } : msg))
       : m))
-  }, [online, id])
+    if (activeChatId && currentUserId) {
+      for (const text of flushedTexts) {
+        void sendMessage(activeChatId, currentUserId, text).catch(() => {})
+      }
+    }
+  }, [online, id, activeChatId, currentUserId])
   function send(text: string) {
     const clean = text.trim()
     if (!clean) return
@@ -62,10 +122,14 @@ function ChatScreen() {
       setDraft('')
       return
     }
-    setMsgs((m) => [...m, { id: m.length + 1, mine: true, text: clean, hidden: g.flagged }])
+    const localId = Date.now()
+    setMsgs((m) => [...m, { id: localId, mine: true, text: clean, hidden: g.flagged }])
     setWarn(g.flagged ? t('chat.cashWarning') : null)
     if (g.flagged) trackEvent('message_flagged', { reasons: g.reasons.join(',') })
     setDraft('')
+    if (activeChatId && currentUserId) {
+      sendMessage(activeChatId, currentUserId, clean).catch(() => {})
+    }
   }
   return (
     <div>
@@ -105,7 +169,27 @@ function ChatScreen() {
           </Button>
         </div>
       </Card>
-      <Button variant="ghost" className="mt-2" type="button" onClick={() => { setReported(true); trackEvent('report_created', {}) }}>
+      <Button
+        variant="ghost"
+        className="mt-2"
+        type="button"
+        onClick={() => {
+          setReported(true)
+          trackEvent('report_created', {})
+          const reporterId = currentUserId ?? 'local_user'
+          const reportedId = 'counterparty'
+          void fileReport({
+            reporterId,
+            reportedId: reportedId !== reporterId ? reportedId : `${reportedId}_other`,
+            requestId: isValidUuid(id) ? id : null,
+            reason: 'User reported from chat',
+          })
+          void blockUser({
+            blockerId: reporterId,
+            blockedId: reportedId !== reporterId ? reportedId : `${reportedId}_other`,
+          })
+        }}
+      >
         {reported ? t('chat.reported') : t('chat.report')}
       </Button>
       <AppFooter />
