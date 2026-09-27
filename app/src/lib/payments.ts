@@ -68,6 +68,40 @@ export function splitReceipt(duePaid: number, creditUsed: number, isGroup = fals
   return { lines, total: isGroup ? GROUP_PRICE_PAISE : PRICE_PAISE }
 }
 
+/** Minimal wallet row shape the credit planner needs. */
+export interface CreditLedgerRow { id: string; amount_paise: number; expires_at: string | null }
+
+/**
+ * Which credit rows a payment spends, earliest expiry first (docs/06). Rows are
+ * never partially consumed on the ledger: the plan records the ids and the total
+ * actually spent, so a later failure can be reconciled against `wallet_tx`.
+ */
+export function planConsumeCredit(
+  rows: CreditLedgerRow[], neededPaise: number, nowMs: number,
+): { usedTxIds: string[]; usedTotal: number } {
+  const need = Math.max(0, Math.floor(neededPaise))
+  if (need === 0) return { usedTxIds: [], usedTotal: 0 }
+  const open = rows
+    .filter((r) => r.amount_paise > 0
+      && (r.expires_at === null || !Number.isFinite(Date.parse(r.expires_at)) || Date.parse(r.expires_at) > nowMs))
+    .sort((a, b) => {
+      if (a.expires_at === null) return 1
+      if (b.expires_at === null) return -1
+      return Date.parse(a.expires_at) - Date.parse(b.expires_at)
+    })
+  const usedTxIds: string[] = []
+  let remaining = need
+  let usedTotal = 0
+  for (const row of open) {
+    if (remaining <= 0) break
+    usedTxIds.push(row.id)
+    const take = Math.min(row.amount_paise, remaining)
+    usedTotal += take
+    remaining -= take
+  }
+  return { usedTxIds, usedTotal }
+}
+
 /** nextPayState machine: created → pending → paid | failed. Terminal states stick. */
 export function nextPayState(from: PayState, event: 'authorize' | 'capture' | 'fail'): PayState {
   if (from === 'created' && event === 'authorize') return 'pending'

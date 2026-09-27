@@ -20,24 +20,31 @@
   }
 
   /* ---------- INCOMING (acceptor) ---------- */
+  /** Display name of the requester: users-table name when shared, else generic. */
+  function incomingName(req) {
+    const ruser = ((E().db().users) || {})[req.requester_id] || {};
+    const full = [ruser.first_name, ruser.last_initial ? ruser.last_initial + '.' : ''].filter(Boolean).join(' ');
+    return full || T('incoming.requester');
+  }
   SeatSwapApp.screen('incoming', {
     render(r) {
       if (needAuth(location.hash)) return { html: '', tab: 'swaps' };
       const o = E().getOffer(r.id);
       const req = E().getRequest(o.request_id);
-      const trip = reqTrip(req);
-      const mine = trip ? (trip.passengers[0] || {}) : {};
-      const s = seedLine(o, trip || { id: '' });
-      const yours = mine.berth_type || 'LB';
-      const theirs = (req.choices[0] || 'LB');
-      const accName = s ? s.first_name : '';
+      /* "Yours" is MY berth from MY trip (the acceptor side) — never the
+         requester's trip, which is not on this device. Their exact berth is
+         unknown until the backend lands, so it stays masked (rule 13). */
+      const myT = SeatSwapStore.get(o.acceptor_booking_id);
+      const mine = (myT ? myT.passengers[0] : null) || {};
+      const yours = mine.berth_type && myT ? SeatSwapPNR.berthLabel(mine.berth_type, myT.class) : null;
+      const accName = incomingName(req);
       return {
         tab: 'swaps',
         html: `${innerHead()}<main class="body">
         <h1 class="h-title">${esc(T('incoming.title'))}</h1>
         <section class="card center">
           <span class="avatar">${esc((req.reason || 'S').slice(0, 1))}</span>
-          <p><b>${esc(T('incoming.giveGet', { yours: SeatSwapPNR.berthLabel(yours, trip ? trip.class : 'SL'), theirs: SeatSwapPNR.berthLabel(theirs, trip ? trip.class : 'SL') }))}</b></p>
+          <p><b>${esc(T('incoming.giveGet', { yours: yours || T('trip.berthMasked'), theirs: T('trip.berthMasked') }))}</b></p>
           ${req.reason ? `<p class="subtitle">“${esc(req.reason)}”</p>` : ''}
           <p class="pill">${esc(T('incoming.earn'))}</p>
           ${o.status !== 'sent' ? `<p class="subtitle">${esc(T('incoming.' + (o.status === 'accepted' ? 'waiting' : 'closed')))}</p>` : ''}
@@ -54,7 +61,10 @@
       const acc = el.querySelector('#accBtn');
       if (acc) acc.addEventListener('click', () => {
         E().acceptOffer(r.id);
-        toast(T('incoming.waiting'));
+        try {
+          const req = E().getRequest(E().getOffer(r.id).request_id);
+          toast(T('incoming.waiting', { name: incomingName(req) }));
+        } catch { toast(T('incoming.waiting', { name: T('incoming.requester') })); }
         SeatSwapApp.render();
       });
       const dec = el.querySelector('#decBtn');
@@ -82,7 +92,7 @@
       const rank = first ? (first.matched_choice_rank || 0) : 0;
       const bal = E().myBalance();
       return {
-        tab: 'home',
+        tab: 'swaps',
         html: `${innerHead()}<main class="body">
         <div class="paybox"><div style="font-size:30px" aria-hidden="true">🎉</div>
           <h1 class="h-title">${esc(T('pay.saidYes', { name: nm }))}</h1>
@@ -117,7 +127,7 @@
       const bal = E().myBalance();
       const due = Math.max(0, 9900 - bal);
       return {
-        tab: 'home',
+        tab: 'swaps',
         html: `${innerHead()}<main class="body">
         <h1 class="h-title">${esc(T('paymethod.title'))}</h1>
         <div class="paybox"><div class="big">${esc(P().inr(due))}</div>
@@ -152,7 +162,7 @@
     render(r) {
       const pid = sessionStorage.getItem('seatswap_pid');
       return {
-        tab: 'home',
+        tab: 'swaps',
         html: `${innerHead()}<main class="body center">
         <div class="paybox"><div style="font-size:34px" aria-hidden="true">◉</div>
           <h1 class="h-title">${esc(T('payupi.title'))}</h1>
@@ -187,7 +197,7 @@
       const pid = new URLSearchParams((location.hash.split('?')[1] || '')).get('pid') || sessionStorage.getItem('seatswap_pid');
       sessionStorage.setItem('seatswap_pid', pid || '');
       return {
-        tab: 'home',
+        tab: 'swaps',
         html: `${innerHead()}<main class="body center">
         <h1 class="h-title">${esc(T('paypal.title'))}</h1>
         <p class="subtitle">${esc(T('paypal.body'))}</p>
@@ -221,7 +231,7 @@
       } catch {}
       const failed = st === 'failed';
       return {
-        tab: 'home',
+        tab: 'swaps',
         html: `${innerHead()}<main class="body center">
         <h1 class="h-title">${esc(failed ? T('paystatus.failedT') : T('paystatus.pendingT'))}</h1>
         <p class="subtitle">${esc(failed ? T('paystatus.failedB') : T('paystatus.pendingB'))}</p>
@@ -261,7 +271,7 @@
       const p = pays[pays.length - 1];
       const rc = p ? E().receiptFor(p.id) : null;
       return {
-        tab: 'home',
+        tab: 'swaps',
         html: `${innerHead()}<main class="body center">
         <div style="font-size:52px" aria-hidden="true">✓</div>
         <h1 class="h-title">${esc(T('paydone.title'))}</h1>
@@ -360,10 +370,15 @@
       const req = E().getRequest(chat.request_id);
       const msgs = E().messagesFor(chat.id);
       const me = E().meId();
+      /* Cash-word guard (docs/08): the warning persists while any of my sent
+         messages is flagged — setting innerHTML then re-rendering would wipe
+         a one-shot banner, so the card derives from stored message state. */
+      const risked = msgs.some((m) => m.flagged_risky && m.sender_id === me);
       return {
         tab: 'swaps',
         html: `${innerHead()}<main class="body">
         <h1 class="h-title">${esc(T('chat.title'))}</h1>
+        ${risked ? `<section class="card card--peach"><b>${esc(T('chat.riskT'))}</b><p>${esc(T('chat.riskB'))}</p></section>` : ''}
         <div class="chatlist">${msgs.map((m) => `<div class="bubble ${m.sender_id === me ? 'me' : ''} ${m.flagged_risky ? 'bubble--flag' : ''}">
           ${esc(m.text)}<small>${esc(m.sender_name)} · ${esc(new Date(m.created_at).toLocaleTimeString())}</small></div>`).join('') || `<p class="subtitle">${esc(T('chat.empty'))}</p>`}</div>
         <div id="riskBox"></div>
@@ -382,10 +397,7 @@
       const req = E().getRequest(chat.request_id);
       const me = E().me();
       const send = (text) => {
-        const m = E().postMessage(chat.id, me.id, me.first_name, text);
-        if (m.flagged_risky) {
-          el.querySelector('#riskBox').innerHTML = `<section class="card card--peach"><b>${esc(T('chat.riskT'))}</b><p>${esc(T('chat.riskB'))}</p></section>`;
-        }
+        E().postMessage(chat.id, me.id, me.first_name, text);
         SeatSwapDemo.onUserMessage(req.id, text);
         SeatSwapApp.render();
       };

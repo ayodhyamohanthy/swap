@@ -76,3 +76,37 @@ describe('pushLocalTrips payload shape', () => {
     expect(plan.payload).toEqual(exportForSync())
   })
 })
+
+describe('backend push executor', () => {
+  beforeEach(() => {
+    resetStore()
+    resetSessionForTests()
+  })
+
+  it('reports unconfigured without backend keys (never throws)', async () => {
+    const { pushLocalTripsToBackend } = await import('@/lib/session')
+    await expect(pushLocalTripsToBackend()).resolves.toEqual({
+      configured: false,
+      pushed: { bookings: 0, passengers: 0 },
+      failed: [],
+    })
+  })
+
+  it('maps local rows to server columns without full PNRs', async () => {
+    const { mapBookingRow, mapPassengerRow } = await import('@/lib/session')
+    await seedTrip()
+    const { payload } = pushLocalTrips()
+    const booking = mapBookingRow('user-1', payload.bookings[0])
+    expect(booking).toMatchObject({
+      user_id: 'user-1',
+      pnr_last4: '9630',
+      train_no: '12951',
+      class: '3A',
+    })
+    expect(booking).not.toHaveProperty('pnr')
+    expect(Object.keys(booking).some((k) => /full|plain/i.test(k))).toBe(false)
+    const passenger = mapPassengerRow('booking-uuid', payload.passengers[0])
+    expect(passenger).toMatchObject({ booking_id: 'booking-uuid', berth_type: 'LB' })
+    expect(passenger).not.toHaveProperty('local_booking_id')
+  })
+})

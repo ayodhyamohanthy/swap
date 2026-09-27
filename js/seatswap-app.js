@@ -488,9 +488,10 @@ const SeatSwapApp = (() => {
   function profile() {
     const c = SeatSwapStore.creditPaise();
     const easy = SeatSwapI18n.isEasy();
+    const who = (typeof SeatSwapAuth !== 'undefined' && SeatSwapEngine.authed()) ? SeatSwapAuth.displayName() : '';
     return `${homeHead('gear')}<main class="body">
       <div class="prow"><span class="avatar">${Art.person}</span>
-        <span><span class="pname">${esc(T('profile.name'))}</span><br />
+        <span><span class="pname">${esc(who || T('profile.name'))}</span><br />
         <span class="psub">${esc(T('profile.tag'))}</span></span></div>
       <a class="creditbanner" href="#/swaps" style="text-decoration:none;color:inherit">
         <span class="tile tile--peach">${Art.coins}</span>
@@ -616,7 +617,7 @@ const SeatSwapApp = (() => {
     if (parts[0] === 'profile') return { name: 'profile' };
     if (parts[0] === 'train' && parts[1]) return { name: 'train', n: decodeURIComponent(parts[1]) };
     if (parts[0] === 's' && parts[1]) return { name: 'invite', code: decodeURIComponent(parts[1]) };
-    if (parts[0] === 'request' && parts[1] === 'new') return { name: 'choices', trip: qs('trip'), req: qs('req'), want: qs('want') };
+    if (parts[0] === 'request' && parts[1] === 'new') return { name: 'choices', trip: qs('trip'), req: qs('req'), want: qs('want'), resume: qs('resume') };
     if (parts[0] === 'request' && parts[2] === 'matches') return { name: 'matches', id: decodeURIComponent(parts[1]) };
     if (parts[0] === 'request' && parts[1]) return { name: 'request', id: decodeURIComponent(parts[1]) };
     if (parts[0] === 'incoming' && parts[1]) return { name: 'incoming', id: decodeURIComponent(parts[1]) };

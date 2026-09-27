@@ -203,6 +203,7 @@
     "accept": "Accept",
     "decline": "Decline",
     "waiting": "{name} pays ₹99. You pay nothing.",
+    "requester": "The requester",
     "backout": "Back out",
     "closed": "This request is closed."
   },

@@ -4,6 +4,8 @@ import {
   getSnapshot,
   subscribe,
   type AppState,
+  type ConfirmationRow,
+  type PaymentRow,
   type Trip,
 } from './store'
 import {
@@ -40,6 +42,24 @@ export function useCreditPaise(): number {
 
 export function useSeenFlag(key: string): boolean {
   return useAppState().seen[key] === true
+}
+
+/** The payment that decides what the pay screens may show (docs/06). */
+export function usePaymentFor(requestId: string): PaymentRow | undefined {
+  const payments = useAppState().payments
+  const rows = payments.filter((row) => row.request_id === requestId)
+  return rows.find((row) => row.status === 'paid')
+    ?? rows.find((row) => row.status === 'pending')
+    ?? rows.find((row) => row.status === 'created')
+    ?? rows[rows.length - 1]
+}
+
+export function usePayments(): PaymentRow[] {
+  return useAppState().payments
+}
+
+export function useConfirmations(requestId: string): ConfirmationRow[] {
+  return useAppState().confirmations.filter((row) => row.request_id === requestId)
 }
 
 export function useSettings() {

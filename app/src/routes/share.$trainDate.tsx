@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/lib/i18n'
+import { trackEvent } from '@/lib/analytics'
 import { useOnline } from '@/lib/use-online'
 
 /* Screen 18 "Invite / share anywhere" (design 14b): WhatsApp, Instagram,
@@ -32,6 +33,7 @@ function ShareScreen() {
   const text = t('share.body')
 
   async function copyLink() {
+    trackEvent('share_clicked', { platform: 'copy' })
     try {
       await navigator.clipboard.writeText(link)
       toast.show(t('share.copied'))
@@ -43,6 +45,7 @@ function ShareScreen() {
   async function nativeShare() {
     if (navigator.share) {
       try {
+        trackEvent('share_clicked', { platform: 'native' })
         await navigator.share({ title: t('share.title', { train: trainNo }), text, url: link })
         return
       } catch {
@@ -53,6 +56,7 @@ function ShareScreen() {
   }
 
   function open(platform: Platform) {
+    trackEvent('share_clicked', { platform })
     const encoded = encodeURIComponent(link)
     const body = encodeURIComponent(`${text} ${link}`)
     const urls: Record<Platform, string> = {

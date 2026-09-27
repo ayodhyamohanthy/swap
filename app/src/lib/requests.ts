@@ -13,6 +13,7 @@
 import type { BerthType } from './pnr'
 import { rankMatches, type CandidateSpec, type RequesterSpec } from './matching'
 import { needsCreditReminder } from './jobs'
+import { trackEvent } from './analytics'
 import { logActivity, listTrips, getTrip, getSnapshot, type Trip } from './store'
 
 export type RequestStatus =
@@ -339,6 +340,7 @@ export function sendRequest(requestId: string, onlyIds?: string[]): SwapRequest 
     offers: [...snapshot.offers, ...fresh],
   })
   logActivity('request_sent', { matches: fresh.length, free: true }, { type: 'swap_request', id: requestId })
+  trackEvent('request_sent', { matches: fresh.length })
   return updated
 }
 
@@ -399,6 +401,7 @@ export function acceptOffer(
     offers: snapshot.offers.map((row) => (row.id === offerId ? updatedOffer : row)),
   })
   logActivity('offer_accepted', { rank: offer.matched_choice_rank }, { type: 'swap_request', id: request.id })
+  trackEvent('offer_accepted', { rank: offer.matched_choice_rank })
   return { request: updatedRequest, offer: updatedOffer }
 }
 
@@ -419,6 +422,7 @@ export function declineOffer(offerId: string): SwapOffer | undefined {
     offers: snapshot.offers.map((row) => (row.id === offerId ? updated : row)),
   })
   logActivity('offer_declined', {}, { type: 'swap_request', id: offer.request_id })
+  trackEvent('offer_declined', {})
   return updated
 }
 
@@ -450,6 +454,38 @@ export function lockRequest(requestId: string): SwapRequest | undefined {
     }),
   })
   logActivity('swap_locked', { offer: updated.locked_offer_id }, { type: 'swap_request', id: requestId })
+  trackEvent('swap_locked', {})
+  return updated
+}
+
+/**
+ * Move a locked swap to its terminal state (docs/03). Money has already moved,
+ * so the only legal sources are `locked` and — after admin review — `disputed`.
+ * Credit for the outcome is issued by `lib/settle`, never here.
+ */
+export function settleRequest(
+  requestId: string,
+  status: Extract<RequestStatus, 'confirmed' | 'voided' | 'disputed'>,
+): SwapRequest | undefined {
+  const request = getRequest(requestId)
+  if (!request) return undefined
+  const fromLocked = request.status === 'locked'
+  const fromDisputed = request.status === 'disputed' && status !== 'disputed'
+  if (!fromLocked && !fromDisputed) return undefined
+  const updated: SwapRequest = { ...request, status, updated_at: now() }
+  commit({
+    ...ensureLoaded(),
+    requests: snapshot.requests.map((row) => (row.id === requestId ? updated : row)),
+  })
+  logActivity(
+    status === 'confirmed' ? 'swap_confirmed' : status === 'voided' ? 'swap_voided' : 'dispute_opened',
+    {},
+    { type: 'swap_request', id: requestId },
+  )
+  /* docs/08 fixes the metric names: only the dispute transitions are events
+     here; the swap itself already logged a `confirmation` when each side answered. */
+  if (status === 'disputed') trackEvent('dispute_opened', {})
+  else if (fromDisputed) trackEvent('dispute_resolved', { status })
   return updated
 }
 
@@ -534,8 +570,10 @@ export function respondToIncoming(tripId: string, response: IncomingResponse): I
   commit({ ...ensureLoaded(), incoming: { ...snapshot.incoming, [tripId]: response } })
   if (response === 'accepted') {
     logActivity('offer_accepted', { side: 'acceptor', trip: tripId }, { type: 'booking', id: tripId })
+    trackEvent('offer_accepted', { side: 'acceptor' })
   } else if (response === 'declined') {
     logActivity('offer_declined', { side: 'acceptor', trip: tripId }, { type: 'booking', id: tripId })
+    trackEvent('offer_declined', { side: 'acceptor' })
   } else if (response === 'backed_out') {
     logActivity('acceptor_backed_out', { trip: tripId }, { type: 'booking', id: tripId })
   } else if (response === 'faster') {

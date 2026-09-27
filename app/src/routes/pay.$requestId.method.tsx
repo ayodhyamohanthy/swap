@@ -1,63 +1,141 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
+import { CreditCard, Smartphone, Wallet } from 'lucide-react'
 import { AppFooter, type RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
-import { Card, CardBody } from '@/components/ui/card'
+import { Card, CardBody, CardTitle } from '@/components/ui/card'
+import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/lib/i18n'
 import { loadRazorpay } from '@/lib/pay-sdk'
+import { beginCheckout, CheckoutError } from '@/lib/checkout'
+import { acceptedOffer } from '@/lib/requests'
 import { buildQuote } from '@/lib/payments'
-import { demoRequest } from '@/lib/demo-swap'
+import { formatRupees } from '@/lib/money'
+import { isGroupRequestId } from '@/lib/groups'
 import { useCreditPaise } from '@/lib/use-store'
 
-/* Choose how to pay (docs/04 A10): Razorpay default, PayPal for travellers. */
+/* Choose how to pay (docs/04 A10, design 27a): Razorpay first with UPI apps on
+   top, PayPal for international travellers. Tapping a method opens the real
+   gateway when keys exist and otherwise leaves the payment pending for the
+   status screen — it never claims a payment happened. */
 export const Route = createFileRoute('/pay/$requestId/method')({
   staticData: { chrome: 'plain' } satisfies RouteChrome,
   component: MethodScreen,
 })
+
+/** UPI methods wait for approval in the app; cards and net banking do not. */
+type Method = { label: string; Icon: typeof Wallet; waits: boolean }
+const UPI_APPS: Method[] = [
+  { label: 'GPay', Icon: Wallet, waits: true },
+  { label: 'PhonePe', Icon: Wallet, waits: true },
+  { label: 'Paytm', Icon: Wallet, waits: true },
+]
+const OTHERS: Method[] = [
+  { label: 'pay.otherUpi', Icon: Smartphone, waits: true },
+  { label: 'pay.debitCard', Icon: CreditCard, waits: false },
+  { label: 'pay.netBanking', Icon: Wallet, waits: false },
+]
+
 function MethodScreen() {
   const { requestId } = Route.useParams()
   const { t } = useI18n()
   const navigate = useNavigate()
+  const toast = useToast()
   const credit = useCreditPaise()
-  const q = buildQuote(credit, demoRequest(requestId).isGroup)
+  const isGroup = isGroupRequestId(requestId)
+  const quote = buildQuote(credit, isGroup)
   const [busy, setBusy] = useState(false)
-  async function go() {
+  const name = acceptedOffer(requestId)?.acceptor_name ?? t('common.traveller')
+
+  async function pay(provider: 'razorpay' | 'paypal', method: Method) {
+    if (busy) return
     setBusy(true)
+    /* The SDK is loaded first so a phone with no network finds out here, before
+       any payment row exists. */
     try {
-      await loadRazorpay()
-    } catch { /* SDK CDN offline: status screen still explains pending/failed. */ }
-    navigate({ to: '/pay/$requestId/status', params: { requestId }, search: { state: 'pending' } })
+      if (provider === 'razorpay') await loadRazorpay()
+    } catch {
+      /* CDN blocked: the local checkout still records the attempt honestly. */
+    }
+    try {
+      const ticket = beginCheckout(requestId, provider, isGroup)
+      if (ticket.settled) {
+        navigate({ to: '/pay/$requestId/done', params: { requestId } })
+        return
+      }
+      if (method.waits) navigate({ to: '/pay/$requestId/upi', params: { requestId } })
+      else navigate({ to: '/pay/$requestId/status', params: { requestId }, search: { state: 'pending' } })
+    } catch (err) {
+      toast.show(err instanceof CheckoutError ? t(`pay.${checkoutFail(err.code)}`) : t('pay.notYet'))
+    } finally {
+      setBusy(false)
+    }
   }
-  if (q.provider === 'credit') {
+
+  if (quote.provider === 'credit') {
+    /* Fully covered: no gateway call at all (docs/06). */
     return (
       <div>
         <h1 className="text-title text-ink">{t('pay.methodTitle')}</h1>
-        <Card className="mt-4"><CardBody>{t('pay.creditOnly')}</CardBody></Card>
-        <Button className="mt-4" asChild>
-          <Link to="/pay/$requestId/done" params={{ requestId }}>{t('common.continue')}</Link>
+        <Card className="mt-4">
+          <CardBody>{t('pay.creditOnly')}</CardBody>
+        </Card>
+        <Button className="mt-4" disabled={busy} onClick={() => void pay('razorpay', UPI_APPS[0])}>
+          {t('common.continue')}
         </Button>
         <AppFooter />
       </div>
     )
   }
+
   return (
     <div>
       <h1 className="text-title text-ink">{t('pay.methodTitle')}</h1>
-      <Card className="mt-4"><CardBody>{t('pay.razorpay')}</CardBody></Card>
-      <Button className="mt-3" disabled={busy} onClick={go}>
-        {t('pay.payNow', { amount: q.due / 100 })}
-      </Button>
-      {busy ? (
-        <Button className="mt-3" variant="ghost" disabled>{t('pay.paypalAlt')}</Button>
-      ) : (
-        <Button className="mt-3" variant="ghost" asChild>
-          <Link to="/pay/$requestId/paypal" params={{ requestId }}>
-            {t('pay.paypalAlt')}
-          </Link>
-        </Button>
-      )}
-      <p className="mt-2 text-center text-caption text-muted">{t('pay.paypalNote', { amount: '1.2' })}</p>
+      <Card className="mt-4">
+        <CardTitle>{t('pay.title', { name })} · {isGroup ? t('pay.pay199') : t('pay.pay99')}</CardTitle>
+        <CardBody>{t('pay.due', { amount: quote.due / 100 })} · {formatRupees(quote.due)}</CardBody>
+      </Card>
+
+      <p className="mt-5 text-caption font-semibold uppercase tracking-wide text-muted">{t('pay.inIndia')}</p>
+      <Card className="mt-1">
+        {[...UPI_APPS, ...OTHERS].map((method) => (
+          <button
+            key={method.label}
+            type="button"
+            disabled={busy}
+            onClick={() => void pay('razorpay', method)}
+            className="tap flex min-h-12 w-full items-center gap-3 border-b border-line px-1 text-left last:border-0 disabled:opacity-60"
+          >
+            <method.Icon aria-hidden className="size-5 text-primary" />
+            <span className="font-head font-bold text-ink">
+              {method.label.startsWith('pay.') ? t(method.label) : method.label}
+            </span>
+          </button>
+        ))}
+      </Card>
+
+      <p className="mt-5 text-caption font-semibold uppercase tracking-wide text-muted">{t('pay.intl')}</p>
+      <Card className="mt-1">
+        <CardBody>
+          <Button
+            className="w-full border-accent bg-accent text-ink"
+            variant="outline"
+            disabled={busy}
+            onClick={() => void pay('paypal', { label: 'paypal', Icon: Wallet, waits: false })}
+          >
+            {t('pay.payPal')}
+          </Button>
+          <p className="mt-2 text-caption text-muted">{t('pay.paypalNote', { amount: '1.2' })}</p>
+        </CardBody>
+      </Card>
+
+      <p className="mt-3 text-center text-body font-semibold text-ink">{t('pay.under')}</p>
       <AppFooter />
     </div>
   )
+}
+
+function checkoutFail(code: string): string {
+  if (code === 'not_awaiting_payment') return 'notYet'
+  return 'alreadyPaid'
 }

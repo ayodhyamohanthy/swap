@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { useI18n } from '@/lib/i18n'
 import { useTrips } from '@/lib/use-store'
+import { trackEvent } from '@/lib/analytics'
 
 /* Install prompt (docs/08): a gentle card, never a modal. It only appears once
    a PNR has been added (there is something to keep offline) and only when the
@@ -54,7 +55,8 @@ export function InstallPrompt() {
     setAvailable(false)
     if (!event) return
     await event.prompt()
-    await event.userChoice
+    const choice = await event.userChoice
+    if (choice.outcome === 'accepted') trackEvent('install_prompt_accepted', {})
   }
 
   function later() {

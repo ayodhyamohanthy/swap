@@ -38,6 +38,100 @@ export function pushLocalTrips(): LocalPushPlan {
   }
 }
 
+export interface PushResult {
+  configured: boolean
+  pushed: { bookings: number; passengers: number }
+  failed: string[]
+}
+
+/** Map one local booking to its server columns (never the full PNR — the
+    local row only carries pnr_hash + last4, docs/08). Exported for tests. */
+export function mapBookingRow(userId: string, booking: SyncPayload['bookings'][number]): Record<string, unknown> {
+  return {
+    user_id: userId,
+    pnr_hash: booking.pnr_hash,
+    pnr_last4: booking.pnr_last4,
+    train_no: booking.train_no,
+    train_name: booking.train_name,
+    journey_date: booking.journey_date,
+    from_code: booking.from_code,
+    to_code: booking.to_code,
+    class: booking.class,
+    is_chair_car: booking.is_chair_car,
+    source: booking.source,
+    chart_prepared: booking.chart_prepared,
+    open_to_swap: booking.open_to_swap,
+  }
+}
+
+/** Map one local passenger onto its server booking id. Exported for tests. */
+export function mapPassengerRow(
+  bookingUuid: string,
+  passenger: SyncPayload['passengers'][number],
+): Record<string, unknown> {
+  return {
+    booking_id: bookingUuid,
+    label: passenger.label,
+    coach: passenger.coach,
+    berth_no: passenger.berth_no,
+    berth_type: passenger.berth_type,
+    status: passenger.status,
+    quota: passenger.quota,
+    is_child_no_berth: passenger.is_child_no_berth,
+    board_code: passenger.board_code,
+    drop_code: passenger.drop_code,
+  }
+}
+
+/**
+ * Execute the push plan after sign-in: upsert bookings on (user_id, pnr_hash),
+ * insert passengers for bookings that have none yet. Activity stays on the
+ * device (server functions write the server log going forward). Best-effort:
+ * never throws, reports per-table failures for a retry button.
+ */
+export async function pushLocalTripsToBackend(): Promise<PushResult> {
+  const client = await getSupabase()
+  if (!client) return { configured: false, pushed: { bookings: 0, passengers: 0 }, failed: [] }
+  const failed: string[] = []
+  const pushed = { bookings: 0, passengers: 0 }
+  try {
+    const { data } = await client.auth.getUser()
+    const uid = data?.user?.id
+    if (!uid) return { configured: true, pushed, failed: ['not_signed_in'] }
+    const { payload } = pushLocalTrips()
+    if (payload.bookings.length === 0) return { configured: true, pushed, failed }
+    const upserter = (client.from('bookings').upsert(
+      payload.bookings.map((b) => mapBookingRow(uid, b)),
+      { onConflict: 'user_id,pnr_hash' },
+    ) as unknown as Promise<{ error: unknown }>)
+    const { error: bookingsError } = await upserter
+    if (bookingsError) return { configured: true, pushed, failed: ['bookings'] }
+    const hashes = payload.bookings.map((b) => b.pnr_hash)
+    const reader = (client.from('bookings').select('id,pnr_hash').eq('user_id', uid).in('pnr_hash', hashes) as unknown as Promise<{ data: Array<{ id: string; pnr_hash: string }> | null; error: unknown }>)
+    const { data: rows, error: readError } = await reader
+    if (readError || !rows) return { configured: true, pushed: { bookings: payload.bookings.length, passengers: 0 }, failed: ['passengers'] }
+    pushed.bookings = payload.bookings.length
+    const idByHash = new Map(rows.map((r) => [r.pnr_hash, r.id]))
+    const existingQuery = (client.from('passengers').select('booking_id').in('booking_id', [...idByHash.values()]) as unknown as Promise<{ data: Array<{ booking_id: string }> | null; error: unknown }>)
+    const { data: existing } = await existingQuery
+    const hasPassengers = new Set((existing ?? []).map((r) => r.booking_id))
+    const inserts = payload.passengers.flatMap((p) => {
+      const bookingUuid = idByHash.get(payload.bookings.find((b) => b.local_id === p.local_booking_id)?.pnr_hash ?? '')
+      if (!bookingUuid || hasPassengers.has(bookingUuid)) return []
+      return [mapPassengerRow(bookingUuid, p)]
+    })
+    if (inserts.length > 0) {
+      const inserter = (client.from('passengers').insert(inserts) as unknown as Promise<{ error: unknown }>)
+      const { error: passengersError } = await inserter
+      if (passengersError) return { configured: true, pushed, failed: ['passengers'] }
+      pushed.passengers = inserts.length
+    }
+    return { configured: true, pushed, failed }
+  } catch {
+    return { configured: true, pushed, failed: ['bookings', 'passengers'] }
+  }
+}
+
 function toSessionUser(raw: { id?: string; email?: string | null } | null | undefined): SessionUser | null {
   if (!raw?.id) return null
   return { id: raw.id, email: raw.email ?? null }

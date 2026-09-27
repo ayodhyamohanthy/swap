@@ -5,6 +5,7 @@ import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/lib/i18n'
 import { logActivity, updateSettings } from '@/lib/store'
+import { disablePushSubscription, ensurePushSubscription } from '@/lib/push'
 import { useSettings } from '@/lib/use-store'
 
 /* Screen 60 "Settings" (design 21c): acceptor filters (docs/04 B2) — women
@@ -87,7 +88,11 @@ function SettingsScreen() {
         title={t('alerts.title')}
         body={t('alerts.note')}
         checked={settings.notify_push}
-        onChange={(next) => save({ notify_push: next }, t('settings.saved'))}
+        onChange={(next) => {
+          save({ notify_push: next }, t('settings.saved'))
+          /* Push follows the toggle, best-effort and offline-safe. */
+          void (next ? ensurePushSubscription() : disablePushSubscription())
+        }}
       />
     </div>
   )

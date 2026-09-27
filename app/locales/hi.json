@@ -34,7 +34,8 @@
     "copy": "कॉपी करें",
     "copied": "कॉपी हो गया।",
     "retry": "फिर कोशिश करें",
-    "view": "देखें"
+    "view": "देखें",
+    "traveller": "यात्री"
   },
   "footer": {
     "line1": "अपना मूल टिकट और ID साथ रखें।",
@@ -273,6 +274,14 @@
     "lock": "भुगतान होते ही स्वैप पक्का हो जाता है। तब तक आपके बाकी साथी भी हाँ कह सकते हैं।",
     "methodTitle": "भुगतान का तरीका चुनें",
     "razorpay": "UPI, कार्ड या नेट बैंकिंग से दें",
+    "inIndia": "भारत में भुगतान · Razorpay",
+    "otherUpi": "दूसरी UPI ID",
+    "debitCard": "डेबिट / क्रेडिट कार्ड",
+    "netBanking": "नेट बैंकिंग",
+    "intl": "अंतरराष्ट्रीय यात्री?",
+    "payPal": "PayPal से भुगतान करें",
+    "upiApprove": "अपने UPI ऐप में ₹{amount} स्वीकार करें",
+    "upiNoRequest": "रिक्वेस्ट नहीं मिली?",
     "paypalAlt": "International traveller? Pay with PayPal",
     "paypalNote": "PayPal लगभग US${amount} दिखाता है। आपसे ₹99 ही लिया जाता है।",
     "paypalTitle": "PayPal से भुगतान करें",
@@ -298,7 +307,17 @@
     "receiptTotal": "कुल ₹{amount}",
     "berthReveal": "अब बर्थ नंबर आप दोनों को दिख रहे हैं।",
     "openChat": "चैट खोलें",
-    "groupCover": "ग्रुप यात्रा में 3 स्वैप तक शामिल"
+    "groupCover": "ग्रुप यात्रा में 3 स्वैप तक शामिल",
+    "pendingTitle": "भुगतान लंबित है",
+    "failedHead": "कोई पैसा नहीं लिया गया",
+    "receiptThanksFor": "{name} के लिए धन्यवाद क्रेडिट",
+    "pendingNote": "हम यहाँ आपको सूचित करेंगे। कृपया दोबारा भुगतान न करें।",
+    "failedTitle": "भुगतान पूरा नहीं हुआ",
+    "paidLine": "{amount} दिया · {method}",
+    "seeDetails": "स्वैप विवरण देखें",
+    "download": "रसीद डाउनलोड करें",
+    "notYet": "अभी किसी ने हाँ नहीं कहा। कोई हाँ कहने के बाद ही ₹99 देने होते हैं।",
+    "alreadyPaid": "इस स्वैप के लिए भुगतान हो चुका है।"
   },
   "chat": {
     "title": "{name} से चैट",

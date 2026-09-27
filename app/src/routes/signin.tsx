@@ -4,7 +4,8 @@ import type { RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/lib/i18n'
-import { getSessionUser, signInWithGoogle } from '@/lib/session'
+import { trackEvent } from '@/lib/analytics'
+import { getSessionUser, pushLocalTripsToBackend, signInWithGoogle } from '@/lib/session'
 import { attachToAccount, isSeen, markSeen } from '@/lib/store'
 
 /* Screen 12 "Google sign-in" (design 3b, no tab bar).
@@ -44,6 +45,8 @@ function SignInScreen() {
       const saved = typeof window === 'undefined' ? null : window.localStorage.getItem(REDIRECT_KEY)
       if (!isSeen('signin_asked')) markSeen('signin_asked')
       attachToAccount(user.id)
+      /* Local PNRs move server-side now that an account exists (best-effort). */
+      void pushLocalTripsToBackend()
       const target = saved && saved.startsWith('/') ? saved : back
       navigate({ to: target as '/', replace: true })
     })
@@ -57,6 +60,7 @@ function SignInScreen() {
     setBusy(true)
     try {
       const { url } = await signInWithGoogle()
+      trackEvent('sign_in', {})
       if (url) {
         try {
           window.localStorage.setItem(REDIRECT_KEY, back)

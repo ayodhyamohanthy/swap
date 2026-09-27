@@ -7,7 +7,12 @@
       "Shell(npx vitest run tests/flows.test.ts 2 >& 1)",
       "Shell(perl -0pi -e s/ const \\{ createHmac \\} = await import\\('node:crypto'\\)\\n//g tests/flows.test.ts)",
       "Shell(cd /Users/ayodhyarammohanthy/Documents/GitHub/swap/app && grep -rn \"to=\\\"/swaps\\|to={\\`/swaps\\|to={\\`/pay\\|to=\\\"/pay\" src/routes/*.tsx | head -20 && echo \"---UPI---\" && grep -rn \"upi\" src/routes/pay.\\$requestId.*.tsx src/locales/../../locales/en.json | grep -i \"upi\" | head -10)",
-      "Shell(sed:*)"
+      "Shell(sed:*)",
+      "Shell(cd /Users/ayodhyarammohanthy/Documents/GitHub/swap/app && for i in TimerReset Footprints FileClock Zap Tag Wallet Landmark CreditCard Smartphone Clock; do ls node_modules/lucide-react/dist/esm/icons/ | grep -ix \"$(echo $i | sed -E 's/([a-z0-9])([A-Z])/\\1-\\2/g' | tr '[:upper:]' '[:lower:]').js\" || echo \"MISSING: $i\"; done)",
+      "Shell(ls:*)",
+      "Shell(node -e const l=require('lucide-react');for(const i of ['TimerReset','Footprints','FileClock','Zap','Tag','Wallet','Landmark','CreditCard','Smartphone','Clock'])console.log(i, !!l[i]) 2 > /dev/null)",
+      "Shell(node -e import('lucide-react').then(l=>{for(const i of ['TimerReset','Footprints','FileClock','Zap','Tag','Wallet','Landmark','CreditCard','Smartphone','Clock'])console.log(i, !!l[i])}))",
+      "Shell(node /private/tmp/commandcode-501/-Users-ayodhyarammohanthy-Documents-GitHub-swap/a0d9314d-2a34-4087-bba6-177cbebc7cd5/scratchpad/add-hi-keys.mjs)"
     ],
     "deny": [],
     "defaultMode": "default"

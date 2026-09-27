@@ -1,11 +1,12 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { IndianRupee, ShieldCheck, UserX } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AppFooter, type RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/input'
 import { useI18n } from '@/lib/i18n'
+import { trackEvent } from '@/lib/analytics'
 import { demoRequest } from '@/lib/demo-swap'
 import { offersFor } from '@/lib/requests'
 
@@ -29,6 +30,19 @@ function SwapDoneScreen() {
   const { t } = useI18n()
   const req = demoRequest(id)
   const name = req.acceptorName
+  /* Paid-swap metric, once per swap (StrictMode-safe via session flag). */
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const key = `seatswap.paid-done.${id}`
+    try {
+      if (window.sessionStorage.getItem(key)) return
+      window.sessionStorage.setItem(key, '1')
+    } catch {
+      /* private mode */
+    }
+    trackEvent('payment_paid', { state })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   if (state === 'credit') return <CreditState />
   if (state === 'review') return <ReviewState name={name} />
   if (state === 'partner') return <PartnerState id={id} name={name} />

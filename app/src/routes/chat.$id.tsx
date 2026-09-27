@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { useI18n } from '@/lib/i18n'
 import { QUICK_REPLIES, guardMessage, isRateLimited } from '@/lib/chat-guard'
 import { enqueue, flush, pending } from '@/lib/outbox'
+import { trackEvent } from '@/lib/analytics'
 import { useOnline } from '@/lib/use-online'
 import { demoRequest } from '@/lib/demo-swap'
 
@@ -63,6 +64,7 @@ function ChatScreen() {
     }
     setMsgs((m) => [...m, { id: m.length + 1, mine: true, text: clean, hidden: g.flagged }])
     setWarn(g.flagged ? t('chat.cashWarning') : null)
+    if (g.flagged) trackEvent('message_flagged', { reasons: g.reasons.join(',') })
     setDraft('')
   }
   return (
@@ -103,7 +105,7 @@ function ChatScreen() {
           </Button>
         </div>
       </Card>
-      <Button variant="ghost" className="mt-2" type="button" onClick={() => setReported(true)}>
+      <Button variant="ghost" className="mt-2" type="button" onClick={() => { setReported(true); trackEvent('report_created', {}) }}>
         {reported ? t('chat.reported') : t('chat.report')}
       </Button>
       <AppFooter />

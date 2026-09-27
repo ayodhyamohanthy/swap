@@ -9,6 +9,7 @@
    - Every state change writes an `activity_log` row.
    - No free rewards: the wallet starts empty and steps 1-2 can only read it. */
 
+import { trackEvent } from './analytics'
 import {
   hashPnr,
   isChairCar,
@@ -81,6 +82,33 @@ export interface WalletTx {
   created_at: string
 }
 
+/** Local mirror of `payments` + `receipts` (docs/02, docs/06). Money in paise. */
+export interface PaymentRow {
+  id: string
+  request_id: string
+  payer_id: string | null
+  provider: 'razorpay' | 'paypal' | 'credit'
+  provider_ref: string | null
+  /** Full price charged: 9900 single, 19900 group. */
+  amount_paise: number
+  credit_used_paise: number
+  currency: 'INR'
+  status: 'created' | 'pending' | 'paid' | 'failed'
+  /** `SS-#####` once paid (docs/06 receipts). */
+  receipt_number: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** Local mirror of `confirmations` (docs/02): one row per side per request. */
+export interface ConfirmationRow {
+  request_id: string
+  /** Which side of the swap answered. */
+  side: 'requester' | 'acceptor'
+  outcome: 'swapped' | 'no_show' | 'not_possible' | 'changed_mind'
+  created_at: string
+}
+
 export interface LocalSettings {
   user_id: string | null
   language: string
@@ -102,6 +130,8 @@ export interface AppState {
   trips: Trip[]
   activity: ActivityRow[]
   wallet: WalletTx[]
+  payments: PaymentRow[]
+  confirmations: ConfirmationRow[]
   seen: Record<string, boolean>
   settings: LocalSettings
 }
@@ -143,6 +173,8 @@ const KEYS = {
   trips: 'seatswap.trips.v1',
   activity: 'seatswap.activity.v1',
   wallet: 'seatswap.wallet.v1',
+  payments: 'seatswap.payments.v1',
+  confirmations: 'seatswap.confirmations.v1',
   seen: 'seatswap.seen.v1',
   settings: 'seatswap.settings.v1',
 } as const
@@ -174,7 +206,15 @@ function defaultSettings(): LocalSettings {
 }
 
 function emptyState(): AppState {
-  return { trips: [], activity: [], wallet: [], seen: {}, settings: defaultSettings() }
+  return {
+    trips: [],
+    activity: [],
+    wallet: [],
+    payments: [],
+    confirmations: [],
+    seen: {},
+    settings: defaultSettings(),
+  }
 }
 
 function storage(): Storage | null {
@@ -205,6 +245,8 @@ function loadState(): AppState {
     trips: readJSON<Trip[]>(KEYS.trips, base.trips),
     activity: readJSON<ActivityRow[]>(KEYS.activity, base.activity),
     wallet: readJSON<WalletTx[]>(KEYS.wallet, base.wallet),
+    payments: readJSON<PaymentRow[]>(KEYS.payments, base.payments),
+    confirmations: readJSON<ConfirmationRow[]>(KEYS.confirmations, base.confirmations),
     seen: readJSON<Record<string, boolean>>(KEYS.seen, base.seen),
     settings: { ...base.settings, ...readJSON<Partial<LocalSettings>>(KEYS.settings, {}) },
   }
@@ -225,6 +267,8 @@ function commit(next: AppState) {
       store.setItem(KEYS.trips, JSON.stringify(next.trips))
       store.setItem(KEYS.activity, JSON.stringify(next.activity.slice(0, ACTIVITY_LIMIT)))
       store.setItem(KEYS.wallet, JSON.stringify(next.wallet))
+      store.setItem(KEYS.payments, JSON.stringify(next.payments))
+      store.setItem(KEYS.confirmations, JSON.stringify(next.confirmations))
       store.setItem(KEYS.seen, JSON.stringify(next.seen))
       store.setItem(KEYS.settings, JSON.stringify(next.settings))
     } catch {
@@ -362,6 +406,7 @@ export async function addTrip(input: AddTripInput): Promise<Trip> {
     },
     { type: 'booking', id: trip.id },
   )
+  trackEvent('pnr_added', { train_no: trip.train_no, class: trip.class })
   return trip
 }
 
@@ -529,6 +574,172 @@ export function credit(input: CreditInput): WalletTx {
     { to: input.to, amount_paise: input.amountPaise, kind: input.kind },
     { type: 'wallet_tx', id: row.id },
   )
+  trackEvent('credit_added', { kind: input.kind, amount_paise: input.amountPaise })
+  return row
+}
+
+/* ------------------------------------------------------------------ *
+ * Payments ledger — local mirror of `payments` + `receipts` (docs/06)  *
+ * ------------------------------------------------------------------ */
+
+export function listPayments(): PaymentRow[] {
+  return snapshot.payments
+}
+
+export function getPayment(id: string | undefined): PaymentRow | undefined {
+  if (!id) return undefined
+  return snapshot.payments.find((row) => row.id === id)
+}
+
+/** The payment that matters for a request: the paid one, else the live one. */
+export function paymentFor(requestId: string): PaymentRow | undefined {
+  const rows = snapshot.payments.filter((row) => row.request_id === requestId)
+  return rows.find((row) => row.status === 'paid')
+    ?? rows.find((row) => row.status === 'pending')
+    ?? rows.find((row) => row.status === 'created')
+    ?? rows[rows.length - 1]
+}
+
+export interface StartPaymentInput {
+  request_id: string
+  provider: 'razorpay' | 'paypal' | 'credit'
+  amount_paise: number
+  credit_used_paise: number
+  status?: 'created' | 'pending' | 'paid'
+  provider_ref?: string | null
+}
+
+/**
+ * Open (or reuse) the payment for a request. Idempotent: a request that is
+ * already paid or still pending never gets a second charge — rule 2 says money
+ * moves once, and docs/09 tells the user "please don't pay again".
+ */
+export function startPayment(input: StartPaymentInput): PaymentRow {
+  const existing = paymentFor(input.request_id)
+  if (existing && (existing.status === 'paid' || existing.status === 'pending')) return existing
+  const stamp = new Date().toISOString()
+  const row: PaymentRow = {
+    id: uid(),
+    request_id: input.request_id,
+    payer_id: snapshot.settings.user_id,
+    provider: input.provider,
+    provider_ref: input.provider_ref ?? null,
+    amount_paise: input.amount_paise,
+    credit_used_paise: input.credit_used_paise,
+    currency: 'INR',
+    status: input.status ?? 'created',
+    receipt_number: null,
+    created_at: stamp,
+    updated_at: stamp,
+  }
+  commit({ ...snapshot, payments: [...snapshot.payments, row] })
+  logActivity(
+    'payment_created',
+    { provider: row.provider, amount_paise: row.amount_paise, credit_used_paise: row.credit_used_paise },
+    { type: 'payment', id: row.id },
+  )
+  return row
+}
+
+/** Receipt numbers look like SS-10482 (docs/06) and never renumber. */
+function receiptNumberFrom(paymentId: string): string {
+  let hash = 0
+  for (const char of paymentId) hash = (hash * 31 + char.charCodeAt(0)) % 90000
+  return `SS-${10000 + hash}`
+}
+
+/** Move a payment along `created -> pending -> paid | failed` (docs/03). */
+export function setPaymentStatus(
+  id: string,
+  status: PaymentRow['status'],
+  providerRef?: string,
+): PaymentRow | undefined {
+  const current = getPayment(id)
+  if (!current) return undefined
+  /* A paid payment is final: the webhook is the source of truth and a late
+     "pending" from a re-render must never undo a lock. */
+  if (current.status === 'paid' && status !== 'paid') return current
+  if (current.status === status) return current
+  const next: PaymentRow = {
+    ...current,
+    status,
+    provider_ref: providerRef ?? current.provider_ref,
+    receipt_number: status === 'paid' && !current.receipt_number
+      ? receiptNumberFrom(current.id)
+      : current.receipt_number,
+    updated_at: new Date().toISOString(),
+  }
+  commit({
+    ...snapshot,
+    payments: snapshot.payments.map((row) => (row.id === id ? next : row)),
+  })
+  logActivity(
+    status === 'paid' ? 'payment_paid' : status === 'failed' ? 'payment_failed' : 'payment_pending',
+    { provider: next.provider, amount_paise: next.amount_paise },
+    { type: 'payment', id: next.id },
+  )
+  /* docs/08 names only created/paid/failed as metrics; pending stays a log row. */
+  if (status === 'paid' || status === 'failed') {
+    trackEvent(status === 'paid' ? 'payment_paid' : 'payment_failed', {
+      amount_paise: next.amount_paise,
+    })
+  }
+  return next
+}
+
+/**
+ * Spend credit against a payment: one negative `wallet_tx` row. There is no
+ * refund counterpart — a swap that did not happen goes through
+ * `credit(kind='swap_to_credit')` instead (rule 6).
+ */
+export function useCredit(amountPaise: number, requestId: string): WalletTx | undefined {
+  const amount = Math.floor(amountPaise)
+  if (!Number.isFinite(amount) || amount <= 0) return undefined
+  if (amount > creditPaise()) return undefined
+  const row: WalletTx = {
+    id: uid(),
+    user_id: snapshot.settings.user_id,
+    amount_paise: -amount,
+    kind: 'used',
+    ref_request_id: requestId,
+    expires_at: null,
+    created_at: new Date().toISOString(),
+  }
+  commit({ ...snapshot, wallet: [...snapshot.wallet, row] })
+  logActivity('credit_used', { amount_paise: amount }, { type: 'wallet_tx', id: row.id })
+  trackEvent('credit_used', { amount_paise: amount })
+  return row
+}
+
+/* ------------------------------------------------------------------ *
+ * Confirmations — "Did you swap?" (docs/02, docs/03)                  *
+ * ------------------------------------------------------------------ */
+
+export function confirmationsFor(requestId: string): ConfirmationRow[] {
+  return snapshot.confirmations.filter((row) => row.request_id === requestId)
+}
+
+/** One answer per side; re-answering before the other side replies is allowed. */
+export function recordConfirmation(
+  requestId: string,
+  side: ConfirmationRow['side'],
+  outcome: ConfirmationRow['outcome'],
+): ConfirmationRow {
+  const row: ConfirmationRow = {
+    request_id: requestId,
+    side,
+    outcome,
+    created_at: new Date().toISOString(),
+  }
+  commit({
+    ...snapshot,
+    confirmations: [
+      ...snapshot.confirmations.filter((c) => !(c.request_id === requestId && c.side === side)),
+      row,
+    ],
+  })
+  logActivity('confirmation', { side, outcome }, { type: 'swap_request', id: requestId })
+  trackEvent('confirmation', { outcome })
   return row
 }
 

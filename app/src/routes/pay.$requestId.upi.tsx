@@ -4,9 +4,7 @@ import { AppFooter, type RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
 import { useI18n } from '@/lib/i18n'
-import { buildQuote } from '@/lib/payments'
-import { demoRequest } from '@/lib/demo-swap'
-import { useCreditPaise } from '@/lib/use-store'
+import { usePaymentFor } from '@/lib/use-store'
 
 /* Screen 24 "Waiting for UPI" (design 27b): the requester approved in their
    UPI app; this screen holds while the gateway confirms. No second payment
@@ -18,8 +16,8 @@ export const Route = createFileRoute('/pay/$requestId/upi')({
 function UpiScreen() {
   const { requestId } = Route.useParams()
   const { t } = useI18n()
-  const credit = useCreditPaise()
-  const q = buildQuote(credit, demoRequest(requestId).isGroup)
+  const payment = usePaymentFor(requestId)
+  const due = payment ? payment.amount_paise - payment.credit_used_paise : 0
   return (
     <div>
       <div className="mt-2 flex justify-center">
@@ -30,7 +28,7 @@ function UpiScreen() {
       <h1 className="mt-3 text-center text-title text-ink">{t('pay.upiTitle')}</h1>
       <Card className="mt-4 items-center text-center">
         <CardBody className="font-head text-section font-bold text-ink">
-          {t('pay.upiBody', { amount: q.due / 100 })}
+          {t('pay.upiBody', { amount: due / 100 })}
         </CardBody>
         <CardBody>{t('pay.upiHold')}</CardBody>
       </Card>

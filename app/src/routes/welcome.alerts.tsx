@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/lib/i18n'
 import { logActivity, markSeen, updateSettings } from '@/lib/store'
+import { ensurePushSubscription } from '@/lib/push'
 
 /* Screen 14 "Turn on alerts" (design 10c). Alerts are free web push (no SMS,
    rule 15) and are only asked for after the first request (docs/08), so this
@@ -22,8 +23,11 @@ function AlertsScreen() {
 
   function turnOn() {
     markSeen('alerts')
-    updateSettings({ alerts_intent: true })
+    updateSettings({ alerts_intent: true, notify_push: true })
     logActivity('alerts_intent', { on: true })
+    /* Best-effort: without a VAPID key or permission this quietly no-ops and
+       the in-app Updates list remains the channel (docs/08). */
+    void ensurePushSubscription()
     toast.show(t('alerts.saved'))
     navigate({ to: '/' })
   }

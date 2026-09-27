@@ -27,7 +27,19 @@
   /* ---------- CHOICES (new + edit) ---------- */
   SeatSwapApp.screen('choices', {
     render(r) {
-      if (needAuth(location.hash)) return { html: '', tab: 'home' };
+      /* Signed-out users can rank choices (rule 8: auth only at first send).
+         A stashed draft is completed here right after login. */
+      if (!r.req && r.resume && E().authed()) {
+        try {
+          const draft = JSON.parse(sessionStorage.getItem('seatswap_draft_v1') || 'null');
+          if (draft && draft.tripId) {
+            sessionStorage.removeItem('seatswap_draft_v1');
+            const made = E().newRequest({ tripId: draft.tripId, choices: draft.choices, sameCoach: draft.sameCoach, keepTogether: draft.keepTogether, reason: draft.reason });
+            location.hash = '#/request/' + made.id + '/matches';
+            return { html: '', tab: 'home' };
+          }
+        } catch {}
+      }
       const req = r.req ? E().getRequest(r.req) : null;
       const trip = myTrip(req ? req.booking_id : r.trip);
       if (!trip) return { html: '', tab: 'home' };
@@ -36,7 +48,7 @@
       const opts = berthOpts(trip.class);
       const reasons = [T('req.r1'), T('req.r2'), T('req.r3'), T('req.r4'), T('req.r5'), T('req.r6')];
       return {
-        tab: 'home',
+        tab: 'swaps',
         html: `${innerHead()}<main class="body">
         <h1 class="h-title">${esc(T('req.title'))}</h1>
         <p class="subtitle">${esc(trip.train_no)} · ${esc(trip.from_code || '')} → ${esc(trip.to_code || '')} · ${esc(fmtDate(trip.journey_date))}</p>
@@ -90,12 +102,21 @@
         const err = el.querySelector('#chErr');
         if (!picks.length) { err.textContent = T('req.needChoices'); err.hidden = false; return; }
         const note = el.querySelector('#chNote').value.trim() || reason;
+        const same = el.querySelector('#chSame').checked;
+        const keep = el.querySelector('#chKeep') ? el.querySelector('#chKeep').checked : false;
+        /* Rule 8: sign-in happens at first send, not before. Stash the draft,
+           sign in, then auto-complete on return (see render resume above). */
+        if (!E().authed() && !req) {
+          try { sessionStorage.setItem('seatswap_draft_v1', JSON.stringify({ tripId: trip.id, choices: picks, sameCoach: same, keepTogether: keep, reason: note })); } catch {}
+          SeatSwapAuth.requireAuth('#/request/new?trip=' + encodeURIComponent(trip.id) + '&resume=1');
+          return;
+        }
         try {
           if (req) {
-            E().updateRequest(req.id, { choices: picks, sameCoach: el.querySelector('#chSame').checked, keepTogether: el.querySelector('#chKeep') ? el.querySelector('#chKeep').checked : false, reason: note });
+            E().updateRequest(req.id, { choices: picks, sameCoach: same, keepTogether: keep, reason: note });
             location.hash = '#/request/' + req.id + '/matches';
           } else {
-            const made = E().newRequest({ tripId: trip.id, choices: picks, sameCoach: el.querySelector('#chSame').checked, keepTogether: el.querySelector('#chKeep') ? el.querySelector('#chKeep').checked : false, reason: note });
+            const made = E().newRequest({ tripId: trip.id, choices: picks, sameCoach: same, keepTogether: keep, reason: note });
             location.hash = '#/request/' + made.id + '/matches';
           }
         } catch (e) { err.textContent = e.message; err.hidden = false; }
@@ -114,8 +135,8 @@
   }
   SeatSwapApp.screen('matches', {
     render(r) {
-      if (needAuth(location.hash)) return { html: '', tab: 'home' };
-      const req = E().getRequest(r.id);
+      let req = null;
+      try { req = E().getRequest(r.id); } catch { location.hash = '#/'; return { html: '', tab: 'home' }; }
       const trip = myTrip(req.booking_id);
       if (!trip) return { html: '', tab: 'home' };
       const rows = matchRows(req, trip, false);
@@ -128,7 +149,7 @@
           <small>${esc(T('trip.berthMasked'))} · ✓ Google verified</small></span>
           <span class="mscore">${score}%</span></label>`).join('');
       return {
-        tab: 'home',
+        tab: 'swaps',
         html: `${innerHead()}<main class="body">
         <h1 class="h-title">${esc(rows.length ? T('match.title') : T('match.nomatchT', { train: trip.train_no }))}</h1>
         ${rows.length ? `<p class="subtitle">${esc(T('match.sub'))}</p>${list}
@@ -153,6 +174,9 @@
         };
         el.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('change', sync));
         send.addEventListener('click', () => {
+          /* Rule 8: the send is the auth moment. After login the user lands
+             back here and taps send again — sending itself stays free. */
+          if (!E().authed()) { SeatSwapAuth.requireAuth(location.hash); return; }
           const ids = [...el.querySelectorAll('[data-pick]:checked')].map((b) => b.dataset.pick);
           try {
             const made = E().sendOffers(req.id, ids.length ? ids : matchRows(req, trip, false).map((x) => x.seed.id));
@@ -194,7 +218,7 @@
           <a class="btn btn--ghost" href="#/request/new?trip=${trip.id}&req=${req.id}">${esc(T('reqm.tryOther'))}</a>`;
       }
       return {
-        tab: 'home',
+        tab: 'swaps',
         html: `${innerHead()}<main class="body">
         <h1 class="h-title">${esc(T('reqm.title'))}</h1>
         <section class="card"><div class="iconcard"><span class="tile">${Art.train}</span>

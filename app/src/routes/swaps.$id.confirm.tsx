@@ -4,6 +4,7 @@ import { AppFooter, type RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
 import { useI18n } from '@/lib/i18n'
+import { trackEvent } from '@/lib/analytics'
 import { CONFIRM_OPTIONS, type ConfirmOutcome } from '@/lib/outcomes'
 
 /* Did you swap — 4 options (docs/04 A13, docs/09). */
@@ -45,6 +46,7 @@ function ConfirmScreen() {
             <Link
               to="/swaps/$id/done" params={{ id }}
               search={{ state: picked === 'swapped' ? 'swapped' : 'credit' }}
+              onClick={() => trackEvent('confirmation', { outcome: picked })}
             >
               {t('confirm.submit')}
             </Link>

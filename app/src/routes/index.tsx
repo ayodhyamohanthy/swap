@@ -1,12 +1,13 @@
 import { Link, createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { FileText, Gift, Lock, Plus } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
+import { useState, useEffect, type FormEvent } from 'react'
 import { AppFooter, type RouteChrome } from '@/components/app-shell'
 import { InstallPrompt } from '@/components/install-prompt'
 import { TripCard } from '@/components/trip-card'
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
 import { Field, Input } from '@/components/ui/input'
+import { trackEvent } from '@/lib/analytics'
 import { useI18n } from '@/lib/i18n'
 import { isValidPnr } from '@/lib/pnr'
 import { isSeen } from '@/lib/store'
@@ -35,6 +36,19 @@ function HomeScreen() {
   const navigate = useNavigate()
   const [pnr, setPnr] = useState('')
   const [error, setError] = useState<string | null>(null)
+
+  /* First-screen metric, once per session (docs/08 growth loops). */
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      if (window.sessionStorage.getItem('seatswap.first-screen')) return
+      window.sessionStorage.setItem('seatswap.first-screen', '1')
+    } catch {
+      /* private mode */
+    }
+    trackEvent('first_screen_viewed', {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function submitQuickPnr(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

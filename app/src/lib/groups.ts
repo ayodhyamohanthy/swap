@@ -93,6 +93,11 @@ export function linkTrip(groupId: string, tripId: string): GroupTrip | undefined
   return updated
 }
 
+/** Group payments ride the same pay screens: their id is the group id. */
+export function isGroupRequestId(requestId: string): boolean {
+  return requestId.startsWith('grp_')
+}
+
 /** Mark the ₹199 group payment done (the pay screens drive the real flow). */
 export function markGroupPaid(groupId: string): GroupTrip | undefined {
   const group = getGroup(groupId)

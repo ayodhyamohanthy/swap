@@ -5,6 +5,7 @@
    activity filters, demo-mode admin_action log. Money = paise. */
 
 import { logActivity, type ActivityRow } from './store'
+import { trackEvent } from './analytics'
 
 export type AdminRole = 'admin' | 'support'
 
@@ -132,6 +133,7 @@ export interface DemoAdminAction {
 
 /** Local demo: logs `admin_action` so every admin tap is itself logged. */
 export function logDemoAdminAction(detail: DemoAdminAction): ActivityRow {
+  trackEvent('admin_action', { action: detail.action })
   return logActivity('admin_action', { ...detail, demo: true }, { type: 'admin', id: detail.target })
 }
 

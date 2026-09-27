@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/lib/i18n'
+import { trackEvent } from '@/lib/analytics'
 import { getRequest } from '@/lib/requests'
 import { getTrip } from '@/lib/store'
 
@@ -32,6 +33,7 @@ function ShareCardScreen() {
   const text = t('shareCard.body', { train })
 
   async function copyLink() {
+    trackEvent('share_clicked', { platform: 'copy', context: 'swap' })
     try {
       await navigator.clipboard.writeText(`${text} ${link}`)
       toast.show(t('common.copied'))
@@ -42,6 +44,7 @@ function ShareCardScreen() {
   async function nativeShare() {
     if (navigator.share) {
       try {
+        trackEvent('share_clicked', { platform: 'native', context: 'swap' })
         await navigator.share({ title: 'SeatSwap', text, url: link })
         return
       } catch {
@@ -51,6 +54,7 @@ function ShareCardScreen() {
     void copyLink()
   }
   function open(platform: Platform) {
+    trackEvent('share_clicked', { platform, context: 'swap' })
     const encoded = encodeURIComponent(link)
     const body = encodeURIComponent(`${text} ${link}`)
     const urls: Record<Platform, string> = {

@@ -31,33 +31,10 @@ export function assertCanPay(request: SwapRequestRow, callerId: string): void {
   if (request.status !== 'accepted_awaiting_payment') throw new Error('not_awaiting_payment')
 }
 /** Minimal wallet row shape the credit planner needs (server-side ledger read). */
-export interface CreditLedgerRow { id: string; amount_paise: number; expires_at: string | null }
-
-export function planConsumeCredit(
-  rows: CreditLedgerRow[], neededPaise: number, nowMs: number,
-): { usedTxIds: string[]; usedTotal: number } {
-  const need = Math.max(0, Math.floor(neededPaise))
-  if (need === 0) return { usedTxIds: [], usedTotal: 0 }
-  const open = rows
-    .filter((r) => r.amount_paise > 0
-      && (r.expires_at === null || Number.isFinite(Date.parse(r.expires_at)) === false || Date.parse(r.expires_at) > nowMs))
-    .sort((a, b) => {
-      if (a.expires_at === null) return 1
-      if (b.expires_at === null) return -1
-      return Date.parse(a.expires_at) - Date.parse(b.expires_at)
-    })
-  const usedTxIds: string[] = []
-  let remaining = need
-  let usedTotal = 0
-  for (const row of open) {
-    if (remaining <= 0) break
-    const take = Math.min(row.amount_paise, remaining)
-    usedTxIds.push(row.id)
-    usedTotal += take
-    remaining -= take
-  }
-  return { usedTxIds, usedTotal }
-}
+export type { CreditLedgerRow } from '@/lib/payments'
+/* The oldest-first credit plan is shared with the local-first checkout path. */
+export { planConsumeCredit } from '@/lib/payments'
+import { planConsumeCredit, type CreditLedgerRow } from '@/lib/payments'
 export const createRazorpayOrder = createServerFn({ method: 'POST' })
   .validator((input: { requestId: string; isGroup?: boolean; callerId?: string }) => input)
   .handler(async ({ data }): Promise<RazorpayOrder & { payment_id: string; provider: 'razorpay' | 'credit' }> => {
