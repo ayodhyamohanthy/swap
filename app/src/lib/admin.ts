@@ -191,7 +191,7 @@ export async function runAdminAction(
     close_report: adminCloseReport,
   } as const
   try {
-    const result = await fns[action](input)
+    const result = await fns[action]({ data: input })
     trackEvent('admin_action', { action: DEMO_ACTION[action], persisted: result.persisted })
     if (!result.persisted) throw new Error('admin_not_persisted')
     return { persisted: true, demo: false }

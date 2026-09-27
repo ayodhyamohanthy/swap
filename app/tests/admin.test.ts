@@ -223,3 +223,23 @@ describe('server admin planners move money and state, then log (docs/04-D)', () 
     expect(exp).toBeLessThan(Date.now() + year + 40 * 24 * 3600 * 1000)
   })
 })
+
+describe('console actions fall back to the device log without a backend', () => {
+  it('runs every action through runAdminAction and audits the tap', async () => {
+    const { runAdminAction } = await import('@/lib/admin')
+    const { activityLog, resetStore } = await import('@/lib/store')
+    resetStore()
+    for (const action of ['block_user', 'move_to_credit', 'mark_done', 'resolve_dispute', 'adjust_credit', 'close_report'] as const) {
+      const result = await runAdminAction(action, {
+        target: 'local-device',
+        reason: 'test',
+        amountPaise: 500,
+        resolution: 'voided',
+        requestId: 'req-test',
+      })
+      expect(result).toEqual({ persisted: false, demo: true })
+    }
+    const logged = activityLog().filter((row) => row.action === 'admin_action')
+    expect(logged).toHaveLength(6)
+  })
+})
