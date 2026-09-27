@@ -10,7 +10,9 @@ import {
   PRICE_SPLIT_OK,
   THANK_YOU_PAISE,
   formatRupees,
+  paiseToDecimalString,
   rupees,
+  decimalStringToPaise,
 } from '@/lib/money'
 
 describe('the swap price', () => {
@@ -49,5 +51,31 @@ describe('formatting', () => {
     expect(formatRupees(19900)).toBe('₹199')
     expect(formatRupees(123400)).toBe('₹1,234')
     expect(formatRupees(12345600)).toBe('₹1,23,456')
+  })
+})
+
+/* Reading an amount back off a gateway receipt. Integer maths only: a rupee
+   disappearing through a float is a real money bug, and a malformed value must
+   never be read as zero. */
+describe('decimalStringToPaise', () => {
+  it('round-trips paiseToDecimalString', () => {
+    for (const paise of [9900, 5000, 19900, 1, 99, 100]) {
+      expect(decimalStringToPaise(paiseToDecimalString(paise))).toBe(paise)
+    }
+  })
+  it('parses plain and single-decimal forms', () => {
+    expect(decimalStringToPaise('99.00')).toBe(9900)
+    expect(decimalStringToPaise('99.5')).toBe(9950)
+    expect(decimalStringToPaise('99')).toBe(9900)
+    expect(decimalStringToPaise(' 99.00 ')).toBe(9900)
+  })
+  it('returns null rather than guessing', () => {
+    expect(decimalStringToPaise('')).toBeNull()
+    expect(decimalStringToPaise('99.999')).toBeNull()
+    expect(decimalStringToPaise('1e2')).toBeNull()
+    expect(decimalStringToPaise('-99.00')).toBeNull()
+    expect(decimalStringToPaise('INR 99')).toBeNull()
+    expect(decimalStringToPaise(undefined)).toBeNull()
+    expect(decimalStringToPaise(99)).toBeNull()
   })
 })

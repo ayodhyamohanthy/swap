@@ -64,7 +64,7 @@ function PaypalScreen() {
     let cancelled = false
     void (async () => {
       try {
-        const capture = await capturePaypalOrder({ data: { orderId: token, requestId } })
+        const capture = await capturePaypalOrder({ data: { orderId: token, requestId, isGroup } })
         if (cancelled) return
         if (capture.status === 'paid') {
           confirmCaptured(requestId, capture.provider_ref ?? undefined)

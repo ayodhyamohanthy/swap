@@ -209,7 +209,12 @@ describe('paypalCaptureOrder', () => {
     expect(calls[1].url).toBe(
       'https://api-m.sandbox.paypal.test/v2/checkout/orders/ORDER-7/capture',
     )
-    expect(result).toEqual({ id: 'ORDER-7', status: 'paid', provider_ref: 'CAP-1' })
+    expect(result).toMatchObject({ id: 'ORDER-7', status: 'paid', provider_ref: 'CAP-1' })
+    /* No amount block in this fixture, so the receipt fields read as unknown
+       rather than as ₹0 — a capture with no readable amount cannot be used to
+       prove the right money arrived. */
+    expect(result.amount_paise).toBeNull()
+    expect(result.custom_id).toBeNull()
   })
 
   it('only treats COMPLETED as money received', () => {
@@ -311,5 +316,68 @@ describe('paypalCreateOrder return url', () => {
     expect(isWebUrl('')).toBe(false)
     expect(isWebUrl(undefined)).toBe(false)
     expect(isWebUrl(`https://app.test/${'x'.repeat(600)}`)).toBe(false)
+  })
+})
+
+/* A COMPLETED capture only proves money moved on SOME order. These three fields
+   are what let the server function refuse to lock a ₹99 swap against a ₹1
+   order, or against someone else's order. */
+describe('paypalCaptureOrder receipt', () => {
+  const CAPTURE = [
+    { match: '/oauth2/token', body: { access_token: 'T' } },
+    {
+      match: '/capture',
+      body: {
+        id: 'ORDER-9',
+        status: 'COMPLETED',
+        purchase_units: [{
+          custom_id: 'req_7',
+          payments: {
+            captures: [{
+              id: 'CAP-1',
+              amount: { currency_code: 'INR', value: '99.00' },
+            }],
+          },
+        }],
+      },
+    },
+  ]
+
+  it('reports the amount, currency and owning request', async () => {
+    const { deps } = stubFetch(CAPTURE)
+    const result = await paypalCaptureOrder(deps, { orderId: 'ORDER-9' })
+    expect(result.status).toBe('paid')
+    expect(result.provider_ref).toBe('CAP-1')
+    expect(result.amount_paise).toBe(9900)
+    expect(result.currency).toBe('INR')
+    expect(result.custom_id).toBe('req_7')
+  })
+
+  it('never reports a foreign amount as paise', async () => {
+    const { deps } = stubFetch([
+      { match: '/oauth2/token', body: { access_token: 'T' } },
+      {
+        match: '/capture',
+        body: {
+          id: 'O', status: 'COMPLETED',
+          purchase_units: [{ custom_id: 'r', payments: { captures: [
+            { id: 'C', amount: { currency_code: 'USD', value: '1.20' } },
+          ] } }],
+        },
+      },
+    ])
+    const result = await paypalCaptureOrder(deps, { orderId: 'O' })
+    expect(result.amount_paise).toBeNull()
+    expect(result.currency).toBe('USD')
+  })
+
+  it('an order with no capture line yields nulls, not zero', async () => {
+    const { deps } = stubFetch([
+      { match: '/oauth2/token', body: { access_token: 'T' } },
+      { match: '/capture', body: { id: 'O', status: 'COMPLETED', purchase_units: [] } },
+    ])
+    const result = await paypalCaptureOrder(deps, { orderId: 'O' })
+    expect(result.amount_paise).toBeNull()
+    expect(result.custom_id).toBeNull()
   })
 })

@@ -204,7 +204,7 @@ export const createPaypalOrder = createServerFn({ method: 'POST' })
     },
   )
 export const capturePaypalOrder = createServerFn({ method: 'POST' })
-  .validator((input: { orderId: string; requestId: string }) => input)
+  .validator((input: { orderId: string; requestId: string; isGroup?: boolean }) => input)
   .handler(
     async ({
       data,
@@ -212,6 +212,26 @@ export const capturePaypalOrder = createServerFn({ method: 'POST' })
       /* The capture response — not the browser callback — decides the status.
          Anything other than COMPLETED must not lock the swap. */
       const capture = await paypalCaptureOrder(depsFromEnv(), { orderId: data.orderId })
+
+      /* A COMPLETED status only proves money moved on SOME order. Before this
+         can lock a ₹99 swap, the receipt has to be for this swap: the right
+         amount, in INR, carrying our request id (rule 9, and the same check
+         razorpay-client.ts makes before it trusts a capture). A mismatch is
+         thrown, not returned as 'paid' and not returned as 'failed' — the
+         money is genuinely ambiguous, so the caller waits for the webhook
+         instead of locking or accusing. */
+      if (capture.status === 'paid') {
+        const expected = priceFor(data.isGroup === true)
+        const amountOk = capture.amount_paise === expected
+        const currencyOk = capture.currency === null || capture.currency === 'INR'
+        const refOk = capture.custom_id === null || capture.custom_id === data.requestId
+        if (!amountOk || !currencyOk || !refOk) {
+          throw new Error(
+            `paypal_capture_mismatch:${capture.amount_paise ?? 'unknown'}/${expected}` +
+              `:${capture.currency ?? 'unknown'}:${capture.custom_id ?? 'unknown'}`,
+          )
+        }
+      }
       return { status: capture.status, provider_ref: capture.provider_ref }
     },
   )
