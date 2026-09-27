@@ -4,7 +4,8 @@ import type { RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { useI18n } from '@/lib/i18n'
-import { GROUP_PRICE_PAISE, formatRupees } from '@/lib/money'
+import { GROUP_MAX_SWAPS, GROUP_PRICE_PAISE, formatRupees } from '@/lib/money'
+import { groupLockedCount } from '@/lib/requests'
 import {
   getGroupsServerSnapshot,
   getGroupsSnapshot,
@@ -43,6 +44,9 @@ function GroupPlanScreen() {
 
   const { done, total } = groupTogetherCount(group)
   const trips = listTrips().filter((trip) => group.trip_ids.includes(trip.id))
+  /* Bundle consumption at a glance (docs/01): filled dots = covered swaps
+     used. Wordless on purpose — no new copy needed in any language. */
+  const used = group.paid ? Math.min(groupLockedCount(group.id), GROUP_MAX_SWAPS) : 0
 
   return (
     <div>
@@ -58,7 +62,18 @@ function GroupPlanScreen() {
           {formatRupees(GROUP_PRICE_PAISE)}
         </p>
         {group.paid ? (
-          <p className="mt-2 text-body font-semibold text-primary">{t('groups.paid')}</p>
+          <>
+            <p className="mt-2 text-body font-semibold text-primary">{t('groups.paid')}</p>
+            <div className="mt-2 flex gap-2" role="img" aria-label={`${used}/${GROUP_MAX_SWAPS}`}>
+              {Array.from({ length: GROUP_MAX_SWAPS }, (_, i) => (
+                <span
+                  key={i}
+                  aria-hidden
+                  className={`size-3 rounded-full ${i < used ? 'bg-primary' : 'bg-line'}`}
+                />
+              ))}
+            </div>
+          </>
         ) : (
           <Button className="mt-3" asChild>
             <Link to="/pay/$requestId" params={{ requestId: group.id }}>
