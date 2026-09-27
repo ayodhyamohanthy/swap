@@ -5,7 +5,7 @@ import { depsFromEnv } from './payments-helpers'
 import { resolveCaller, refetchRow } from './functions'
 import { getSupabase } from '@/lib/supabase'
 import { createServerFn } from '@tanstack/react-start'
-import { buildQuote, priceFor } from '@/lib/payments'
+import { buildQuote, priceFor, spendableCreditPaise } from '@/lib/payments'
 
 export type RequestStatus = 'draft' | 'searching' | 'accepted_awaiting_payment'
   | 'locked' | 'confirmed' | 'voided' | 'disputed' | 'expired' | 'withdrawn'
@@ -67,13 +67,14 @@ export const createRazorpayOrder = createServerFn({ method: 'POST' })
     const walletQuery = (client.from('wallet_tx').select('id,amount_paise,expires_at').eq('user_id', callerId) as unknown as Promise<{ data: CreditLedgerRow[] | null; error: unknown }>)
     const { data: ledger, error: ledgerError } = await walletQuery
     if (ledgerError) throw new Error('wallet_unreadable')
+    const now = Date.now()
     const quote = buildQuote(
       data.useCredit === false
         ? 0
-        : (ledger ?? []).reduce((sum, r) => sum + (r.amount_paise > 0 ? r.amount_paise : 0), 0),
+        : spendableCreditPaise(ledger ?? [], now),
       isGroup,
     )
-    const consumed = planConsumeCredit(ledger ?? [], quote.creditUsed, Date.now())
+    const consumed = planConsumeCredit(ledger ?? [], quote.creditUsed, now)
     /* The spend is a hold: it is released below if the gateway order fails,
        and by the failed-webhook path if capture never happens (rule 6: a
        gateway that never captured must never cost credit). */

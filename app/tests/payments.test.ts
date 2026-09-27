@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { GROUP_PRICE_PAISE, PRICE_PAISE } from '@/lib/money'
 import { buildQuote, nextPayState, outcomeToCredit, receiptNumber, splitReceipt } from '@/lib/payments'
 import { planConsumeCredit } from '@/server/payments'
+import { spendableCreditPaise, type CreditLedgerRow } from '@/lib/payments'
 
 describe('buildQuote', () => {
   it('charges full price with no credit', () => {
@@ -96,5 +97,39 @@ describe('planConsumeCredit', () => {
   })
   it('needs nothing when nothing is owed', () => {
     expect(planConsumeCredit([], 0, Date.now())).toEqual({ usedTxIds: [], usedTotal: 0 })
+  })
+})
+
+/* Rule 4 + rule 2: a wallet holding ONLY expired credit is worth nothing. The
+   balance a checkout quotes and the rows it plans to consume must agree, or the
+   quote says "nothing due", no gateway is ever called, and the swap locks for
+   free. */
+describe('spendableCreditPaise', () => {
+  const NOW = Date.parse('2026-09-27T00:00:00.000Z')
+  const row = (over: Partial<CreditLedgerRow>): CreditLedgerRow => ({
+    id: 'w1', amount_paise: 5000, expires_at: null, ...over,
+  })
+
+  it('counts unexpired credit', () => {
+    expect(spendableCreditPaise([row({}), row({ id: 'w2', expires_at: '2027-01-01T00:00:00.000Z' })], NOW)).toBe(10000)
+  })
+
+  it('ignores expired credit entirely', () => {
+    expect(spendableCreditPaise([row({ expires_at: '2026-01-01T00:00:00.000Z' })], NOW)).toBe(0)
+  })
+
+  it('agrees with planConsumeCredit on what is spendable', () => {
+    const rows = [row({ expires_at: '2026-01-01T00:00:00.000Z' }), row({ id: 'w2' })]
+    const balance = spendableCreditPaise(rows, NOW)
+    const plan = planConsumeCredit(rows, balance, NOW)
+    expect(plan.usedTotal).toBe(balance)
+    expect(plan.usedTxIds).toEqual(['w2'])
+  })
+
+  it('a wallet of only expired credit still owes the full price', () => {
+    const rows = [row({ amount_paise: 9900, expires_at: '2026-01-01T00:00:00.000Z' })]
+    expect(buildQuote(spendableCreditPaise(rows, NOW))).toEqual({
+      total: PRICE_PAISE, creditUsed: 0, due: PRICE_PAISE, provider: null,
+    })
   })
 })

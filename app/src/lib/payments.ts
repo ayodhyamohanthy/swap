@@ -71,6 +71,22 @@ export function splitReceipt(duePaid: number, creditUsed: number, isGroup = fals
 /** Minimal wallet row shape the credit planner needs. */
 export interface CreditLedgerRow { id: string; amount_paise: number; expires_at: string | null }
 
+/** One rule for "can this credit row be spent right now?" (rule 4: 12 months).
+    The balance a checkout quotes and the rows it then plans to consume MUST
+    agree, or a wallet of expired credit quotes ₹0 due and locks a swap for
+    free. A row with no expiry, or an unparseable one, stays spendable rather
+    than silently becoming zero. */
+export function isCreditSpendable(row: CreditLedgerRow, nowMs: number): boolean {
+  if (row.amount_paise <= 0) return false
+  if (row.expires_at === null || !Number.isFinite(Date.parse(row.expires_at))) return true
+  return Date.parse(row.expires_at) > nowMs
+}
+
+/** Spendable credit balance in paise at `nowMs`. */
+export function spendableCreditPaise(rows: CreditLedgerRow[], nowMs: number): number {
+  return rows.reduce((sum, r) => (isCreditSpendable(r, nowMs) ? sum + r.amount_paise : sum), 0)
+}
+
 /**
  * Which credit rows a payment spends, earliest expiry first (docs/06). Rows are
  * never partially consumed on the ledger: the plan records the ids and the total
@@ -82,8 +98,7 @@ export function planConsumeCredit(
   const need = Math.max(0, Math.floor(neededPaise))
   if (need === 0) return { usedTxIds: [], usedTotal: 0 }
   const open = rows
-    .filter((r) => r.amount_paise > 0
-      && (r.expires_at === null || !Number.isFinite(Date.parse(r.expires_at)) || Date.parse(r.expires_at) > nowMs))
+    .filter((r) => isCreditSpendable(r, nowMs))
     .sort((a, b) => {
       if (a.expires_at === null) return 1
       if (b.expires_at === null) return -1
