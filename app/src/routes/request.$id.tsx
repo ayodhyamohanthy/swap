@@ -6,7 +6,7 @@ import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { Pill } from '@/components/ui/pill'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/components/ui/toast'
-import { useI18n } from '@/lib/i18n'
+import { requestStatusLabel, useI18n } from '@/lib/i18n'
 import { acceptedOffer, offersFor, setRequestPaused, withdrawRequest } from '@/lib/requests'
 import { getTrip } from '@/lib/store'
 import { useSwapRequest } from '@/lib/use-store'
@@ -25,7 +25,7 @@ function RequestLayout() {
 }
 export function ManageRequestScreen() {
   const { id } = Route.useParams()
-  const { t, type } = useI18n()
+  const { t, type, lang } = useI18n()
   const navigate = useNavigate()
   const toast = useToast()
   const request = useSwapRequest(id)
@@ -60,7 +60,7 @@ export function ManageRequestScreen() {
         ? t('manage.acceptedCta')
         : searching
           ? t('matches.sentState')
-          : t('manage.status', { status: request.status })
+          : t('manage.status', { status: requestStatusLabel(lang, request.status) })
 
   const togglePause = (next: boolean) => {
     setPaused(next)

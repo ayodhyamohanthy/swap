@@ -112,6 +112,11 @@ export function statusLabel(lang: LangCode, value: TicketStatus): string {
   return (CATALOGS[lang].trip.statuses as Record<string, string>)[value] ?? value
 }
 
+/** Swap-request status words — screens never render the raw enum (rule: all copy in i18n). */
+export function requestStatusLabel(lang: LangCode, value: string): string {
+  return (CATALOGS[lang].request.statuses as Record<string, string>)[value] ?? value
+}
+
 export function quotaLabel(lang: LangCode, value: Quota): string {
   return (CATALOGS[lang].trip.quotas as Record<string, string>)[value] ?? value
 }

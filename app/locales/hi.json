@@ -374,6 +374,17 @@
     "keep": "अपना मूल टिकट और ID साथ रखें।"
   },
   "request": {
+    "statuses": {
+      "draft": "ड्राफ़्ट",
+      "searching": "खोज जारी",
+      "accepted_awaiting_payment": "भुगतान बाकी",
+      "locked": "लॉक",
+      "confirmed": "पुष्ट",
+      "disputed": "विवाद दर्ज",
+      "expired": "समाप्त",
+      "voided": "रद्द",
+      "withdrawn": "वापस लिया गया"
+    },
     "title": "आपको क्या चाहिए?",
     "sub": "3 तक विकल्प चुनें। भेजना मुफ़्त है।",
     "first": "पहली पसंद",

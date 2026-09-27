@@ -2,7 +2,7 @@ import { Link, createFileRoute } from '@tanstack/react-router'
 import { AppFooter, type RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
-import { useI18n } from '@/lib/i18n'
+import { requestStatusLabel, useI18n } from '@/lib/i18n'
 import { getRequest } from '@/lib/requests'
 
 /* Bare /swaps/$id landing (screens 29/30/47/48/49): every outcome state has a
@@ -14,7 +14,7 @@ export const Route = createFileRoute('/swaps/$id/')({
 })
 function SwapLandingScreen() {
   const { id } = Route.useParams() as { id: string }
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const request = getRequest(id)
   if (!request) {
     return (
@@ -38,7 +38,7 @@ function SwapLandingScreen() {
   return (
     <div>
       <Card className="mt-4">
-        <CardTitle>{t('manage.status', { status: request.status })}</CardTitle>
+        <CardTitle>{t('manage.status', { status: requestStatusLabel(lang, request.status) })}</CardTitle>
         <CardBody>{t('updates.open')}</CardBody>
       </Card>
       <Button className="mt-4" asChild>

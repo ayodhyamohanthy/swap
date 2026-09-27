@@ -374,6 +374,17 @@
     "keep": "Keep your original ticket and ID with you."
   },
   "request": {
+    "statuses": {
+      "draft": "Draft",
+      "searching": "Searching",
+      "accepted_awaiting_payment": "Awaiting payment",
+      "locked": "Locked",
+      "confirmed": "Confirmed",
+      "disputed": "Disputed",
+      "expired": "Ended",
+      "voided": "Cancelled",
+      "withdrawn": "Withdrawn"
+    },
     "title": "What would you like?",
     "sub": "Pick up to 3 choices. Sending is free.",
     "first": "1st choice",
