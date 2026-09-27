@@ -9,7 +9,7 @@ import { useToast } from '@/components/ui/toast'
 import { acceptedOffer, getRequest, groupLockedCount, type RequestStatus } from '@/lib/requests'
 import { lockCoveredRequest, CheckoutError } from '@/lib/checkout'
 import { buildQuote, priceFor } from '@/lib/payments'
-import { GROUP_MAX_SWAPS, formatRupees } from '@/lib/money'
+import { FEE_PAISE, GROUP_MAX_SWAPS, THANK_YOU_PAISE, formatRupees } from '@/lib/money'
 import { useCreditPaise, usePaymentFor } from '@/lib/use-store'
 import { getGroup, isGroupRequestId } from '@/lib/groups'
 
@@ -147,8 +147,8 @@ export function PayScreen() {
             <Row label={t('pay.groupCover')} value={formatRupees(priceFor(true))} />
           ) : (
             <>
-              <Row label={t('pay.fee')} value="₹49" />
-              <Row label={t('pay.thankYou', { name })} value="₹50" />
+              <Row label={t('pay.fee')} value={formatRupees(FEE_PAISE)} />
+              <Row label={t('pay.thankYou', { name })} value={formatRupees(THANK_YOU_PAISE)} />
             </>
           )}
           {quote.creditUsed > 0 ? (
