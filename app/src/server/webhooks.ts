@@ -1,7 +1,9 @@
 import { createServerFn } from '@tanstack/react-start'
-import { priceFor } from '@/lib/payments'
+import { getSupabase } from '@/lib/supabase'
 import { paypalWebhookId, serverEnv, depsFromEnv } from '@/server/payments-helpers'
 import { paypalCaptureOrder, paypalCreateOrder } from '@/server/paypal-client'
+import { prepareGatewayPayment, releaseCreditHold } from '@/server/payments'
+import { resolveCaller } from '@/server/functions'
 
 /* Webhook request handling — the security-critical half of docs/06, written as a
    pure function so it is testable without a server.
@@ -178,6 +180,8 @@ export const createPaypalOrder = createServerFn({ method: 'POST' })
     (input: {
       requestId: string
       isGroup?: boolean
+      useCredit?: boolean
+      callerId?: string
       returnUrl?: string
       cancelUrl?: string
     }) => input,
@@ -185,21 +189,42 @@ export const createPaypalOrder = createServerFn({ method: 'POST' })
   .handler(
     async ({
       data,
-    }): Promise<{ id: string; currency: 'INR'; amount_paise: number; approval_url: string | null }> => {
+    }): Promise<{ id: string; currency: 'INR'; amount_paise: number; approval_url: string | null; credit_used_paise: number; payment_id: string }> => {
+      /* Same authz and the SAME quote as Razorpay: only the requester (or the
+         group organiser), only while awaiting payment, and the gateway charges
+         price-minus-credit. This used to order the full price while the client
+         also spent the credit, billing ₹149 for a ₹99 swap (rule 1). */
+      const client = await getSupabase()
+      if (!client) throw new Error('backend_unconfigured')
+      const callerId = await resolveCaller(client, data.callerId ?? '')
+      if (!callerId) throw new Error('not_signed_in')
+      const prepared = await prepareGatewayPayment(client, callerId, {
+        requestId: data.requestId,
+        isGroup: data.isGroup === true,
+        useCredit: data.useCredit !== false,
+      })
       /* Real v2 order. approval_url is where the browser redirects to authorise.
          The browser owns the origin (the PWA is the deploy target), so it sends
          the return/cancel URLs; only well-formed http(s) ones are forwarded. */
-      const order = await paypalCreateOrder(depsFromEnv(), {
-        amountPaise: priceFor(data.isGroup === true),
-        requestId: data.requestId,
-        returnUrl: data.returnUrl,
-        cancelUrl: data.cancelUrl,
-      })
+      let order
+      try {
+        order = await paypalCreateOrder(depsFromEnv(), {
+          amountPaise: prepared.due,
+          requestId: data.requestId,
+          returnUrl: data.returnUrl,
+          cancelUrl: data.cancelUrl,
+        })
+      } catch (err) {
+        await releaseCreditHold(client, prepared.holdId)
+        throw err
+      }
       return {
         id: order.id,
         currency: 'INR',
         amount_paise: order.amount_paise,
         approval_url: order.approval_url,
+        credit_used_paise: prepared.creditUsed,
+        payment_id: prepared.paymentId ?? '',
       }
     },
   )
@@ -214,14 +239,31 @@ export const capturePaypalOrder = createServerFn({ method: 'POST' })
       const capture = await paypalCaptureOrder(depsFromEnv(), { orderId: data.orderId })
 
       /* A COMPLETED status only proves money moved on SOME order. Before this
-         can lock a ₹99 swap, the receipt has to be for this swap: the right
-         amount, in INR, carrying our request id (rule 9, and the same check
+         can lock a swap, the receipt has to be for THIS swap: the right amount,
+         in INR, carrying our request id (rule 9, and the same check
          razorpay-client.ts makes before it trusts a capture). A mismatch is
          thrown, not returned as 'paid' and not returned as 'failed' — the
          money is genuinely ambiguous, so the caller waits for the webhook
-         instead of locking or accusing. */
+         instead of locking or accusing.
+
+         The expected amount is read from the payment row this order was
+         created against, NOT the list price: with credit applied the gateway
+         only ever charges `amount_paise - credit_used_paise`, so demanding the
+         full price here rejected every credit-covered PayPal payment. */
       if (capture.status === 'paid') {
-        const expected = priceFor(data.isGroup === true)
+        const client = await getSupabase()
+        let expected: number | null = null
+        if (client) {
+          const row = await (client.from('payments')
+            .select('amount_paise,credit_used_paise,request_id')
+            .eq('request_id', data.requestId)
+            .order('created_at', { ascending: false })
+            .limit(1) as unknown as Promise<{ data: Array<{ amount_paise: number; credit_used_paise: number; request_id: string | null }> | null; error: unknown }>)
+          const pay = row.data?.[0]
+          if (!row.error && pay) expected = pay.amount_paise - pay.credit_used_paise
+        }
+        /* No readable payment row means we cannot prove what we were owed. */
+        if (expected === null) throw new Error('paypal_capture_unverifiable')
         const amountOk = capture.amount_paise === expected
         const currencyOk = capture.currency === null || capture.currency === 'INR'
         const refOk = capture.custom_id === null || capture.custom_id === data.requestId

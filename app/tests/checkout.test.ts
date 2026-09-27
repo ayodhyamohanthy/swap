@@ -130,6 +130,33 @@ describe('capture and failure', () => {
     expect(getRequest(request.id)?.status).not.toBe('locked')
   })
 
+  it('a server-priced credit figure is used verbatim for the local row', async () => {
+    /* PayPal: the server priced the order and told us ₹50 of credit covered it.
+       The local payment row must carry that same figure, or the client spends
+       credit the payer was never actually charged for. */
+    const { request } = await acceptedJourney()
+    credit({ to: 'requester', amountPaise: 5000, kind: 'acceptor_credit' })
+    const ticket = beginCheckout(request.id, 'paypal', false, false, 5000)
+    expect(ticket.creditUsed).toBe(5000)
+    expect(ticket.due).toBe(4900)
+  })
+
+  it('a forged credit figure cannot exceed the real balance', async () => {
+    const { request } = await acceptedJourney()
+    credit({ to: 'requester', amountPaise: 5000, kind: 'acceptor_credit' })
+    const ticket = beginCheckout(request.id, 'paypal', false, false, 9900)
+    expect(ticket.creditUsed).toBe(5000)
+    expect(ticket.due).toBe(4900)
+  })
+
+  it('a negative credit override is treated as no credit', async () => {
+    const { request } = await acceptedJourney()
+    credit({ to: 'requester', amountPaise: 5000, kind: 'acceptor_credit' })
+    const ticket = beginCheckout(request.id, 'paypal', false, false, -9900)
+    expect(ticket.creditUsed).toBe(0)
+    expect(ticket.due).toBe(PRICE_PAISE)
+  })
+
   it('a failed gateway leaves credit and request untouched (rule 6)', async () => {
     const { request } = await acceptedJourney()
     credit({ to: 'requester', amountPaise: 5000, kind: 'acceptor_credit' })

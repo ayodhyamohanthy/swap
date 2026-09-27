@@ -97,26 +97,37 @@ function PaypalScreen() {
     if (busy) return
     setBusy(true)
     try {
-      const ticket = beginCheckout(requestId, 'paypal', isGroup, useCredit === 1)
-      if (ticket.settled) {
-        navigate({ to: '/pay/$requestId/done', params: { requestId } })
-        return
-      }
       if (!gatewayLive()) {
-        /* No PayPal keys on this device: leave the attempt honestly pending so
-           the status screen can settle it, exactly as the other methods do. */
+        /* No PayPal keys on this device: book the attempt locally and leave it
+           honestly pending so the status screen can settle it, exactly as the
+           other methods do. */
+        const offline = beginCheckout(requestId, 'paypal', isGroup, useCredit === 1)
+        if (offline.settled) {
+          navigate({ to: '/pay/$requestId/done', params: { requestId } })
+          return
+        }
         navigate({ to: '/pay/$requestId/status', params: { requestId }, search: { state: 'pending' } })
         return
       }
       const origin = window.location.origin
+      /* The SERVER decides the amount and how much credit covers it, so the two
+         can never disagree. The local payment row must then carry that same
+         figure, or the client spends credit the payer was never actually
+         charged for. */
       const order = await createPaypalOrder({
         data: {
           requestId,
           isGroup,
+          useCredit: useCredit === 1,
           returnUrl: `${origin}/pay/${encodeURIComponent(requestId)}/paypal`,
           cancelUrl: `${origin}/pay/${encodeURIComponent(requestId)}/method`,
         },
       })
+      const ticket = beginCheckout(requestId, 'paypal', isGroup, false, order.credit_used_paise)
+      if (ticket.settled) {
+        navigate({ to: '/pay/$requestId/done', params: { requestId } })
+        return
+      }
       if (order.approval_url) {
         window.location.href = order.approval_url
         return

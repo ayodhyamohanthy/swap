@@ -64,6 +64,7 @@ export function beginGroupCheckout(
   groupId: string,
   provider: Exclude<CheckoutProvider, 'credit'>,
   useCredit = true,
+  creditOverridePaise?: number,
 ): CheckoutTicket {
   const group = getGroup(groupId)
   if (!group) throw new CheckoutError('request_not_found')
@@ -76,7 +77,7 @@ export function beginGroupCheckout(
   if (existing && (existing.status === 'paid' || existing.status === 'pending')) {
     return ticket(existing, existing.status === 'paid')
   }
-  const quote = buildQuote(useCredit ? creditAvailable() : 0, true)
+  const quote = buildQuote(creditToUse(useCredit, creditOverridePaise), true)
   if (quote.due === 0) {
     const row = startPayment({
       request_id: groupId,
@@ -109,11 +110,15 @@ export function beginCheckout(
   provider: Exclude<CheckoutProvider, 'credit'>,
   isGroup = false,
   useCredit = true,
+  /* When the server has already priced the order (PayPal), it tells us exactly
+     how much credit it covered. Reuse that figure instead of recomputing it
+     locally, or the two disagree and the payer is charged for credit twice. */
+  creditOverridePaise?: number,
 ): CheckoutTicket {
   /* Group trips pay ₹199 once (docs/01, docs/04 C): no acceptance needed, the
      payment marks the group paid and covers up to GROUP_MAX_SWAPS locks. */
   if (isGroup || isGroupRequestId(requestId)) {
-    return beginGroupCheckout(requestId, provider, useCredit)
+    return beginGroupCheckout(requestId, provider, useCredit, creditOverridePaise)
   }
   const request = getRequest(requestId)
   if (!request) throw new CheckoutError('request_not_found')
@@ -125,7 +130,7 @@ export function beginCheckout(
     return ticket(existing, request.status === 'locked' || existing.status === 'paid')
   }
 
-  const quote = buildQuote(useCredit ? creditAvailable() : 0, isGroup)
+  const quote = buildQuote(creditToUse(useCredit, creditOverridePaise), isGroup)
   if (quote.due === 0) {
     /* Fully covered by credit: no provider call, instant lock (docs/06). */
     const row = startPayment({
@@ -229,6 +234,14 @@ function ticket(row: PaymentRow, settled: boolean): CheckoutTicket {
 /** Credit the payer can actually spend right now, paise. */
 function creditAvailable(): number {
   return creditPaise()
+}
+
+/** The balance to quote from. A server-priced figure wins, but it is still
+    clamped to what this wallet really holds so no caller can credit itself. */
+function creditToUse(useCredit: boolean, overridePaise?: number): number {
+  if (overridePaise === undefined) return useCredit ? creditAvailable() : 0
+  const claimed = Number.isFinite(overridePaise) ? Math.floor(overridePaise) : 0
+  return Math.max(0, Math.min(claimed, creditAvailable()))
 }
 
 /**
