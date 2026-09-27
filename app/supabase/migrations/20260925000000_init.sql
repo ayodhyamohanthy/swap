@@ -528,7 +528,7 @@ CREATE POLICY disputes_staff ON public.disputes
 -- ------------------------------------------------------------------- chats
 -- One chat per request; only the two parties read or write.
 CREATE POLICY chats_party_read ON public.chats
-  FOR SELECT TO authenticated USING (public.is_request_party(id, auth.uid()));
+  FOR SELECT TO authenticated USING (public.is_request_party(request_id, auth.uid()));
 CREATE POLICY messages_party_read ON public.messages
   FOR SELECT TO authenticated
   USING (
