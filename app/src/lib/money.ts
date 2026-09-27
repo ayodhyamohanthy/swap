@@ -28,6 +28,29 @@ export function rupees(paise: number): number {
   return Math.round(paise / 100)
 }
 
+/* PayPal estimate (docs/06: "about US$X" is an estimate only — the charge is
+   always ₹99 INR = 9900 paise). The rate is a display hint, not a promise:
+   integer tenths of a dollar, computed from whole paise with no float maths.
+   `usdTenthsFor(chargePaise)` returns e.g. 12 for ₹99 → "US$1.2". */
+export const PAYPAL_ESTIMATE_RATE_NUM = 12 as const
+export const PAYPAL_ESTIMATE_RATE_DEN = 9900 as const
+
+/** Tenths of a US dollar for a rupee charge, integer maths only. */
+export function usdTenthsFor(chargePaise: number): number {
+  if (!Number.isInteger(chargePaise) || chargePaise <= 0) {
+    throw new Error(`amount_not_whole_paise:${chargePaise}`)
+  }
+  return Math.round((chargePaise * PAYPAL_ESTIMATE_RATE_NUM) / PAYPAL_ESTIMATE_RATE_DEN)
+}
+
+/** "US$1.2" from whole paise — the "about" label is added by the caller. */
+export function formatUsdTenths(tenths: number): string {
+  if (!Number.isInteger(tenths) || tenths <= 0) {
+    throw new Error(`amount_not_whole_tenths:${tenths}`)
+  }
+  return `US$${Math.trunc(tenths / 10)}.${tenths % 10}`
+}
+
 export function formatRupees(paise: number): string {
   return `₹${rupees(paise).toLocaleString('en-IN')}`
 }

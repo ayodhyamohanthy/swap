@@ -388,7 +388,10 @@ export function withdrawRequest(requestId: string): SwapRequest | undefined {
   return updated
 }
 
-/** An acceptance flips the request; payment has NOT happened yet (rule 2). */
+/** An acceptance flips the request; payment has NOT happened yet (rule 2).
+    A second acceptance while one is already awaiting payment is recorded as
+    another accepted offer (docs/03 Offer: `sent → accepted` is per-offer;
+    the paid one wins at lock, the rest are superseded). */
 export function acceptOffer(
   offerId: string,
   acceptorName?: string,
@@ -396,7 +399,8 @@ export function acceptOffer(
   const offer = ensureLoaded().offers.find((row) => row.id === offerId)
   if (!offer) return {}
   const request = getRequest(offer.request_id)
-  if (!request || request.status !== 'searching') return {}
+  if (!request || (request.status !== 'searching' && request.status !== 'accepted_awaiting_payment'))
+    return {}
   if (offer.status !== 'sent') return {}
 
   const updatedOffer: SwapOffer = {
@@ -422,8 +426,13 @@ export function declineOffer(offerId: string): SwapOffer | undefined {
   if (offer.status !== 'sent' && offer.status !== 'accepted') return undefined
   const request = getRequest(offer.request_id)
   const updated: SwapOffer = { ...offer, status: 'declined', responded_at: now() }
-  /* Backing out before payment returns a waiting request to searching. */
-  const backToSearching = request?.status === 'accepted_awaiting_payment' && offer.status === 'accepted'
+  /* Backing out before payment returns a waiting request to searching —
+     only when no OTHER accepted offer is still waiting to be paid. */
+  const othersAccepted = ensureLoaded().offers.some(
+    (row) => row.request_id === offer.request_id && row.status === 'accepted' && row.id !== offerId,
+  )
+  const backToSearching =
+    request?.status === 'accepted_awaiting_payment' && offer.status === 'accepted' && !othersAccepted
   commit({
     ...ensureLoaded(),
     requests: backToSearching && request
@@ -437,14 +446,19 @@ export function declineOffer(offerId: string): SwapOffer | undefined {
   return updated
 }
 
-/** Runs the moment payment succeeds: lock + supersede everyone else (rule 2). */
-export function lockRequest(requestId: string): SwapRequest | undefined {
+/** Runs the moment payment succeeds: lock + supersede everyone else (rule 2).
+    With concurrent accepts, pass the PAID offer — the first to be paid for
+    wins (docs/04 A.9); omitting it falls back to the earliest acceptance. */
+export function lockRequest(requestId: string, paidOfferId?: string): SwapRequest | undefined {
   const request = getRequest(requestId)
   if (!request) return undefined
   /* Locking is payment-gated: only an accepted-awaiting-payment request with
      an accepted offer can lock (docs/03). */
   if (request.status !== 'accepted_awaiting_payment') return undefined
-  const accepted = offersFor(requestId).find((offer) => offer.status === 'accepted')
+  const acceptedOffers = offersFor(requestId).filter((offer) => offer.status === 'accepted')
+  const accepted =
+    (paidOfferId ? acceptedOffers.find((offer) => offer.id === paidOfferId) : undefined) ??
+    acceptedOffers[0]
   if (!accepted) return undefined
   /* Group bundle cap (docs/01): a paid ₹199 trip covers at most
      GROUP_MAX_SWAPS locks; further swaps pay per-request, so a lock backed

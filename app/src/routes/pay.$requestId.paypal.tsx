@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/lib/i18n'
+import { formatUsdTenths, usdTenthsFor } from '@/lib/money'
 import { buildQuote } from '@/lib/payments'
 import {
   beginCheckout,
@@ -52,6 +53,9 @@ function PaypalScreen() {
   const captured = useRef<string | null>(null)
 
   const quote = buildQuote(useCredit === 1 ? credit : 0, isGroup)
+  /* The USD figure is an estimate only (docs/06) — the charge is always the
+     INR amount, so a partly credit-covered order estimates on what is left. */
+  const usd = formatUsdTenths(usdTenthsFor(Math.max(charged, 1)))
   /* Card total is the gateway's own number, so a credit-covered order shows the
      reduced amount rather than the full price. */
   const charged = payment ? payment.amount_paise - payment.credit_used_paise : quote.due
@@ -158,7 +162,7 @@ function PaypalScreen() {
       <h1 className="text-title text-ink">{t('pay.paypalTitle')}</h1>
       <Card className="mt-4">
         <span className="font-head text-title font-bold text-ink">
-          {t('pay.paypalDue', { amount: charged / 100 })}
+          {t('pay.paypalDue', { amount: charged / 100, usd })}
         </span>
       </Card>
       <p className="mt-4 text-body text-muted">{t('pay.paypalOwn')}</p>

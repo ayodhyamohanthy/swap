@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/lib/i18n'
+import { formatUsdTenths, PRICE_PAISE, usdTenthsFor } from '@/lib/money'
 import { loadRazorpay } from '@/lib/pay-sdk'
 import { beginCheckout, CheckoutError } from '@/lib/checkout'
 import { acceptedOffer } from '@/lib/requests'
@@ -51,6 +52,9 @@ function MethodScreen() {
   const quote = buildQuote(useCredit === 1 ? credit : 0, isGroup)
   const [busy, setBusy] = useState(false)
   const name = acceptedOffer(requestId)?.acceptor_name ?? t('common.traveller')
+  /* Same estimate helper as the PayPal screen: quote.due is the INR charge,
+     quote.provider === 'credit' means nothing is charged at all. */
+  const usd = formatUsdTenths(usdTenthsFor(isGroup ? 19900 : PRICE_PAISE))
 
   async function pay(provider: 'razorpay' | 'paypal', method: Method) {
     if (busy) return
@@ -137,7 +141,7 @@ function MethodScreen() {
           >
             {t('pay.payPal')}
           </Button>
-          <p className="mt-2 text-caption text-muted">{t('pay.paypalNote', { amount: '1.2' })}</p>
+          <p className="mt-2 text-caption text-muted">{t('pay.paypalNote', { amount: quote.due / 100, usd })}</p>
         </CardBody>
       </Card>
 

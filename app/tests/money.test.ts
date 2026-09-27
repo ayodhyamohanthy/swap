@@ -10,9 +10,11 @@ import {
   PRICE_SPLIT_OK,
   THANK_YOU_PAISE,
   formatRupees,
+  formatUsdTenths,
   paiseToDecimalString,
   rupees,
   decimalStringToPaise,
+  usdTenthsFor,
 } from '@/lib/money'
 
 describe('the swap price', () => {
@@ -35,6 +37,25 @@ describe('the swap price', () => {
 
   it('knows the payment providers of the build plan', () => {
     expect([...PAYMENT_PROVIDERS]).toEqual(['razorpay', 'paypal', 'credit'])
+  })
+})
+
+/* PayPal estimate (docs/06): "about US$X" is a hint, never the charge. The
+   charge is always the INR paise figure; the estimate scales with it so a
+   partly credit-covered payment estimates on what is actually charged. */
+describe('the PayPal USD estimate', () => {
+  it('shows about US$1.2 for the full ₹99 charge', () => {
+    expect(formatUsdTenths(usdTenthsFor(9900))).toBe('US$1.2')
+  })
+
+  it('shrinks with the credit-covered charge instead of staying at US$1.20', () => {
+    expect(formatUsdTenths(usdTenthsFor(4900))).toBe('US$0.6')
+  })
+
+  it('uses integer maths and refuses non-charges', () => {
+    expect(() => usdTenthsFor(0)).toThrow()
+    expect(() => usdTenthsFor(99.5)).toThrow()
+    expect(() => formatUsdTenths(0)).toThrow()
   })
 })
 

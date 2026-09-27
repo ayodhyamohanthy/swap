@@ -18,7 +18,9 @@
       "Shell(node -e  const en=require('./locales/en.json'), hi=require('./locales/hi.json'); for(const k of ['upiBody','upiHold','upiRetry','upiTitle','checkStatus','inIndia','intl','payPal','debitCard','netBanking','otherUpi']) console.log(k, 'en:'+!!en.pay[k], 'hi:'+!!hi.pay[k]);)",
       "Shell(node -e  const fs = require('node:fs'); for (const f of ['locales/en.json', 'locales/hi.json']) { const raw = fs.readFileSync(f, 'utf8'); const out = raw.split('\\n').filter(l => !/^\\s*\"(upiApprove|upiNoRequest)\":/.test(l)).join('\\n'); fs.writeFileSync(f, out); JSON.parse(out); console.log(f, 'OK, removed', raw.split('\\n').length - out.split('\\n').length, 'lines'); })",
       "Shell(git:*)",
-      "Shell(cd /Users/ayodhyarammohanthy/Documents/GitHub/swap && grep -n -i \"second\\|multiple\\|faster\\|both accept\\|two accept\" docs/03-STATE-MACHINES.md | head -12 && echo \"---\" && sed -n \"$(grep -n -i 'offer' docs/03-STATE-MACHINES.md | head -1 | cut -d: -f1),+18p\" docs/03-STATE-MACHINES.md)"
+      "Shell(cd /Users/ayodhyarammohanthy/Documents/GitHub/swap && grep -n -i \"second\\|multiple\\|faster\\|both accept\\|two accept\" docs/03-STATE-MACHINES.md | head -12 && echo \"---\" && sed -n \"$(grep -n -i 'offer' docs/03-STATE-MACHINES.md | head -1 | cut -d: -f1),+18p\" docs/03-STATE-MACHINES.md)",
+      "Shell(npx vitest run tests/requests.test.ts -t second acceptance 2 >& 1)",
+      "Shell(npx vitest run tests/flow-branches.test.ts tests/requests.test.ts 2 >& 1)"
     ],
     "deny": [],
     "defaultMode": "default"

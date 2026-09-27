@@ -171,7 +171,7 @@ describe('accept then pay (rules 2, 3)', () => {
     expect(creditPaise()).toBe(0)
   })
 
-  it('a second acceptance is refused while one is already pending', async () => {
+  it('a second acceptance is recorded while one is already awaiting payment', async () => {
     const { mine } = await seed()
     await extraSwapper('4512789663', 'B6', '12')
     const request = createRequest({ trip_id: mine.id, choices: ['UB'] })
@@ -180,8 +180,12 @@ describe('accept then pay (rules 2, 3)', () => {
     const offers = offersFor(request.id)
     expect(offers).toHaveLength(2)
     acceptOffer(offers[0].id)
-    /* Rule 2: until payment, other matches can still accept. */
-    expect(acceptOffer(offers[1].id).request).toBeUndefined()
+    /* Rule 2: until payment, other matches can still accept — the second
+       acceptance becomes another accepted offer; payment picks the winner. */
+    const second = acceptOffer(offers[1].id)
+    expect(second.offer?.status).toBe('accepted')
+    expect(getRequest(request.id)?.status).toBe('accepted_awaiting_payment')
+    expect(getRequest(request.id)?.locked_offer_id).toBeNull()
   })
 
   it('declining leaves the request searching', async () => {

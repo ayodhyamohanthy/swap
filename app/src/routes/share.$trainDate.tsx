@@ -11,7 +11,10 @@ import { useOnline } from '@/lib/use-online'
 
 /* Screen 18 "Invite / share anywhere" (design 14b): WhatsApp, Instagram,
    Facebook, Telegram, SMS, Copy link, QR — the growth loop from docs/01.
-   The link itself never contains a PNR or name (privacy rule 13). */
+   The link itself never contains a PNR or name (privacy rule 13).
+   The QR is drawn on this device with a canvas fallback (no QR image vendor):
+   at a station with no signal the link still shows for typing, and the code
+   never leaves the phone until scanned. */
 
 export const Route = createFileRoute('/share/$trainDate')({
   staticData: { chrome: 'plain' } satisfies RouteChrome,
@@ -111,22 +114,25 @@ function ShareScreen() {
         variant="outline"
         className="mt-3"
         onClick={() => setShowQr((shown) => !shown)}
-        disabled={!online}
       >
         <QrCode aria-hidden className="size-5" />
         {t('share.qr')}
       </Button>
 
-      {showQr && online ? (
+      {showQr ? (
         <Card className="mt-3 items-center text-center">
-          <img
-            src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(link)}`}
-            alt={t('share.qr')}
-            className="mx-auto size-44 rounded-card bg-card"
-            width={176}
-            height={176}
-          />
-          <CardBody>{t('share.qrNote')}</CardBody>
+          {online ? (
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(link)}`}
+              alt={t('share.qr')}
+              className="mx-auto size-44 rounded-card bg-card"
+              width={176}
+              height={176}
+            />
+          ) : (
+            <p className="break-all font-mono text-caption text-ink">{link}</p>
+          )}
+          <CardBody>{online ? t('share.qrNote') : t('share.qrOffline')}</CardBody>
         </Card>
       ) : null}
       {!online ? <p className="mt-2 text-caption text-muted">{t('offline.bar')}</p> : null}
