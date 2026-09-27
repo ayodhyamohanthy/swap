@@ -1,40 +1,63 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute } from '@tanstack/react-router'
 import { AppFooter, type RouteChrome } from '@/components/app-shell'
+import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { useI18n } from '@/lib/i18n'
-import { demoRequest } from '@/lib/demo-swap'
 import { formatRupees } from '@/lib/money'
-import { receiptNumber, splitReceipt } from '@/lib/payments'
+import { splitReceipt } from '@/lib/payments'
+import { getPayment } from '@/lib/store'
+import { isGroupRequestId } from '@/lib/groups'
 
-/* Screen 59 "Receipt" (design 29b, docs/06). ₹99 always splits into ₹49 fee +
-   ₹50 thank-you credit. The number format is SS-#####; the total is shown in
-   rupees while every stored amount stays in integer paise. */
+/* Screen 59 "Receipt" (design 29b, docs/06). Every figure comes from the
+   stored payment row — amount, credit used, and the SS-##### number assigned
+   when it turned paid. Nothing is recomputed or fabricated: a credit-covered
+   or group payment shows its real totals. */
 
 export const Route = createFileRoute('/profile/payments/$id')({
   staticData: { chrome: 'plain' } satisfies RouteChrome,
   component: ReceiptScreen,
 })
 
+const LINE_KEY = {
+  fee: 'pay.receiptFee',
+  thank_you: 'pay.receiptThanks',
+  group_cover: 'pay.groupCover',
+  credit_used: 'pay.creditUsed',
+} as const
+
 function ReceiptScreen() {
   const { id } = Route.useParams()
   const { t, date } = useI18n()
-  const request = demoRequest(id)
-  const receipt = splitReceipt(9900, 0, request.isGroup)
-  const number = receiptNumber(id.length * 7919 + 10482)
+  const payment = getPayment(id)
+
+  if (!payment) {
+    return (
+      <div>
+        <Card className="mt-4">
+          <CardTitle>{t('home.empty')}</CardTitle>
+        </Card>
+        <Button className="mt-4" asChild>
+          <Link to="/profile/payments">{t('nav.profile')}</Link>
+        </Button>
+        <AppFooter />
+      </div>
+    )
+  }
+
+  const isGroup = isGroupRequestId(payment.request_id)
+  const receipt = splitReceipt(payment.amount_paise, payment.credit_used_paise, isGroup)
+  const number = payment.receipt_number ?? ''
 
   return (
     <div>
       <h1 className="text-title text-ink">{t('payments.receipt', { n: number })}</h1>
-      <p className="mt-1 text-caption text-muted">{t('payments.demo')}</p>
 
       <Card className="mt-4">
-        <CardTitle>{t('pay.title', { name: request.acceptorName })}</CardTitle>
+        <CardTitle>{isGroup ? t('pay.groupTitle') : t('pay.pay99')}</CardTitle>
         <dl className="mt-2 text-body">
           {receipt.lines.map((line) => (
             <div key={line.label} className="flex items-center justify-between py-1">
-              <dt className="text-muted">
-                {line.label === 'fee' ? t('pay.receiptFee') : t('pay.receiptThanks')}
-              </dt>
+              <dt className="text-muted">{t(LINE_KEY[line.label as keyof typeof LINE_KEY])}</dt>
               <dd className="font-head font-bold text-ink">{formatRupees(line.amountPaise)}</dd>
             </div>
           ))}
@@ -48,7 +71,7 @@ function ReceiptScreen() {
           </div>
         </dl>
         <CardBody>
-          {t('pay.receipt', { n: number })} · {date(new Date().toISOString().slice(0, 10))}
+          {t('pay.receipt', { n: number })} · {date(payment.created_at.slice(0, 10))}
         </CardBody>
       </Card>
 
