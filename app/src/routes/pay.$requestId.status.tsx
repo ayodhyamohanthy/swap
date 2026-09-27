@@ -48,10 +48,13 @@ function StatusScreen() {
     if (!gatewayLive()) {
       /* Demo device: no gateway to wait for, so settle the swap here. */
       try {
-        confirmCaptured(requestId, 'local_demo')
-        navigate({ to: '/pay/$requestId/done', params: { requestId } })
+        const settled = confirmCaptured(requestId, 'local_demo')
+        /* Only a real lock may show "Payment successful". Money captured with
+           no locked swap is not a success screen — it stays here. */
+        if (settled.settled) navigate({ to: '/pay/$requestId/done', params: { requestId } })
       } catch (err) {
-        if (err instanceof CheckoutError) markFailed(requestId)
+        /* A payment already recorded as paid must never be flipped to failed. */
+        if (err instanceof CheckoutError && payment.status !== 'paid') markFailed(requestId)
       }
       return
     }

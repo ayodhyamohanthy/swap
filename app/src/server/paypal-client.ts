@@ -1,6 +1,6 @@
 /* PayPal v2 Orders + Captures (docs/06, international travellers). Real HTTP,
    injectable for tests. Amounts go out as decimal strings, never floats. */
-import { paiseToDecimalString } from '@/lib/money'
+import { decimalStringToPaise, paiseToDecimalString } from '@/lib/money'
 import {
   basicAuth,
   callJson,
@@ -21,6 +21,11 @@ export interface PaypalCaptureResult {
   id: string
   status: 'paid' | 'pending' | 'failed'
   provider_ref: string | null
+  /** What PayPal says it captured, in paise. null unless it was INR. */
+  amount_paise: number | null
+  currency: string | null
+  /** purchase_units[0].custom_id — the request this order was created for. */
+  custom_id: string | null
 }
 
 function apiBase(deps: ProviderDeps): string {
@@ -124,7 +129,12 @@ export function paypalCaptureStatus(status: string): PaypalCaptureResult['status
   return 'failed'
 }
 
-/** POST /v2/checkout/orders/{id}/capture — the truth about the money. */
+/** POST /v2/checkout/orders/{id}/capture — the truth about the money.
+ *
+ * The capture receipt is also parsed for what was ACTUALLY taken: amount,
+ * currency and the order's custom_id. A COMPLETED status alone only says some
+ * money moved on some order — without these the caller cannot tell a ₹99
+ * payment for this swap from a ₹1 order that someone reused the id of. */
 export async function paypalCaptureOrder(
   deps: ProviderDeps,
   input: { orderId: string },
@@ -144,6 +154,16 @@ export async function paypalCaptureOrder(
   const captures = Array.isArray(payments.captures)
     ? (payments.captures as Record<string, unknown>[])
     : []
-  const captureId = typeof captures[0]?.id === 'string' ? captures[0].id : null
-  return { id: input.orderId, status: paypalCaptureStatus(status), provider_ref: captureId }
+  const receipt = captures[0] as Record<string, unknown> | undefined
+  const amount = receipt?.amount as Record<string, unknown> | undefined
+  const currency = typeof amount?.currency_code === 'string' ? amount.currency_code : ''
+  return {
+    id: input.orderId,
+    status: paypalCaptureStatus(status),
+    provider_ref: typeof receipt?.id === 'string' ? receipt.id : null,
+    /* Only an INR amount is readable as paise; a foreign one is null, not 0. */
+    amount_paise: currency === 'INR' ? decimalStringToPaise(amount?.value) : null,
+    currency: currency || null,
+    custom_id: typeof units[0]?.custom_id === 'string' ? units[0].custom_id : null,
+  }
 }

@@ -170,12 +170,18 @@ export function confirmCaptured(requestId: string, providerRef?: string): Checko
   }
   if (row.status === 'failed') throw new CheckoutError('payment_failed')
   const paid = setPaymentStatus(row.id, 'paid', providerRef) ?? row
-  spendCredit(paid)
   if (isGroupRequestId(requestId)) {
     markGroupPaid(requestId)
+    spendCredit(paid)
     return ticket(paid, true)
   }
-  lockRequest(requestId)
+  /* Lock FIRST, and only trust the lock. If the request stopped being payable
+     while the gateway was confirming (withdrawn, expired, another offer took
+     it), the money is genuinely captured but no swap happened — rule 6 sends
+     that ₹99 to the requester's credit through the outcome path, so the
+     planned credit spend must NOT happen here and no screen may claim a lock. */
+  if (!lockRequest(requestId)) return ticket(paid, false)
+  spendCredit(paid)
   return ticket(paid, true)
 }
 

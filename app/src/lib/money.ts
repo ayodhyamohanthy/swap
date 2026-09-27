@@ -45,3 +45,19 @@ export function paiseToDecimalString(paise: number): string {
   const fraction = abs % 100
   return `${sign}${whole}.${String(fraction).padStart(2, '0')}`
 }
+
+/** Inverse of `paiseToDecimalString`, for reading an amount back off the wire
+    (a PayPal capture receipt). Integer maths only — parsing "99.00" through a
+    float and re-rounding is how a rupee of someone's money disappears.
+    Returns null for anything that is not a plain 1-2 decimal amount, so a
+    malformed gateway field is never silently read as zero. */
+export function decimalStringToPaise(value: unknown): number | null {
+  if (typeof value !== 'string') return null
+  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(value.trim())
+  if (!match) return null
+  const whole = Number(match[1])
+  if (!Number.isSafeInteger(whole)) return null
+  const fraction = Number((match[2] ?? '').padEnd(2, '0'))
+  const paise = whole * 100 + fraction
+  return Number.isSafeInteger(paise) ? paise : null
+}
