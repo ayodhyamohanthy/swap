@@ -10,6 +10,7 @@ import {
   offersFor,
   resetRequests,
   sendRequest,
+  withdrawRequest,
 } from '@/lib/requests'
 import { addTrip, credit, creditPaise, resetStore, setOpenToSwap } from '@/lib/store'
 
@@ -110,6 +111,23 @@ describe('capture and failure', () => {
     expect(done.status).toBe('paid')
     expect(getRequest(request.id)?.status).toBe('locked')
     expect(creditPaise()).toBe(0)
+  })
+
+  it('never spends credit or claims a lock when the request stopped being payable', async () => {
+    /* The requester withdraws while the gateway is still confirming. The money
+       is captured, but no swap happened: rule 6 sends the ₹99 to their credit
+       via the outcome path, so the planned credit spend must not happen and
+       the caller must not be told the swap locked. */
+    const { request } = await acceptedJourney()
+    credit({ to: 'requester', amountPaise: 5000, kind: 'acceptor_credit' })
+    beginCheckout(request.id, 'razorpay')
+    withdrawRequest(request.id)
+
+    const done = confirmCaptured(request.id, 'pay_late')
+
+    expect(done.settled).toBe(false)
+    expect(creditPaise()).toBe(5000)
+    expect(getRequest(request.id)?.status).not.toBe('locked')
   })
 
   it('a failed gateway leaves credit and request untouched (rule 6)', async () => {
