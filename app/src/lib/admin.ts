@@ -378,15 +378,128 @@ export function buildOverview(input: AdminOverviewInput, nowMs = Date.now()): Ad
   }
 }
 
+/* ------------------------------------------------------------------ *
+ * Activity categories (design 15)                                     *
+ * ------------------------------------------------------------------ */
+
+/**
+ * The console's chips. Design 15 shows All / Requests / Payments / Swaps /
+ * Reports / Sign-ins; `trips` and `account` are added because the log really
+ * writes trip and settings actions (the design's own table lists "Added PNR")
+ * and without them those rows would belong to no chip at all.
+ *
+ * `other` is deliberately NOT a chip — see `uncategorisedActions`.
+ */
+export const ACTIVITY_CATEGORIES = [
+  'trips',
+  'requests',
+  'payments',
+  'swaps',
+  'reports',
+  'signins',
+  'account',
+] as const
+
+export type ActivityCategory = (typeof ACTIVITY_CATEGORIES)[number] | 'other'
+
+/**
+ * Which chip an action belongs to.
+ *
+ * Built from the actions the code actually logs, NOT from docs/08's list —
+ * that list omits `swap_confirmed`, `acceptor_backed_out`, `someone_faster`,
+ * `meet_answered`, `group_*`, `trip_removed` and the welcome/settings actions,
+ * so a map derived from it would drop those rows out of every category.
+ * `tests/admin.test.ts` walks `src/` for every `logActivity(...)` call and
+ * fails if one of them lands in `other`.
+ */
+const ACTIVITY_CATEGORY_BY_ACTION: Record<string, ActivityCategory> = {
+  /* Trips + groups */
+  pnr_added: 'trips',
+  trip_removed: 'trips',
+  open_to_swap_on: 'trips',
+  open_to_swap_off: 'trips',
+  quota_note_seen: 'trips',
+  reminder_on: 'trips',
+  reminder_off: 'trips',
+  chart_out: 'trips',
+  chart_reset: 'trips',
+  sms_paste_parsed: 'trips',
+  group_created: 'trips',
+  group_linked: 'trips',
+  group_paid: 'trips',
+  /* Requests + offers */
+  request_drafted: 'requests',
+  request_sent: 'requests',
+  request_capped: 'requests',
+  request_paused: 'requests',
+  request_resumed: 'requests',
+  request_withdrawn: 'requests',
+  offer_accepted: 'requests',
+  offer_declined: 'requests',
+  acceptor_backed_out: 'requests',
+  someone_faster: 'requests',
+  /* Money + credit */
+  payment_created: 'payments',
+  payment_pending: 'payments',
+  payment_paid: 'payments',
+  payment_failed: 'payments',
+  credit_added: 'payments',
+  credit_used: 'payments',
+  /* The swap itself, after money moved */
+  swap_locked: 'swaps',
+  confirmation: 'swaps',
+  swap_confirmed: 'swaps',
+  swap_voided: 'swaps',
+  dispute_opened: 'swaps',
+  dispute_resolved: 'swaps',
+  meet_answered: 'swaps',
+  rating_given: 'swaps',
+  /* Moderation */
+  report_filed: 'reports',
+  block: 'reports',
+  admin_action: 'reports',
+  /* Session */
+  sign_in: 'signins',
+  sign_out: 'signins',
+  /* Onboarding + preferences */
+  privacy_consented: 'account',
+  note_acknowledged: 'account',
+  alerts_intent: 'account',
+  settings_changed: 'account',
+  language_changed: 'account',
+  easy_mode_changed: 'account',
+  invite_created: 'account',
+}
+
+/** The chip an action belongs to, or `other` when nothing claims it. */
+export function activityCategory(action: string): ActivityCategory {
+  return ACTIVITY_CATEGORY_BY_ACTION[action] ?? 'other'
+}
+
+/**
+ * Actions present in `rows` that no category claims. The screen renders an
+ * "Other" chip when this is non-empty, so an action added without updating the
+ * map shows up loudly instead of quietly vanishing from every chip.
+ */
+export function uncategorisedActions(rows: ActivityRow[]): string[] {
+  return [...new Set(rows.map((row) => row.action))]
+    .filter((action) => activityCategory(action) === 'other')
+    .sort()
+}
+
 export interface ActivityFilter {
   action: string | null
+  /** `all` matches every category, including `other`. */
+  category: ActivityCategory | 'all'
   query: string
 }
 
-/** Filter by action; search matches user/PNR-last4/train (last4 only). */
+/** Filter by category and action; search matches user/PNR-last4/train (last4
+    only). */
 export function filterActivity(rows: ActivityRow[], filter: ActivityFilter): ActivityRow[] {
   const q = filter.query.trim().toLowerCase()
   return rows.filter((row) => {
+    if (filter.category !== 'all' && activityCategory(row.action) !== filter.category) return false
     if (filter.action && row.action !== filter.action) return false
     if (!q) return true
     const hay = [row.actor_id ?? '', row.action, row.entity ?? '', row.entity_id ?? '', JSON.stringify(row.meta)].join(' ').toLowerCase()

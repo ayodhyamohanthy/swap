@@ -4,8 +4,16 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
 import { Field, Input } from '@/components/ui/input'
-import { activityActions, activityToCsv, downloadCsv, filterActivity } from '@/lib/admin'
-import { useI18n } from '@/lib/i18n'
+import {
+  ACTIVITY_CATEGORIES,
+  activityActions,
+  activityToCsv,
+  downloadCsv,
+  filterActivity,
+  uncategorisedActions,
+  type ActivityCategory,
+} from '@/lib/admin'
+import { useI18n, type MessageKey } from '@/lib/i18n'
 import { useAppState } from '@/lib/use-store'
 
 /* Admin A2 "Activity log" (design 15). Every state change in the app writes a
@@ -17,14 +25,46 @@ export const Route = createFileRoute('/admin/activity')({
   component: AdminActivity,
 })
 
+/**
+ * Chip label per category. Payments/Swaps/Reports reuse the sidebar's own
+ * labels — same word, same meaning — so the two cannot drift apart in
+ * translation. The rest are their own keys.
+ *
+ * Chips are `Button size="sm"`, so they are 48px tall: taller than design 15's
+ * compact chips, because this repo's touch-target floor is not negotiable
+ * (components/ui/button.tsx).
+ */
+const CATEGORY_LABEL: Record<ActivityCategory | 'all', MessageKey> = {
+  all: 'admin.catAll',
+  trips: 'admin.catTrips',
+  requests: 'admin.catRequests',
+  payments: 'admin.payments',
+  swaps: 'admin.swaps',
+  reports: 'admin.reports',
+  signins: 'admin.catSignins',
+  account: 'admin.catAccount',
+  other: 'admin.catOther',
+}
+
 function AdminActivity() {
   const { t, date } = useI18n()
   const { activity } = useAppState()
   const [query, setQuery] = useState('')
   const [action, setAction] = useState<string | null>(null)
+  const [category, setCategory] = useState<ActivityCategory | 'all'>('all')
 
   const actions = activityActions(activity)
-  const rows = filterActivity(activity, { action, query })
+  const uncategorised = uncategorisedActions(activity)
+  const rows = filterActivity(activity, { action, category, query })
+
+  /* `other` is offered only when something actually landed in it, so an action
+     added without updating the category map shows up loudly instead of being
+     silently absent from every chip. */
+  const chips: Array<ActivityCategory | 'all'> = [
+    'all',
+    ...ACTIVITY_CATEGORIES,
+    ...(uncategorised.length > 0 ? (['other'] as const) : []),
+  ]
 
   return (
     <div>
@@ -37,6 +77,25 @@ function AdminActivity() {
         >
           {t('admin.csv')}
         </Button>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label={t('admin.catLabel')}>
+        {chips.map((chip) => (
+          <Button
+            key={chip}
+            size="sm"
+            variant={chip === category ? 'primary' : 'neutral'}
+            aria-pressed={chip === category}
+            /* Clearing the action avoids a contradictory pair (say Payments +
+               `pnr_added`) that can only ever render the empty state. */
+            onClick={() => {
+              setCategory(chip)
+              setAction(null)
+            }}
+          >
+            {t(CATEGORY_LABEL[chip])}
+          </Button>
+        ))}
       </div>
 
       <Field label={t('admin.searchPh')} htmlFor="admin-activity-search" className="mt-4">

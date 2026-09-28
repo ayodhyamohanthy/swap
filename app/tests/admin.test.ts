@@ -1,11 +1,20 @@
 /* Admin helpers + scheduled-job date cores (docs/04-D, docs/08).
    The job comment in lib/jobs.ts claims these are "tested in admin.test.ts" —
    this is that file. Guards: paise integers, CSV escaping, masked PNRs only. */
+/* node: modules come via getBuiltinModule — a static `import 'node:fs'` is
+   mangled by Vite's browser-compat externalization under the jsdom pool
+   (same reason as tests/schema.test.ts). */
+const { readFileSync, readdirSync, statSync } = process.getBuiltinModule(
+  'node:fs',
+) as typeof import('node:fs')
+const { join } = process.getBuiltinModule('node:path') as typeof import('node:path')
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
+  ACTIVITY_CATEGORIES,
   ADMIN_ROUTES,
   activityActions,
+  activityCategory,
   activityToCsv,
   buildOverview,
   creditsToCsv,
@@ -13,6 +22,7 @@ import {
   paymentsToCsv,
   swapsToCsv,
   toCsv,
+  uncategorisedActions,
   usersToCsv,
   type AdminOverviewInput,
   type AdminSwapRow,
@@ -242,15 +252,160 @@ describe('filterActivity', () => {
     logActivity('pnr_added', { train_no: '12951' })
     logActivity('request_sent', { train_no: '12951' })
 
-    expect(filterActivity(activityLog(), { action: 'pnr_added', query: '' })).toHaveLength(1)
-    expect(filterActivity(activityLog(), { action: null, query: '12951' })).toHaveLength(2)
-    expect(filterActivity(activityLog(), { action: null, query: 'nomatch' })).toHaveLength(0)
+    expect(filterActivity(activityLog(), { action: 'pnr_added', category: 'all', query: '' })).toHaveLength(1)
+    expect(filterActivity(activityLog(), { action: null, category: 'all', query: '12951' })).toHaveLength(2)
+    expect(filterActivity(activityLog(), { action: null, category: 'all', query: 'nomatch' })).toHaveLength(0)
   })
 
   it('lists distinct actions for the dropdown', () => {
     logActivity('pnr_added', {})
     logActivity('request_sent', {})
     expect(activityActions(activityLog())).toEqual(['pnr_added', 'request_sent'])
+  })
+})
+
+/* Design 15's chips. `all` matches every category; a category matches only its
+   own actions; and the two filters compose. */
+describe('filterActivity by category (design 15)', () => {
+  beforeEach(() => resetStore())
+
+  function seed() {
+    logActivity('pnr_added', { train_no: '12951' })
+    logActivity('request_sent', {})
+    logActivity('payment_paid', { amount_paise: 9900, credit_used_paise: 0 })
+    logActivity('swap_confirmed', {}, { type: 'swap_request', id: 'req_1' })
+    logActivity('report_filed', { reason: 'cash' })
+    logActivity('sign_in', { method: 'google' })
+    logActivity('settings_changed', {})
+  }
+
+  it('buckets actions the way the chips say', () => {
+    expect(activityCategory('pnr_added')).toBe('trips')
+    expect(activityCategory('offer_accepted')).toBe('requests')
+    expect(activityCategory('payment_paid')).toBe('payments')
+    expect(activityCategory('swap_confirmed')).toBe('swaps')
+    expect(activityCategory('report_filed')).toBe('reports')
+    expect(activityCategory('sign_in')).toBe('signins')
+    expect(activityCategory('settings_changed')).toBe('account')
+  })
+
+  it('narrows to one category and keeps `all` whole', () => {
+    seed()
+    const rows = activityLog()
+    const pick = (category: Parameters<typeof filterActivity>[1]['category']) =>
+      filterActivity(rows, { action: null, category, query: '' })
+
+    expect(pick('all')).toHaveLength(7)
+    expect(pick('trips').map((row) => row.action)).toEqual(['pnr_added'])
+    expect(pick('payments').map((row) => row.action)).toEqual(['payment_paid'])
+    expect(pick('swaps').map((row) => row.action)).toEqual(['swap_confirmed'])
+  })
+
+  it('composes the category with the action and the query', () => {
+    seed()
+    const rows = activityLog()
+    expect(filterActivity(rows, { action: 'pnr_added', category: 'trips', query: '' })).toHaveLength(1)
+    /* Right action, wrong category — the contradiction the screen prevents. */
+    expect(filterActivity(rows, { action: 'pnr_added', category: 'payments', query: '' })).toHaveLength(0)
+    expect(filterActivity(rows, { action: null, category: 'trips', query: '12951' })).toHaveLength(1)
+  })
+
+  it('offers `other` only when something is in it', () => {
+    logActivity('pnr_added', {})
+    expect(uncategorisedActions(activityLog())).toEqual([])
+    logActivity('brand_new_thing', {})
+    expect(uncategorisedActions(activityLog())).toEqual(['brand_new_thing'])
+    /* An unmapped action is still visible under `all` — never hidden. */
+    expect(filterActivity(activityLog(), { action: null, category: 'all', query: '' })).toHaveLength(2)
+  })
+
+  /* The trap: docs/08's action list omits swap_confirmed, acceptor_backed_out,
+     someone_faster, meet_answered, group_*, trip_removed and the welcome and
+     settings actions. A category map derived from that list would drop those
+     rows out of every chip while still looking complete. So build the map from
+     what the code logs, and prove it here by reading the code. */
+  describe('every action the code logs is claimed by a chip', () => {
+    /** Every action name passed to logActivity anywhere under src/. */
+    function loggedActions(): string[] {
+      const files: string[] = []
+      const walk = (dir: string): void => {
+        for (const entry of readdirSync(dir)) {
+          const full = join(dir, entry)
+          if (statSync(full).isDirectory()) walk(full)
+          else if (/\.tsx?$/.test(full)) files.push(full)
+        }
+      }
+      walk(join(import.meta.dirname, '..', 'src'))
+
+      const found = new Set<string>()
+      for (const file of files) {
+        const text = readFileSync(file, 'utf8')
+        let index = text.indexOf('logActivity(')
+        while (index !== -1) {
+          /* Only the FIRST argument: later arguments carry `'payment'`,
+             `'admin'`, `'swap_request'` etc. as entity types, which are not
+             actions and must not be mistaken for them. */
+          const open = index + 'logActivity'.length
+          let depth = 0
+          let end = open
+          for (let cursor = open; cursor < text.length; cursor++) {
+            const char = text[cursor]
+            if (char === '(' || char === '{' || char === '[') depth++
+            else if (char === ')' || char === '}' || char === ']') {
+              depth--
+              if (depth === 0) { end = cursor; break }
+            } else if (char === ',' && depth === 1) { end = cursor; break }
+          }
+          const args = text.slice(open, end)
+          for (const match of args.matchAll(/'([a-z][a-z_0-9]*)'/g)) {
+            /* A literal on the RIGHT of a comparison is a value being tested,
+               not the action being logged: `status === 'paid' ? 'payment_paid'
+               : …` must yield `payment_paid` and not `paid`. Without this the
+               guard reports `paid`/`failed`/`confirmed`/`voided` as unmapped
+               actions and the temptation is to add them to the category map —
+               which would be mapping values as if they were events. */
+            const before = args.slice(0, match.index).trimEnd()
+            if (/(?:===|!==|==|!=)$/.test(before)) continue
+            found.add(match[1])
+          }
+          index = text.indexOf('logActivity(', end)
+        }
+      }
+      return [...found].sort()
+    }
+
+    /* Without this the guard below passes vacuously if the scanner finds
+       nothing — which is the whole failure it exists to catch. */
+    it('actually finds the logActivity call sites', () => {
+      const actions = loggedActions()
+      expect(actions.length).toBeGreaterThan(30)
+      expect(actions).toContain('pnr_added')
+      expect(actions).toContain('swap_confirmed')
+      expect(actions).toContain('acceptor_backed_out')
+      /* Entity types must not leak in as actions. */
+      expect(actions).not.toContain('swap_request')
+      expect(actions).not.toContain('admin')
+    })
+
+    it('leaves nothing in `other`', () => {
+      const orphans = loggedActions().filter((action) => activityCategory(action) === 'other')
+      expect(orphans).toEqual([])
+    })
+
+    it('offers the design-15 chips, plus the two the log needs', () => {
+      /* Sign-ins, Requests, Payments, Swaps and Reports are the design's;
+         Trips and Account are added because the log really writes those
+         actions — design 15's own table shows "Added PNR". */
+      expect(ACTIVITY_CATEGORIES).toEqual([
+        'trips',
+        'requests',
+        'payments',
+        'swaps',
+        'reports',
+        'signins',
+        'account',
+      ])
+    })
   })
 })
 
