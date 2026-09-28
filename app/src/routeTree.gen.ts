@@ -17,7 +17,7 @@ import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as SigninRouteImport } from './routes/signin'
 import { Route as SwapsRouteImport } from './routes/swaps'
 import { Route as UpdatesRouteImport } from './routes/updates'
-import { Route as AdminIndexRouteImport } from './routes/admin._index'
+import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminActivityRouteImport } from './routes/admin.activity'
 import { Route as AdminCreditsRouteImport } from './routes/admin.credits'
 import { Route as AdminPaymentsRouteImport } from './routes/admin.payments'
@@ -109,7 +109,8 @@ const UpdatesRoute = UpdatesRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
-  id: '/_index',
+  id: '/',
+  path: '/',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminActivityRoute = AdminActivityRouteImport.update({
@@ -394,6 +395,7 @@ export interface FileRoutesByFullPath {
   '/welcome/language': typeof WelcomeLanguageRoute
   '/welcome/note': typeof WelcomeNoteRoute
   '/welcome/privacy': typeof WelcomePrivacyRoute
+  '/admin/': typeof AdminIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/swaps/': typeof SwapsIndexRoute
   '/groups/$id/plan': typeof GroupsIdPlanRoute
@@ -419,7 +421,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/admin': typeof AdminRouteWithChildren
   '/check': typeof CheckRoute
   '/goodbye': typeof GoodbyeRoute
   '/signin': typeof SigninRoute
@@ -447,6 +448,7 @@ export interface FileRoutesByTo {
   '/welcome/language': typeof WelcomeLanguageRoute
   '/welcome/note': typeof WelcomeNoteRoute
   '/welcome/privacy': typeof WelcomePrivacyRoute
+  '/admin': typeof AdminIndexRoute
   '/profile': typeof ProfileIndexRoute
   '/swaps': typeof SwapsIndexRoute
   '/groups/$id/plan': typeof GroupsIdPlanRoute
@@ -480,7 +482,6 @@ export interface FileRoutesById {
   '/signin': typeof SigninRoute
   '/swaps': typeof SwapsRouteWithChildren
   '/updates': typeof UpdatesRoute
-  '/admin/_index': typeof AdminIndexRoute
   '/admin/activity': typeof AdminActivityRoute
   '/admin/credits': typeof AdminCreditsRoute
   '/admin/payments': typeof AdminPaymentsRoute
@@ -508,6 +509,7 @@ export interface FileRoutesById {
   '/welcome/language': typeof WelcomeLanguageRoute
   '/welcome/note': typeof WelcomeNoteRoute
   '/welcome/privacy': typeof WelcomePrivacyRoute
+  '/admin/': typeof AdminIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/swaps/': typeof SwapsIndexRoute
   '/groups/$id/plan': typeof GroupsIdPlanRoute
@@ -569,6 +571,7 @@ export interface FileRouteTypes {
     | '/welcome/language'
     | '/welcome/note'
     | '/welcome/privacy'
+    | '/admin/'
     | '/profile/'
     | '/swaps/'
     | '/groups/$id/plan'
@@ -594,7 +597,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/admin'
     | '/check'
     | '/goodbye'
     | '/signin'
@@ -622,6 +624,7 @@ export interface FileRouteTypes {
     | '/welcome/language'
     | '/welcome/note'
     | '/welcome/privacy'
+    | '/admin'
     | '/profile'
     | '/swaps'
     | '/groups/$id/plan'
@@ -654,7 +657,6 @@ export interface FileRouteTypes {
     | '/signin'
     | '/swaps'
     | '/updates'
-    | '/admin/_index'
     | '/admin/activity'
     | '/admin/credits'
     | '/admin/payments'
@@ -682,6 +684,7 @@ export interface FileRouteTypes {
     | '/welcome/language'
     | '/welcome/note'
     | '/welcome/privacy'
+    | '/admin/'
     | '/profile/'
     | '/swaps/'
     | '/groups/$id/plan'
@@ -791,10 +794,10 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UpdatesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/_index': {
-      id: '/admin/_index'
-      path: ''
-      fullPath: '/admin'
+    '/admin/': {
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
     }
@@ -1145,23 +1148,23 @@ declare module '@tanstack/react-router' {
 }
 
 interface AdminRouteChildren {
-  AdminIndexRoute: typeof AdminIndexRoute
   AdminActivityRoute: typeof AdminActivityRoute
   AdminCreditsRoute: typeof AdminCreditsRoute
   AdminPaymentsRoute: typeof AdminPaymentsRoute
   AdminReportsRoute: typeof AdminReportsRoute
   AdminSwapsRoute: typeof AdminSwapsRoute
   AdminUsersRoute: typeof AdminUsersRoute
+  AdminIndexRoute: typeof AdminIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
-  AdminIndexRoute: AdminIndexRoute,
   AdminActivityRoute: AdminActivityRoute,
   AdminCreditsRoute: AdminCreditsRoute,
   AdminPaymentsRoute: AdminPaymentsRoute,
   AdminReportsRoute: AdminReportsRoute,
   AdminSwapsRoute: AdminSwapsRoute,
   AdminUsersRoute: AdminUsersRoute,
+  AdminIndexRoute: AdminIndexRoute,
 }
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)

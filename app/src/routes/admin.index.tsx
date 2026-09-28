@@ -15,7 +15,7 @@ import { useAppState, useRequestsState } from '@/lib/use-store'
    kept alongside them because a count and a rupee total answer different
    questions. */
 
-export const Route = createFileRoute('/admin/_index')({
+export const Route = createFileRoute('/admin/')({
   staticData: { chrome: 'setup' } satisfies RouteChrome,
   component: AdminOverview,
 })

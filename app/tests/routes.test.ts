@@ -23,10 +23,27 @@ function routePaths(): RegExp[] {
     const src = readFileSync(file, 'utf8')
     for (const m of src.matchAll(/createFileRoute\(\s*'([^']+)'/g)) routes.add(m[1])
   }
-  const norm = (r: string) => r.replace(/\/_index$/, '').replace(/\/$/, '') || '/'
+  /* No `/_index` tolerance here on purpose. This used to strip a trailing
+     `/_index`, which made the guard treat `/admin/_index` and `/admin` as the
+     same route — so it stayed green while `/admin` matched nothing. A form
+     that must not exist is not something to normalise; it is something to
+     fail on, and the describe below does exactly that. */
+  const norm = (r: string) => r.replace(/\/$/, '') || '/'
   return [...new Set([...routes].map(norm))].map(
     (k) => new RegExp(`^${k.replace(/\$[A-Za-z]+/g, '[^/]+')}$`),
   )
+}
+
+/** [file, declared route id] for every `createFileRoute('…')` in `src/routes`. */
+function routeDeclarations(): Array<[string, string]> {
+  const out: Array<[string, string]> = []
+  for (const file of tsxFiles(join(SRC, 'routes'))) {
+    const src = readFileSync(file, 'utf8')
+    for (const m of src.matchAll(/createFileRoute\(\s*'([^']+)'/g)) {
+      out.push([file.slice(SRC.length + 1), m[1]])
+    }
+  }
+  return out
 }
 
 /** Static `to="/a/b"` and `to: '/a/b'` destinations (skips interpolations). */
@@ -55,5 +72,49 @@ describe('every link target resolves to a route (docs/05)', () => {
       })
       .filter((row): row is string => row !== null)
     expect(dead).toEqual([])
+  })
+})
+
+/* The trap this describes: in TanStack's file convention a leading underscore
+   marks a PATHLESS route. `routes/admin._index.tsx` declared
+   `createFileRoute('/admin/_index')`, so the generator emitted `path: ''` and
+   the route matched no URL at all. `/admin` still rendered the admin layout,
+   so the page looked alive — its `<Outlet/>` was simply empty. The whole
+   Overview screen (design 23: six tiles, the week chart, the donut) was
+   unreachable behind a nav link that pointed straight at it, while typecheck,
+   the full suite and the production build all stayed green. Only a browser
+   showed it.
+
+   Every other index route in the repo uses a trailing-slash id (`/profile/`,
+   `/swaps/`, `/profile/payments/`, `/request/$id/`, `/groups/$id/`,
+   `/pay/$requestId/`), which is what makes them match. */
+describe('index routes are not declared pathless', () => {
+  it('no route file declares an id containing the _index segment', () => {
+    const offenders = routeDeclarations()
+      .filter(([, id]) => id.includes('_index'))
+      .map(([file, id]) => `${file}: ${id}`)
+    expect(offenders).toEqual([])
+  })
+
+  it('every index route declares a trailing-slash id', () => {
+    /* Matches `index.tsx`, `foo.index.tsx` AND `foo._index.tsx` — the last is
+       the broken form, and an earlier version of this filter missed it
+       because the character before `index` is `_`, not `.`. */
+    const indexRoutes = routeDeclarations().filter(([file]) => /(^|[._])index\.tsx$/.test(file))
+    expect(indexRoutes.length).toBeGreaterThan(5)
+    const wrong = indexRoutes.filter(([, id]) => id !== '/' && !id.endsWith('/')).map(
+      ([file, id]) => `${file}: ${id}`,
+    )
+    expect(wrong).toEqual([])
+  })
+
+  it('the generated tree contains no pathless route', () => {
+    /* A route with an empty path can never match a URL. The generator emits
+       `path: ''` for a pathless route, both in the `update()` call and in
+       FileRoutesByPath. There is no legitimate pathless layout route in this
+       repo; if one is ever added, this is the assertion to revisit
+       deliberately rather than delete. */
+    const tree = readFileSync(join(SRC, 'routeTree.gen.ts'), 'utf8')
+    expect(tree).not.toMatch(/path: ''/)
   })
 })
