@@ -220,7 +220,11 @@ function ChatScreen() {
         ))}
       </div>
       {warn ? <Card className="mt-3 border-accent/50 bg-accent-soft"><CardBody>{warn}</CardBody></Card> : null}
-      <div className="chip-row mt-3">
+      {/* Design 4b draws the quick replies as two white pills above the field;
+          the row wraps to a second line when all three do not fit a 360px
+          phone (12a: no clipped text; off-edge scroll is not a substitute).
+          Route-local flex-wrap keeps this inside L5 — no styles.css change. */}
+      <div className="mt-3 flex flex-wrap gap-2">
         {QUICK_REPLIES.map((k) => (
           <button key={k} type="button" onClick={() => send(t(k as never) || QUICK_FALLBACK[k])}
             /* Design 4b draws the quick replies as white pills, not green. */
