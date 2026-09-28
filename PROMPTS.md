@@ -1,17 +1,71 @@
-# PROMPTS.md — copy-paste prompts for every AI coding platform
+# PROMPTS.md — the only prompt you need
 
-> Paste the matching prompt to the right platform. Before you paste, open
-> `docs/14-LANES.md` and check which lanes are still `free` — then give that
-> lane to that platform. Protocol: `docs/13-COLLAB-CONTRACT.md`.
+> The human does nothing but say **"start"** or **"continue"**.
+> `agents.md` §0 tells every model to find the project state, pick a free
+> lane from `docs/14-LANES.md`, claim it, build, and release it.
+> You never pick lanes, never name files, never explain the rules.
 
-## First, the rule for YOU (the human)
+## Say this to any AI coding platform
 
-- One platform = one lane. Never give two platforms the same lane.
-- Give each platform its lane number + lane name in the prompt below.
-- When a platform says "done", run the **integration prompt** yourself (or
-  hand it to the L1 owner), then release the lane.
-- If a platform needs something outside its lane, it will write a `request:`
-  line in `docs/14-LANES.md` — you then send that request to the owner lane.
+```
+Repo: /Users/ayodhyarammohanthy/Documents/GitHub/swap
+start
+```
+
+or, on a second session:
+
+```
+Repo: /Users/ayodhyarammohanthy/Documents/GitHub/swap
+continue
+```
+
+That's it. `agents.md` §0 is the bootstrap: pull, hot-file check, read
+`docs/14-LANES.md`, claim the first free lane, read `docs/11`–`13`, work only
+in that lane, run the three gates, mark `done`, repeat.
+
+## If a platform needs a little more (2 lines max)
+
+```
+Repo: /Users/ayodhyarammohanthy/Documents/GitHub/swap
+Read agents.md §0 and follow it exactly. Claim one free lane in docs/14-LANES.md.
+```
+
+## What happens automatically (so you can trust it)
+
+| Step | Where it's written | Who does it |
+|---|---|---|
+| Pull + hot-file check | `agents.md` §0.1, `docs/11` | the model |
+| Pick + claim a lane | `agents.md` §0.2, `docs/14-LANES.md` | the model |
+| Read rules for its lane | `docs/11`/`12`/`13`, `docs/05`→`designs/` | the model |
+| Build keyless, keys later | `docs/12` §8, `wrangler.toml` | the model |
+| Three gates before commit | `agents.md` §0.4, `docs/13` §5 | the model |
+| Release the lane + summary | `docs/13` §2.5, `docs/14-LANES.md` | the model |
+| Integration once lanes report done | `PROMPTS.md` §3 (you run it) | you or L1 owner |
+
+## Your only jobs
+
+1. Paste `start` / `continue` to each platform (one lane per platform happens
+   automatically — the board prevents overlap).
+2. When a platform reports `done`, paste the integration prompt (§3 below) once.
+3. Nothing else. No lane picking, no file lists, no rule reminders.
+
+---
+
+## §3. Integration prompt (paste once after lanes report `done`)
+
+```
+Repo: /Users/ayodhyarammohanthy/Documents/GitHub/swap
+Read docs/13-COLLAB-CONTRACT.md §2.6. Act as integrator only:
+git pull --rebase && git status --short
+node app/scripts/collab-check.mjs
+npm run typecheck --workspace seatswap-app
+npm run test --workspace seatswap-app
+npm run build --workspace seatswap-app
+Fix cross-lane wiring only (imports, route registration, env plumbing), never
+another lane's logic — file a `request:` line in docs/14-LANES.md instead.
+Push when all gates are green.
+```
+
 
 ## Lane cheat-sheet (fill the blank)
 
