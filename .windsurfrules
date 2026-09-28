@@ -1,0 +1,5 @@
+# SeatSwap — all AI agents, all models: read AGENTS.md, then docs/01–12 in order.
+designs/*.jpg is visual reference (AGENTS.md wins on conflict). Follow
+docs/11-COLLAB.md (pull --rebase, hot-file check, one topic/commit, green rule)
+and docs/12-INFRA-CREDITS.md (Cloudflare $10k prod, Supabase DB, no WorkOS,
+Azure $200 burn-down only, exp Dec 16 2026). Never git add -A.

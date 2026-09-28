@@ -1,8 +1,10 @@
-# AGENTS.md — SeatSwap build rules for AI coding agents
+# AGENTS.md — SeatSwap build rules for AI coding agents (ALL models: Codex, Claude, Gemini, Copilot, Cursor, Windsurf, Aider, Muse Spark)
 
-Read this file first, then `docs/01-PRD.md` … `docs/11-COLLAB.md` in order.
+Read this file first, then `docs/01-PRD.md` … `docs/12-INFRA-CREDITS.md` in order.
 The screen images in `designs/` are the visual reference for layout and wording.
 Multiple agents work in this repo at once: `docs/11-COLLAB.md` is mandatory.
+Infra + credits: `docs/12-INFRA-CREDITS.md` + `app/azure/README.md` are mandatory.
+Tool pointers: `CLAUDE.md`, `GEMINI.md`, `CODEX.md`, `.cursorrules`, `.windsurfrules`, `.muserules`, `.github/muse-instructions.md`, `.aider.conf.yml`.
 
 ## Product in one line
 SeatSwap is a mobile-first PWA that helps passengers on the same Indian train, same date, swap berths/seats with each other by mutual agreement.
