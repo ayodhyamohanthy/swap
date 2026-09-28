@@ -1,11 +1,11 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
-import { CircleAlert, Undo2 } from 'lucide-react'
-import { useState } from 'react'
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
+import { CircleAlert } from 'lucide-react'
 import { AppFooter, type RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
-import { Card, CardBody, CardTitle } from '@/components/ui/card'
+import { Card, CardBody } from '@/components/ui/card'
 import { useI18n } from '@/lib/i18n'
 import { acceptedOffer, getRequest } from '@/lib/requests'
+import { voidSwap } from '@/lib/settle'
 import { demoRequest } from '@/lib/demo-swap'
 
 /* Screen 31 "Cancel this swap?" (design 25c): cancelling after payment moves
@@ -17,26 +17,10 @@ export const Route = createFileRoute('/swaps/$id/cancel')({
 function CancelSwapScreen() {
   const { id } = Route.useParams()
   const { t } = useI18n()
-  const [cancelled, setCancelled] = useState(false)
+  const navigate = useNavigate()
   const request = getRequest(id)
   const locked = request ? acceptedOffer(request.id) : undefined
   const name = locked?.acceptor_name ?? demoRequest(id).acceptorName
-  if (cancelled) {
-    return (
-      <div>
-        <Card className="mt-4 border-primary/30 bg-wash">
-          <span className="flex size-11 items-center justify-center rounded-xl bg-primary text-primary-ink">
-            <Undo2 aria-hidden className="size-6" />
-          </span>
-          <CardTitle className="mt-2">{t('cancelSwap.done')}</CardTitle>
-        </Card>
-        <Button className="mt-4" asChild>
-          <Link to="/">{t('confirm.addTrip')}</Link>
-        </Button>
-        <AppFooter />
-      </div>
-    )
-  }
   return (
     <div>
       <div className="mt-2 flex justify-center">
@@ -49,7 +33,16 @@ function CancelSwapScreen() {
       <Card className="mt-4 border-primary/30 bg-wash">
         <CardBody className="font-semibold text-ink">{t('cancelSwap.creditNote', { name })}</CardBody>
       </Card>
-      <Button className="mt-4" variant="danger" onClick={() => setCancelled(true)}>
+      <Button
+        className="mt-4"
+        variant="danger"
+        onClick={() => {
+          /* Either side cancelling after payment voids the swap and moves
+             the ₹99 to the requester's credit — never back to a bank. */
+          if (request?.status === 'locked') voidSwap(id)
+          navigate({ to: '/swaps/$id/done', params: { id }, search: { state: 'credit' } })
+        }}
+      >
         {t('cancelSwap.confirm')}
       </Button>
       <Button className="mt-2" variant="neutral" asChild>
