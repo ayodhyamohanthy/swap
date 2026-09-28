@@ -7,14 +7,14 @@
 |---|---|---|---|---|
 | L1 | PWA shell + design system + Cloudflare deploy | Cline | active: 2026-09-28T16:05Z | icons + screenshots + manifest + deploy |
 | L2 | Trips + PNR | OpenCode/Muse Spark | done. Trips/add/berth/WL/RAC/CAN/quota screens verified vs designs; multi-passenger SMS fill + P-label coach fix |
-| L3 | Requests + matching | WorkBuddy/Claude | done. Daily caps wired, acceptor Settings filters now applied on the incoming path, connecting-only journeys no longer match |
+| L3 | Requests + matching | WorkBuddy/Claude | done. Instrumented the zero-match dead end: `routes/request.$id.matches.tsx` now logs `matches_viewed { matches, capped }` once per request per session, which is what makes design 23's "First on their train today" donut measurable — and records `capped` so a spent send budget is not miscounted as a dead end. Previously: Daily caps wired, acceptor Settings filters now applied on the incoming path, connecting-only journeys no longer match |
 | L4 | Payments (Razorpay/PayPal/credit) | WorkBuddy/Claude | done. Rule 2 now enforced on the local path: a group-covered swap can no longer be charged a second ₹99 |
 | L5 | Swaps + chat + safety | OpenCode/Muse Spark | done. Confirm/cancel persist, earned routing, meet records, ratings persist+score+gated, chat report parties, real-row receipts, guard Hindi/leet hardening, integration vs L3/L4/L6 green |
 | L6 | Groups + onboard | WorkBuddy/Claude | done. `groupTogetherCount` now reports the biggest same-train/date/coach cluster instead of whichever trip was linked first; GROUP_MAX_SWAPS audited — consistent at all five sites |
-| L7 | Admin | WorkBuddy/Claude | done. Five passes. (1) Overview (design 23): added Accepted / Money in / Credit given and fixed two numbers that were wrong — "Swaps done" counted per-side `confirmation` rows instead of `swap_confirmed`, and "Busiest trains" counted any train-tagged row under a "Swaps done" column; Money in is gross − credit, so credit is never counted as revenue. (2) Activity log (design 15): categorised chips. (3) Activity log: human action labels ("Added PNR", not `pnr_added`), raw action kept as a tooltip. (4) Activity log: Details column, rendered from a 26-field **allow-list** rather than a dump of `meta`, so caller-controlled values (`settings_changed.patch`, free-text `reason`) cannot reach an operator and no future meta key becomes a leak by default. Four guards read `src/` for every `logActivity()` call and fail if an action has no chip, no label in either language, no bounded detail, or a label too long for a row; all four were mutation-checked. (5) Overview: design 23's "Swaps this week" chart. The last point is today and equals `swapsDoneToday` by construction — a test asserts it, because a chart and a tile on the same screen disagreeing about one swap is the defect this lane keeps finding. Days that have not happened are `null`, not `0`, so the line stops at today instead of falling to the floor every Monday |
+| L7 | Admin | WorkBuddy/Claude | done. Six passes. (1) Overview (design 23): added Accepted / Money in / Credit given and fixed two numbers that were wrong — "Swaps done" counted per-side `confirmation` rows instead of `swap_confirmed`, and "Busiest trains" counted any train-tagged row under a "Swaps done" column; Money in is gross − credit, so credit is never counted as revenue. (2) Activity log (design 15): categorised chips. (3) Activity log: human action labels ("Added PNR", not `pnr_added`), raw action kept as a tooltip. (4) Activity log: Details column, rendered from a 26-field **allow-list** rather than a dump of `meta`, so caller-controlled values (`settings_changed.patch`, free-text `reason`) cannot reach an operator and no future meta key becomes a leak by default. Four guards read `src/` for every `logActivity()` call and fail if an action has no chip, no label in either language, no bounded detail, or a label too long for a row; all four were mutation-checked. (5) Overview: design 23's "Swaps this week" chart. The last point is today and equals `swapsDoneToday` by construction — a test asserts it, because a chart and a tile on the same screen disagreeing about one swap is the defect this lane keeps finding. Days that have not happened are `null`, not `0`, so the line stops at today instead of falling to the floor every Monday. (6) Overview: the "First on their train today" donut, on the metric docs/01 and docs/12 already named — an earlier note claiming it was undefined was wrong and is corrected in backlog 8. It excludes capped searches (a spent send budget is not a dead end), reports `null` rather than 0% when nobody searched, and surfaces both the cap flag and any unreadable count instead of guessing |
 | L8 | DB + schema | WorkBuddy/Claude | done. Pinned the enum + payments-target contracts with 17 new schema tests (all nine enums already matched); reviewed `get_matches()` and found it is the only path matching can ever take — plus two defects in the unapplied spec |
 | L9 | Infra + credits | WorkBuddy/Claude | done. Pinned the vitest pool in `app/vitest.config.ts` so the documented green gate works again — `npm run test` runs the whole suite with no flags (31 files, ~3m30s). The test *count* moves as lanes add tests; what matters is "Test Files 31 passed", since a wrong pool silently drops files while reporting success |
-| L10 | i18n (single writer) | WorkBuddy/Claude | done. (4) Design 23's chart: `admin.chartSwaps` (en+hi), plus `localeFor()` — the `lang` → BCP-47 mapping now lives in one place, so shipping a third language is a one-line change instead of a hunt for every `lang === 'hi'` — and `formatWeekday()`, which derives weekday labels from `Intl` rather than a `weekdays` block in all 22 catalogues. `formatTripDate()` was refactored onto `localeFor()`. Previously: (1) Overview tile copy for the L7 metric fix: `s_accepted`, `s_swaps_done`, `s_money_in`, `s_credit_given`, `moneyInUnknown`, `colTrain`/`colTrainName`/`colSwapsDone` (en+hi); removed `s_confirmed`, whose label described the old per-side count. (2) Activity category chips: `catAll`, `catLabel`, `catTrips`, `catRequests`, `catSignins`, `catAccount`, `catOther` — Payments/Swaps/Reports chips reuse the sidebar's own keys so the two cannot drift. (3) `admin.act.*`: 49 action labels in both languages, keyed by action name so the naming convention is the mapping |
+| L10 | i18n (single writer) | WorkBuddy/Claude | done. (5) The dead-end metric: `admin.firstOnTrain`, `firstOnTrainNone` (the null state), `firstOnTrainUnknown`, and the `matches_viewed` action label — en + hi. Previously: (4) Design 23's chart: `admin.chartSwaps` (en+hi), plus `localeFor()` — the `lang` → BCP-47 mapping now lives in one place, so shipping a third language is a one-line change instead of a hunt for every `lang === 'hi'` — and `formatWeekday()`, which derives weekday labels from `Intl` rather than a `weekdays` block in all 22 catalogues. `formatTripDate()` was refactored onto `localeFor()`. Previously: (1) Overview tile copy for the L7 metric fix: `s_accepted`, `s_swaps_done`, `s_money_in`, `s_credit_given`, `moneyInUnknown`, `colTrain`/`colTrainName`/`colSwapsDone` (en+hi); removed `s_confirmed`, whose label described the old per-side count. (2) Activity category chips: `catAll`, `catLabel`, `catTrips`, `catRequests`, `catSignins`, `catAccount`, `catOther` — Payments/Swaps/Reports chips reuse the sidebar's own keys so the two cannot drift. (3) `admin.act.*`: 49 action labels in both languages, keyed by action name so the naming convention is the mapping |
 
 Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
 
@@ -183,9 +183,10 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
      and four status chips would filter a single row. It becomes real work when
      peer rows exist (`azure/load/get-matches.*`, backlog 6), not before.
    - Design 23's "Swaps this week" line chart and the "First on their train
-     today" donut are absent. The donut needs a metric nobody has defined yet
-     ("first on their train" = ?), so building it now would mean inventing the
-     definition — the exact failure mode the three fixes above were about.
+     today" donut were both absent here. **Both shipped later the same day** —
+     see item 8, which also corrects the claim made in this spot that the donut
+     "needs a metric nobody has defined yet". The metric was defined; what was
+     missing was the instrumentation to count it.
    - Design 15's categorised activity filter (All / Requests / Payments /
      Swaps / Reports / Sign-ins) **shipped** in pass 2 as chips; the flat
      action dropdown is gone. What remains from design 15 is the **table
@@ -262,12 +263,35 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
    timeline" panel. Both are chrome over data that already renders, which is
    why they stayed behind the Details *contents*. The search box, the export
    button, the action dropdown and the chips already exist.
-8. L7: design 23's "Swaps this week" chart — **done, 2026-09-28.** — and the
-   "First on their train today" donut, which is still **not** buildable:
-   "first on their train" is undefined anywhere in docs/01-13, and guessing the
-   definition is how a dashboard tile ends up measuring something nobody asked
-   for. Needs a definition first, from the human or from docs/01.
-   The chart (`swapsThisWeek()`) needed two decisions the design does not
+8. L7 + L3: design 23's "Swaps this week" chart **and** the "First on their
+   train today" donut — **both done, 2026-09-28.**
+   **Correction to this item.** An earlier revision said "first on their train"
+   is "undefined anywhere in docs/01-13". That was wrong, and *how* it was wrong
+   is the point: it came from a grep for the **chart's** vocabulary ("this
+   week", "7-day"), which could never have matched the donut's. The metric is
+   named in `docs/01` line 38 (success metrics: "you're the first on this
+   train" rate) and `docs/12` line 78 (analytics); the user-facing state is
+   defined in `docs/04` line 16 ("0 matches → You're the first on this train")
+   and `docs/09` line 17; and it already ships as `firstTitle` plus the card in
+   `routes/request.$id.matches.tsx`. **A search that could not have found the
+   thing is not evidence that the thing is absent.**
+   What was actually missing was not a definition but **instrumentation**: none
+   of the 49 logged actions carried a match count, so the tile had no data
+   source. Added `matches_viewed { matches, capped }`, written once per request
+   per session via the same StrictMode-safe session-flag idiom the payment
+   screens use, so numerator and denominator come from one population.
+   The exclusion that makes the metric honest: **a capped search is not a dead
+   end.** A user whose 10-a-day send budget is spent has not failed to find
+   anyone — their pool may be full — and the matches screen already refuses to
+   show them the "you're the first" card for precisely that reason. Counting
+   them would resurrect the lie the card avoids. `capped` is *recorded*, not
+   filtered at the call site, so the cap stays visible in the log; the Overview
+   does the excluding. `percent` is **null, not 0**, when nobody searched — 0
+   asserts "everyone who looked found someone".
+   Two mutations were run: dropping the action from the category map (the
+   completeness guard named `matches_viewed` exactly) and inverting the cap
+   filter (caught by 6 tests, including the one named for it).
+   **The chart** (`swapsThisWeek()`) needed two decisions the design does not
    settle, both recorded in the code:
    - **Which seven days.** The design's axis is Mon→Sun and its title is "this
      week", so it is the **calendar week**, not a rolling 7-day window. The two
