@@ -9,6 +9,9 @@ const { readFileSync } = process.getBuiltinModule('node:fs') as typeof import('n
 const { join } = process.getBuiltinModule('node:path') as typeof import('node:path')
 import { describe, expect, it } from 'vitest'
 
+import { BERTH_TYPES, CLASSES, QUOTAS, TICKET_STATUSES } from '@/lib/pnr'
+import { CONFIRM_OPTIONS } from '@/lib/outcomes'
+
 const SUPABASE = join(import.meta.dirname, '..', 'supabase')
 const MIGRATION = join(SUPABASE, 'migrations', '20260925000000_init.sql')
 const SCHEMA = readFileSync(MIGRATION, 'utf8')
@@ -295,5 +298,148 @@ describe('a swap can only reach locked on captured money (rule 2)', () => {
     const payments = SCHEMA.match(/create\s+table\s+(?:if\s+not\s+exists\s+)?public\.payments[\s\S]*?\);/i)?.[0] ?? ''
     expect(payments).toMatch(/status\s+pay_status/i)
     expect(payments).toMatch(/group_id/i)
+  })
+})
+
+/* ------------------------------------------------------------------ *
+ * The other half of the drift guard. The wallet_tx.kind test above
+ * checks one column; these check the nine enums and the payments
+ * target, which the local-first mirror also writes.
+ * ------------------------------------------------------------------ */
+
+/** Values of a Postgres `CREATE TYPE ... AS ENUM (...)`, sorted. */
+function sqlEnum(name: string): string[] {
+  const body = SCHEMA.match(
+    new RegExp(`CREATE TYPE ${name} AS ENUM \\(([^)]*)\\)`, 'i'),
+  )?.[1]
+  expect(body, `enum ${name} not found in the migration`).toBeDefined()
+  return (body as string)
+    .split(',')
+    .map((value) => value.trim().replace(/'/g, ''))
+    .sort()
+}
+
+/** Quoted members of an exported TS union type, read from source. */
+function tsTypeValues(source: string, name: string): string[] {
+  const decl = source.match(
+    new RegExp(`export type ${name}\\s*=([\\s\\S]*?)(?=\\n\\n|\\nexport |$)`),
+  )
+  expect(decl, `type ${name} not found`).toBeDefined()
+  return [...(decl as RegExpMatchArray)[1].matchAll(/'([A-Za-z0-9_]+)'/g)]
+    .map((match) => match[1])
+    .sort()
+}
+
+const SRC = join(SUPABASE, '..', 'src')
+const readSrc = (rel: string): string => readFileSync(join(SRC, rel), 'utf8')
+const REQUESTS_TS = readSrc('lib/requests.ts')
+const STORE_TS = readSrc('lib/store.ts')
+const SERVER_FUNCTIONS_TS = readSrc('server/functions.ts')
+const SERVER_PAYMENTS_TS = readSrc('server/payments.ts')
+
+describe('every enum the client writes equals the Postgres enum', () => {
+  /* A value the app can produce but the column rejects is a local-first write
+     the database refuses — the failure mode the wallet_tx.kind test guards,
+     for the other enums. These were all in step when this test was added; it
+     is here so they stay that way. */
+  const cases: Array<[string, string, () => string[]]> = [
+    ['travel_class', 'CLASSES (lib/pnr.ts)', () => [...CLASSES]],
+    ['berth_type', 'BERTH_TYPES (lib/pnr.ts)', () => [...BERTH_TYPES]],
+    ['ticket_status', 'TICKET_STATUSES (lib/pnr.ts)', () => [...TICKET_STATUSES]],
+    ['quota', 'QUOTAS (lib/pnr.ts)', () => [...QUOTAS]],
+    ['outcome', 'CONFIRM_OPTIONS (lib/outcomes.ts)', () => [...CONFIRM_OPTIONS]],
+    ['request_status', 'RequestStatus (lib/requests.ts)', () => tsTypeValues(REQUESTS_TS, 'RequestStatus')],
+    ['offer_status', 'OfferStatus (lib/requests.ts)', () => tsTypeValues(REQUESTS_TS, 'OfferStatus')],
+    /* The server re-declares both; a server-only value the app never sends is
+       still drift worth catching. */
+    ['request_status', 'RequestStatus (server/payments.ts)', () => tsTypeValues(SERVER_PAYMENTS_TS, 'RequestStatus')],
+    ['offer_status', 'OfferStatus (server/functions.ts)', () => tsTypeValues(SERVER_FUNCTIONS_TS, 'OfferStatus')],
+  ]
+
+  for (const [enumName, label, values] of cases) {
+    it(`${enumName} == ${label}`, () => {
+      expect(values().sort()).toEqual(sqlEnum(enumName))
+    })
+  }
+
+  it('pay_status and pay_provider == the local PaymentRow', () => {
+    const row = STORE_TS.match(/export interface PaymentRow \{([\s\S]*?)\n\}/)?.[1]
+    expect(row, 'PaymentRow not found in lib/store.ts').toBeDefined()
+    const field = (name: string): string[] => {
+      const m = (row as string).match(
+        new RegExp(`${name}:\\s*((?:'[a-z_]+'\\s*\\|\\s*)*'[a-z_]+')`),
+      )
+      expect(m, `PaymentRow.${name} union not found`).toBeDefined()
+      return (m as RegExpMatchArray)[1]
+        .split('|')
+        .map((v) => v.trim().replace(/'/g, ''))
+        .sort()
+    }
+    expect(field('status')).toEqual(sqlEnum('pay_status'))
+    expect(field('provider')).toEqual(sqlEnum('pay_provider'))
+  })
+})
+
+describe('a payment targets exactly one of request or group (docs/01)', () => {
+  const payments = SCHEMA.match(
+    /CREATE TABLE IF NOT EXISTS public\.payments[\s\S]*?\n\);/i,
+  )?.[0] ?? ''
+
+  it('keeps both targets as uuid foreign keys', () => {
+    expect(payments).toMatch(/request_id uuid REFERENCES public\.swap_requests/i)
+    expect(payments).toMatch(/group_id uuid REFERENCES public\.group_trips/i)
+  })
+
+  it('enforces the XOR at the database, not in the app', () => {
+    expect(SCHEMA).toMatch(
+      /payments_target CHECK \(\s*\(request_id IS NULL\) != \(group_id IS NULL\)\s*\)/i,
+    )
+  })
+
+  /* KNOWN GAP, filed as a request line in docs/14-LANES.md. The local-first
+     mirror's PaymentRow has only `request_id` and no `group_id`, and
+     beginGroupCheckout() passes the group id (`grp_...`, from lib/groups.ts)
+     into that column. So a group payment cannot be represented the way the
+     database requires: the value is not a uuid and points at no swap_requests
+     row. Local-only today, so nothing is broken yet — it breaks the moment
+     group payments sync, which is why it is recorded here rather than fixed
+     blind with no database to verify against. */
+})
+
+/* ------------------------------------------------------------------ *
+ * Why matching is server-mediated, and must stay that way.
+ *
+ * part 7 drops every *_match_read policy and makes match_cards
+ * security_invoker, so a client SELECT on the view returns only the
+ * caller's OWN rows. That is the privacy property (rule 13) working,
+ * not a bug — but it means the only way to see other travellers' open
+ * trips is a vetted server-side function running with elevated rights,
+ * which is exactly why the proposed get_matches() is SECURITY DEFINER.
+ * Do NOT "fix" matching by re-adding a permissive policy: that would
+ * hand every client every open booking on every train.
+ * ------------------------------------------------------------------ */
+describe('cross-user matching is server-mediated, never a client-wide read', () => {
+  it('creates each *_match_read policy and then drops it', () => {
+    const created = [...SCHEMA.matchAll(/CREATE POLICY (\w*_match_read) ON public\.(\w+)/gi)]
+    expect(created.length).toBeGreaterThanOrEqual(3)
+    for (const match of created) {
+      expect(SCHEMA, `${match[1]} is created but never dropped`).toMatch(
+        new RegExp(`DROP POLICY IF EXISTS ${match[1]} ON public\\.${match[2]}`, 'i'),
+      )
+    }
+  })
+
+  it('leaves bookings readable only by its owner', () => {
+    const owner = SCHEMA.match(
+      /CREATE POLICY bookings_owner ON public\.bookings[\s\S]*?;/i,
+    )?.[0]
+    expect(owner, 'bookings_owner policy not found').toBeTruthy()
+    expect(owner).toMatch(/user_id = auth\.uid\(\)/i)
+  })
+
+  it('keeps match_cards security_invoker so a direct SELECT stays owner-only', () => {
+    expect(SCHEMA).toMatch(
+      /CREATE OR REPLACE VIEW public\.match_cards WITH \(security_invoker = true\)/i,
+    )
   })
 })

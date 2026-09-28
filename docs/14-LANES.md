@@ -9,10 +9,10 @@
 | L2 | Trips + PNR | OpenCode/Muse Spark | done. Trips/add/berth/WL/RAC/CAN/quota screens verified vs designs; multi-passenger SMS fill + P-label coach fix |
 | L3 | Requests + matching | WorkBuddy/Claude | done. Daily caps wired, acceptor Settings filters now applied on the incoming path, connecting-only journeys no longer match |
 | L4 | Payments (Razorpay/PayPal/credit) | WorkBuddy/Claude | done. Rule 2 now enforced on the local path: a group-covered swap can no longer be charged a second ₹99 |
-| L5 | Swaps + chat + safety | OpenCode/Muse Spark | active: 2026-09-28T17:40Z | chat-guard Hindi/spaced-evasion hardening (safety-eval corpus) |
+| L5 | Swaps + chat + safety | OpenCode/Muse Spark | done. Confirm/cancel persist, earned routing, meet records, ratings persist+score+gated, chat report parties, real-row receipts, guard Hindi/leet hardening, integration vs L3/L4/L6 green |
 | L6 | Groups + onboard | WorkBuddy/Claude | done. `groupTogetherCount` now reports the biggest same-train/date/coach cluster instead of whichever trip was linked first; GROUP_MAX_SWAPS audited — consistent at all five sites |
 | L7 | Admin | WorkBuddy/Claude | done. A refused server action is no longer reported as a demo success (and no longer writes an audit row for something that never happened); "Credit added." only when the server added it; Overview "today" is the operator's local day, not UTC |
-| L8 | DB + schema | — | free | announce before edit |
+| L8 | DB + schema | WorkBuddy/Claude | done. Pinned the enum + payments-target contracts with 17 new schema tests (all nine enums already matched); reviewed `get_matches()` and found it is the only path matching can ever take — plus two defects in the unapplied spec |
 | L9 | Infra + credits | WorkBuddy/Claude | done. Pinned the vitest pool in `app/vitest.config.ts` so the documented green gate works again — `npm run test` is now 31 files / 421 tests green, no flags |
 | L10 | i18n (single writer) | WorkBuddy/Claude | done. Added `matches.cappedToday` (en+hi) for L3's send cap |
 
@@ -69,6 +69,25 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
   config is exactly how the gate stayed broken long enough for three lanes to
   file the same complaint.
 
+- 2026-09-28 L8 → whoever owns `lib/store.ts` + `lib/checkout.ts`: a group
+  payment cannot be represented the way the database requires. `payments` has
+  `request_id uuid REFERENCES swap_requests` **and** `group_id uuid REFERENCES
+  group_trips`, with `payments_target CHECK ((request_id IS NULL) != (group_id
+  IS NULL))` — exactly one target. But the local-first `PaymentRow` has only
+  `request_id` and no `group_id`, and `beginGroupCheckout()` passes the group id
+  into it. Group ids are `grp_<base36>_<rand>` strings (`lib/groups.ts`), so the
+  value is neither a uuid nor a row in `swap_requests`: the insert would fail on
+  the cast, and on the FK even if it parsed. Local-only today, so nothing is
+  broken — it breaks the moment group payments sync, and it is the same
+  "local path and server enforce identical invariants" claim that L4 found false
+  for rule 2. Fix shape: `PaymentRow.group_id: string | null`, `request_id:
+  string | null`, `startPayment()` sets whichever target it was given, and
+  `paymentFor(targetId)` matches on either column (it is the lookup that makes
+  the current overload load-bearing). Left unfixed because it spans
+  `lib/store.ts` and `lib/checkout.ts` and there is no database here to verify
+  the mapping against; recorded in `tests/schema.test.ts` next to the
+  `payments_target` assertions.
+
 ## Backlog (unclaimed, ready to pull)
 
 1. L1: real app icons (current `icon-192/512` are placeholder PNGs), `screenshots/` for install UI, manifest `id/shortcuts/screenshots`.
@@ -91,4 +110,27 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
    the design's "Credit given". Needs new copy in both locales → open L10 as
    single writer first.
 5. L9: Azure burn-down dry-runs (`app/azure/`), PostHog/Sentry key plumbing (env only).
-6. L8: apply `app/azure/load/get-matches.spec-part*.sql` as one migration after review.
+6. L8: **`get_matches()` is the only path by which matching can ever work** —
+   reviewed 2026-09-28, still not applied. part 7 drops every `*_match_read`
+   policy and makes `match_cards` `security_invoker`, so a client `SELECT` on
+   the view returns only the caller's own rows. That is rule 13 working, but it
+   means cross-user matching needs a function running with elevated rights —
+   which is what `SECURITY DEFINER` on `get_matches()` is for. So this is not
+   "hot-train scale work"; it is load-bearing for the core feature.
+   Two defects were corrected in `app/azure/load/get-matches.spec-part2.sql`
+   during review: `p_after` was `timestamptz` compared against `booking_id`
+   `uuid` (no such operator; `LANGUAGE sql` bodies are validated at CREATE, so
+   the migration would have failed outright — the `REVOKE`/`GRANT` signatures
+   had to change with it), and it promised "newest-first" rows that
+   `match_cards` cannot support because the view exposes no `created_at`.
+   The overstated comment claiming it enforces the overlapping-segment,
+   blocked/paused, daily-cap, filter and quota rules was corrected too — those
+   stay in `rankMatches()`. Part 1's indexes were verified column-by-column and
+   are correct as written.
+   **Still needs a decision before applying:** a booking with several passengers
+   yields several `match_cards` rows, so a `LIMIT` can split a booking across
+   pages; and the 50-row clamp contradicts the "never more than 20 rows" promise
+   in `azure/load/rpc-contract-note.ts`. Apply as a SECOND migration file —
+   `tests/schema.test.ts` only compares the init migration to `schema.sql` and
+   never enumerates the directory, so no `schema.sql` edit is needed. The old
+   header claim that the schema test blocked this was wrong.
