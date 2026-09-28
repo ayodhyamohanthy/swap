@@ -1,0 +1,3 @@
+# tmp drafts are machine output — never commit, never ship.
+*.json
+!.gitignore
