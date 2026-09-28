@@ -91,11 +91,13 @@ function capture(browser, url, out, profile) {
     '--force-device-scale-factor=3',
     '--window-size=390,844',
     // Let the SPA hydrate and fonts settle before the snap.
-    '--virtual-time-budget=12000',
+    '--virtual-time-budget=6000',
     `--screenshot=${out}`,
     url,
   ]
-  const result = spawnSync(browser, args, { encoding: 'utf8' })
+  /* Hard timeout: a hung Chrome must fail this shot, never wedge the build.
+     (Seen in practice: the registered service worker keeps virtual time busy.) */
+  const result = spawnSync(browser, args, { encoding: 'utf8', timeout: 45_000 })
   if (result.error) throw result.error
   return existsSync(out)
 }
@@ -130,7 +132,9 @@ try {
   for (const shot of SHOTS) {
     const tmp = join(profile, shot.name)
     mkdirSync(dirname(tmp), { recursive: true })
-    const ok = capture(browser, base + shot.route, tmp, join(profile, 'profile'))
+    /* ?sw=off is the app's own service-worker kill switch (docs/08): with no
+       worker registered, virtual time settles and the snap is deterministic. */
+    const ok = capture(browser, `${base}${shot.route}?sw=off`, tmp, join(profile, 'profile'))
     if (!ok) {
       console.error(`[shots] FAILED to capture ${shot.route} — is Chrome allowed to run?`)
       process.exitCode = 1
