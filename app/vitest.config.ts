@@ -3,7 +3,11 @@ import viteReact from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
 
 /* Tests run without the TanStack Start plugin: they cover the pure logic
-   (PNR parsing, store, i18n, money) and rendered screens through the router. */
+   (PNR parsing, store, i18n, money), the route tree, and source-scanning
+   guards. This comment used to claim they also covered "rendered screens
+   through the router" — they did not; no test rendered a component at all
+   until `tests/hydration.test.tsx`, which is the first and renders one
+   component directly (no router, which is why it needs none). */
 export default defineConfig({
   plugins: [viteReact()],
   resolve: {
@@ -23,8 +27,10 @@ export default defineConfig({
        AGENTS.md §0 step 4 requires before every commit) did not work at all.
        `threads` is worse than failing: with parallel files it silently drops
        ~22 of the 31 files and still reports success.
-       forks + 4 workers is green in ~3m40s (31 files / 415 tests). Four
-       leaves headroom on the 6-core dev machine for other lanes. */
+       forks + 4 workers is green in ~3m40s. Four leaves headroom on the
+       6-core dev machine for other lanes. Watch the **file** count, not the
+       test count: tests are added by every lane, so "Test Files N passed" is
+       the signal that no file was dropped. */
     pool: 'forks',
     maxWorkers: 4,
   },
