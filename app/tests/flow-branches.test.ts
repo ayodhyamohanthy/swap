@@ -124,6 +124,139 @@ describe('two accept before payment (docs/04 A.9)', () => {
   })
 })
 
+/* Cross-request supersede (L5 → L3 request, 2026-09-28): `lockRequest` used to
+   supersede offers only inside the locking request, so once an acceptor trip
+   locked into requester A's swap, any other request's offer to that same trip
+   lived on — its requester waiting forever on a swap that already happened,
+   with no state for screen 29 / design 20a ("Someone else was faster") to key
+   on. */
+describe('a lock kills rival requests at the same acceptor (L5 → L3, screen 29)', () => {
+  /** Two requester trips + two acceptor trips, so a loser can hold a second
+      acceptance open while the shared one is taken away. */
+  async function seedSharedAcceptor() {
+    const first = await addTrip({
+      pnr: '4512789745',
+      train_no: '12951',
+      journey_date: DAY,
+      class: '3A',
+      from_code: 'MMCT',
+      to_code: 'NDLS',
+      passengers: [{ coach: 'B2', berth_no: '15', berth_type: 'LB' }],
+    })
+    const second = await addTrip({
+      pnr: '4512789752',
+      train_no: '12951',
+      journey_date: DAY,
+      class: '3A',
+      from_code: 'MMCT',
+      to_code: 'NDLS',
+      passengers: [{ coach: 'B5', berth_no: '33', berth_type: 'LB' }],
+    })
+    const theirs = await addTrip({
+      pnr: '4512789760',
+      train_no: '12951',
+      journey_date: DAY,
+      class: '3A',
+      from_code: 'MMCT',
+      to_code: 'NDLS',
+      passengers: [{ coach: 'A1', berth_no: '7', berth_type: 'UB' }],
+    })
+    const spare = await addTrip({
+      pnr: '4512789778',
+      train_no: '12951',
+      journey_date: DAY,
+      class: '3A',
+      from_code: 'MMCT',
+      to_code: 'NDLS',
+      passengers: [{ coach: 'A2', berth_no: '41', berth_type: 'UB' }],
+    })
+    setOpenToSwap(theirs.id, true)
+    setOpenToSwap(spare.id, true)
+    const one = createRequest({ trip_id: first.id, choices: ['UB'] })
+    sendRequest(one.id)
+    const two = createRequest({ trip_id: second.id, choices: ['UB'] })
+    sendRequest(two.id)
+    const offerIn = (requestId: string, acceptor: string) =>
+      offersFor(requestId).find((row) => row.acceptor_trip_id === acceptor)
+    const oneOffer = offerIn(one.id, theirs.id)
+    const twoOffer = offerIn(two.id, theirs.id)
+    const twoSpare = offerIn(two.id, spare.id)
+    if (!oneOffer || !twoOffer || !twoSpare) {
+      throw new Error('shared acceptor did not match both requests')
+    }
+    return { one, two, oneOffer, twoOffer, twoSpare, theirs }
+  }
+
+  beforeEach(() => {
+    resetStore()
+    resetRequests()
+  })
+
+  it('supersedes the loser request, frees it to searching and tells Updates', async () => {
+    const { one, two, oneOffer, twoOffer, theirs } = await seedSharedAcceptor()
+    acceptOffer(oneOffer.id, 'Meena S')
+    acceptOffer(twoOffer.id, 'Meena S')
+    expect(getRequest(one.id)?.status).toBe('accepted_awaiting_payment')
+    expect(getRequest(two.id)?.status).toBe('accepted_awaiting_payment')
+
+    lockRequest(one.id, oneOffer.id)
+
+    /* The winner is untouched: locked onto the paid offer. */
+    expect(getRequest(one.id)?.status).toBe('locked')
+    expect(getRequest(one.id)?.locked_offer_id).toBe(oneOffer.id)
+    expect(offersFor(one.id).find((row) => row.id === oneOffer.id)?.status).toBe('accepted')
+
+    /* The loser's offer dies with the lock, on the OTHER request. */
+    expect(offersFor(two.id).find((row) => row.id === twoOffer.id)?.status).toBe('superseded')
+    expect(getRequest(two.id)?.status).toBe('searching')
+    expect(getRequest(two.id)?.locked_offer_id).toBeNull()
+
+    /* Screen 29's triggers: the Updates "faster" row (derived from the
+       superseded offer) and the activity_log row for the status revert. */
+    expect(updates().some((row) => row.kind === 'faster' && row.request_id === two.id)).toBe(true)
+    const faster = activityLog().filter(
+      (row) => row.action === 'someone_faster' && row.entity_id === two.id,
+    )
+    expect(faster).toHaveLength(1)
+    expect(faster[0].meta).toMatchObject({ trip: theirs.id })
+    expect(creditPaise()).toBe(0)
+  })
+
+  it('a loser with another acceptance still open stays payable (docs/04 A.9)', async () => {
+    const { one, two, oneOffer, twoOffer, twoSpare } = await seedSharedAcceptor()
+    acceptOffer(oneOffer.id, 'Meena S')
+    acceptOffer(twoOffer.id, 'Meena S')
+    acceptOffer(twoSpare.id, 'Meena S')
+
+    lockRequest(one.id, oneOffer.id)
+
+    expect(offersFor(two.id).find((row) => row.id === twoOffer.id)?.status).toBe('superseded')
+    /* The second acceptance is untouched, so the request still waits to be paid. */
+    expect(offersFor(two.id).find((row) => row.id === twoSpare.id)?.status).toBe('accepted')
+    expect(getRequest(two.id)?.status).toBe('accepted_awaiting_payment')
+    expect(updates().some((row) => row.kind === 'faster' && row.request_id === two.id)).toBe(true)
+    /* No status transition → no activity row for the loser. */
+    expect(
+      activityLog().some((row) => row.action === 'someone_faster' && row.entity_id === two.id),
+    ).toBe(false)
+  })
+
+  it('a request that never got an acceptance just loses the sent offer', async () => {
+    const { one, two, oneOffer, twoOffer } = await seedSharedAcceptor()
+    acceptOffer(oneOffer.id, 'Meena S')
+
+    lockRequest(one.id, oneOffer.id)
+
+    expect(offersFor(two.id).find((row) => row.id === twoOffer.id)?.status).toBe('superseded')
+    expect(getRequest(two.id)?.status).toBe('searching')
+    expect(updates().some((row) => row.kind === 'faster' && row.request_id === two.id)).toBe(true)
+    expect(
+      activityLog().some((row) => row.action === 'someone_faster' && row.entity_id === two.id),
+    ).toBe(false)
+  })
+})
+
+
 describe('the acceptor told "someone was faster" (docs/04 B.4)', () => {
   beforeEach(() => {
     resetStore()

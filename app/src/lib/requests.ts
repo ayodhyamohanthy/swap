@@ -562,13 +562,62 @@ export function lockRequest(requestId: string, paidOfferId?: string): SwapReques
     locked_offer_id: accepted.id,
     updated_at: now(),
   }
+  /* Cross-request supersede (L5 → L3, 2026-09-28): the acceptor trip that just
+     locked can never swap twice (docs/03: one locked swap per berth), so the
+     death of a rival offer is not scoped to THIS request — every other
+     request's `sent`/`accepted` offer to the same trip dies with this lock
+     too. A loser request that was awaiting payment on that acceptance falls
+     back to `searching` unless another acceptance is still waiting — the state
+     that finally lets screen 29 / design 20a ("Someone else was faster") key
+     on something real. */
+  const lostToLock = snapshot.offers.filter(
+    (offer) =>
+      offer.request_id !== requestId &&
+      offer.acceptor_trip_id === accepted.acceptor_trip_id &&
+      (offer.status === 'sent' || offer.status === 'accepted'),
+  )
+  const loserIds = new Set(lostToLock.map((offer) => offer.request_id))
+  /* A loser with a second acceptance still open stays payable (docs/04 A.9:
+     the first to be paid wins, others keep their options until then). */
+  const loserStillAccepted = new Set(
+    snapshot.offers
+      .filter(
+        (offer) =>
+          loserIds.has(offer.request_id) &&
+          offer.status === 'accepted' &&
+          !lostToLock.some((lost) => lost.id === offer.id),
+      )
+      .map((offer) => offer.request_id),
+  )
+  const revertedLosers = snapshot.requests
+    .filter(
+      (row) =>
+        loserIds.has(row.id) &&
+        !loserStillAccepted.has(row.id) &&
+        row.status === 'accepted_awaiting_payment',
+    )
+    .map((row) => row.id)
   commit({
     ...ensureLoaded(),
-    requests: snapshot.requests.map((row) => (row.id === requestId ? updated : row)),
+    requests: snapshot.requests.map((row) => {
+      if (row.id === requestId) return updated
+      if (revertedLosers.includes(row.id) && row.status === 'accepted_awaiting_payment') {
+        return { ...row, status: 'searching' as const, updated_at: now() }
+      }
+      return row
+    }),
     offers: snapshot.offers.map((offer) => {
-      if (offer.request_id !== requestId) return offer
-      if (offer.id === updated.locked_offer_id) return offer
-      if (offer.status === 'sent' || offer.status === 'accepted') {
+      if (offer.request_id === requestId) {
+        if (offer.id === updated.locked_offer_id) return offer
+        if (offer.status === 'sent' || offer.status === 'accepted') {
+          return { ...offer, status: 'superseded' as const, responded_at: now() }
+        }
+        return offer
+      }
+      if (
+        offer.acceptor_trip_id === accepted.acceptor_trip_id &&
+        (offer.status === 'sent' || offer.status === 'accepted')
+      ) {
         return { ...offer, status: 'superseded' as const, responded_at: now() }
       }
       return offer
@@ -576,6 +625,17 @@ export function lockRequest(requestId: string, paidOfferId?: string): SwapReques
   })
   logActivity('swap_locked', { offer: updated.locked_offer_id }, { type: 'swap_request', id: requestId })
   trackEvent('swap_locked', {})
+  /* A request losing its awaiting-payment acceptance is a transition of its
+     own (docs/11: every transition writes an activity_log row). Reuses the
+     existing `someone_faster` action + meta shape — a new action would need
+     chip/label/details keys in both catalogs (L10, single writer). */
+  for (const loserId of revertedLosers) {
+    logActivity(
+      'someone_faster',
+      { trip: accepted.acceptor_trip_id },
+      { type: 'swap_request', id: loserId },
+    )
+  }
   return updated
 }
 

@@ -94,6 +94,10 @@ export function ManageRequestScreen() {
 
   const trip = getTrip(request.trip_id)
   const offers = offersFor(request.id)
+  /* Only offers still awaiting a reply belong in the waiting list: a declined
+     or cross-request-superseded offer is no longer "Sent" — and it keeps the
+     loser of a lock (design 20a) from seeing their dead offer as live. */
+  const waitingOffers = offers.filter((offer) => offer.status === 'sent')
   const accepted = acceptedOffer(request.id)
   const shareDate = `${trip?.train_no ?? ''}-${trip?.journey_date ?? ''}`
   const searching = request.status === 'searching'
@@ -231,9 +235,9 @@ export function ManageRequestScreen() {
         </Card>
       ) : null}
 
-      {searching && offers.length > 0 ? (
+      {searching && waitingOffers.length > 0 ? (
         <section className="mt-4 space-y-2">
-          {offers.map((offer) => (
+          {waitingOffers.map((offer) => (
             <div
               key={offer.id}
               className="flex items-center gap-3 rounded-card border border-line bg-card p-3 shadow-soft"
