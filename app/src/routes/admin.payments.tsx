@@ -50,11 +50,17 @@ const OUTCOME_TONE: Record<PaymentOutcome, 'primary' | 'accent' | 'danger' | 'ne
 /* Five tracks, defined once: the header ruler and every row must agree, and two
    copies of this string is two chances for the table to drift out of line.
 
+   The When track is `8.5rem` because design 15's activity table already measured
+   this exact `date · time` string — `Tue, 29 Sept · 22:41` — and needed 136px
+   for it. At 6rem the text overflowed its track and printed hard against the
+   amount (`22:41₹99`), which every left-edge geometry check passed: the cell
+   started in the right column and merely ran past the end of it.
+
    Design 18 leads with Time. Swap leads here instead, matching design 17's
    sibling table — the row's identity first, and DOM order equal to visual order
    so a screen reader hears the columns in the order they are drawn. Filed as a
    deviation rather than matched. */
-const TRACKS = 'lg:grid-cols-[6.5rem_6rem_minmax(0,1fr)_minmax(0,1fr)_6rem]'
+const TRACKS = 'lg:grid-cols-[6.5rem_8.5rem_minmax(0,1fr)_minmax(0,1fr)_6rem]'
 
 /* Design 18 shows `22:41` beside a date, and `useI18n().date` renders in local
    time — so the clock has to as well, or an evening payment lands on the wrong
