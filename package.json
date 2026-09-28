@@ -13,7 +13,8 @@
     "typecheck": "npm run typecheck --workspace seatswap-app",
     "test": "npm run test --workspace seatswap-app",
     "verify": "npm run verify --workspace seatswap-app",
-    "collab-check": "npm run collab-check --workspace seatswap-app"
+    "collab-check": "npm run collab-check --workspace seatswap-app",
+    "collab:install-hooks": "node app/scripts/install-hooks.mjs"
   },
   "engines": {
     "node": ">=20.19.0"

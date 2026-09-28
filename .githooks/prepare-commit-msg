@@ -1,0 +1,24 @@
+#!/usr/bin/env sh
+# Commit-message guard (docs/11-COLLAB.md, docs/13 §3, lane L9).
+#
+# This lives in prepare-commit-msg, not pre-commit, on purpose: git writes
+# COMMIT_EDITMSG only AFTER pre-commit runs, so a pre-commit hook that reads the
+# message sees the *previous* commit's subject. That was found by testing, not
+# by reading docs — `git commit -m "0"` sailed straight through. prepare-commit-msg
+# receives the finished message as $1, so the check is honest.
+#
+# L1 asked for the rejection of one-character subjects after two blanket
+# `git add -A` commits titled `0`. Two house styles are accepted so the other
+# platforms are not blocked by it: `feat(pay): ...` and `L5: ...`.
+#
+# $2 is the message source. Merge and squash messages are not the author's
+# subject, so they are left alone rather than blocked.
+set -e
+repo_root=$(git rev-parse --show-toplevel)
+source_type=${2:-message}
+case "$source_type" in
+  merge | squash | commit | template) exit 0 ;;
+esac
+msg_file=${1:-"$repo_root/.git/COMMIT_EDITMSG"}
+[ -f "$msg_file" ] || exit 0
+exec node "$repo_root/app/scripts/collab-check.mjs" --hook-msg "$msg_file"

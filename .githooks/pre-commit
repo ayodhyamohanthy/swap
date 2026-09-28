@@ -1,0 +1,26 @@
+#!/usr/bin/env sh
+# Pre-commit guard (docs/11-COLLAB.md, docs/13 §3, lane L9).
+#
+# L1 asked for this twice: "Worth a `pre-commit` hook that rejects `git add -A`
+# or a one-character subject; the protocol text alone has now failed twice."
+# `app/scripts/collab-check.mjs` already implemented both, and the integration
+# prompt already ran it, but nothing ran it *on commit* — `core.hooksPath` was
+# unset, so `.git/hooks` held only the desktop app's post-checkout/post-commit.
+#
+# What it actually enforces, and the one honest limitation: a hook cannot tell
+# which `git add` spelling produced the index — `git add -A` and a path-scoped
+# add are byte-identical there. So the guard checks the effect the protocol
+# cares about:
+#   - a subject that can attribute a change (rejects `0`, empty, or unscoped)
+#   - a commit that does not contain a file belonging to an *active* lane
+#   - a file someone was still writing in the last 15 minutes
+# Active lanes and their surfaces are read from docs/14 and docs/13 at run time,
+# so the guard cannot drift from the board.
+#
+# The green rule (typecheck + test + build) stays in CI: blocking a commit for
+# minutes on a laptop is how guards get `--no-verify`d.
+#
+# Install once per clone:  npm run collab:install-hooks
+set -e
+repo_root=$(git rev-parse --show-toplevel)
+exec node "$repo_root/app/scripts/collab-check.mjs" --hook

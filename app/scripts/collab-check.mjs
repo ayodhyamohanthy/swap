@@ -145,7 +145,148 @@ function checkGenerated() {
   }
 }
 
+/* ---- active lanes, read out of the board itself ----
+   docs/13 §1 holds the lane -> surface map; docs/14 holds who is active right
+   now. Parsing both means the guard can never drift from the board: a new lane
+   or a new `active:` timestamp is enforced with no edit to this file. */
+function activeLanes() {
+  const board = readFileSync(join(REPO, 'docs', '14-LANES.md'), 'utf8')
+  const active = new Set()
+  for (const line of board.split('\n')) {
+    if (!line.startsWith('| L')) continue
+    const cells = line.split('|').map((c) => c.trim())
+    const id = (cells[1] ?? '').split(/\s+/)[0]
+    const state = cells[4] ?? ''
+    if (/^active:\s*(?!none)/i.test(state)) active.add(id)
+  }
+  if (active.size === 0) return []
+  const contract = readFileSync(join(REPO, 'docs', '13-COLLAB-CONTRACT.md'), 'utf8')
+  const lanes = []
+  for (const line of contract.split('\n')) {
+    if (!line.startsWith('| L')) continue
+    const cells = line.split('|').map((c) => c.trim())
+    const id = (cells[1] ?? '').split(/\s+/)[0]
+    if (!active.has(id)) continue
+    const surfaces = [...(cells[2] ?? '').matchAll(/`([^`]+)`/g)].map((m) => m[1])
+    if (surfaces.length > 0) lanes.push({ id, surfaces })
+  }
+  return lanes
+}
+
+/** Glob -> RegExp. `**` spans directories, `*` stops at one. Surfaces in
+    docs/13 are written two ways — repo-relative (`app/src/components/**`) and
+    source-relative (`routes/pay.*`) — so both forms are tried. */
+function globToRegExp(glob) {
+  let re = ''
+  for (let i = 0; i < glob.length; i += 1) {
+    const c = glob[i]
+    if (c === '*') {
+      if (glob[i + 1] === '*') {
+        re += '.*'
+        i += 1
+      } else {
+        re += '[^/]*'
+      }
+    } else if (c === '?') {
+      re += '[^/]'
+    } else {
+      re += c.replace(/[.+^${}()|[\]\\]/, '\\$&')
+    }
+  }
+  return new RegExp('^' + re + '$')
+}
+
+function ownedByLane(file, surface) {
+  return globToRegExp(surface).test(file) || globToRegExp(`app/src/${surface}`).test(file)
+}
+
+/* ---- pre-commit mode (.githooks/pre-commit) ----
+   Runs on every commit. Keeps the fast structural checks only; the green rule
+   (typecheck + test + build) stays in CI so a commit is never blocked for
+   minutes on a slow machine. */
+function hookMode() {
+  const problems = []
+  const files = staged()
+
+  if (files.length === 0) problems.push('nothing is staged — a hook that passes on an empty index is a hook nobody trusts')
+
+  const lanes = activeLanes()
+  const clashes = []
+  for (const file of files) {
+    for (const lane of lanes) {
+      const hit = lane.surfaces.find((surface) => ownedByLane(file, surface))
+      if (hit) clashes.push(`${file} -> ${lane.id} (${hit})`)
+    }
+  }
+  if (clashes.length > 0) {
+    problems.push(
+      `these files belong to a lane that is active right now:\n        ${clashes.join('\n        ')}` +
+        '\n      stage only your own files, or wait for that lane to release (docs/14).',
+    )
+  }
+
+  const hot = [...hotFiles()]
+  const hotClash = files.filter((f) => hot.includes(f))
+  if (hotClash.length > 0) {
+    problems.push(
+      `written in the last ${HOT_MINUTES} min, so someone may still be editing:\n        ${hotClash.join('\n        ')}`,
+    )
+  }
+
+  if (problems.length === 0) {
+    console.error('collab-check: ok — ' + files.length + ' file(s) staged, no active-lane or hot-file clash')
+    process.exit(0)
+  }
+  console.error('\ncollab-check blocked this commit:\n')
+  for (const p of problems) console.error('  \u2717 ' + p)
+  console.error('\n  bypass with --no-verify only if you know it is safe.\n')
+  process.exit(1)
+}
+
+/* ---- prepare-commit-msg mode ----
+   The subject cannot be checked in pre-commit: git writes COMMIT_EDITMSG only
+   after pre-commit has run, so a `git commit -m "0"` hands the hook the
+   *previous* commit's message. prepare-commit-msg runs once the message exists
+   and receives its path as $1, so that is where the subject belongs. */
+function hookMsgMode(msgFile) {
+  const problems = []
+  let raw = ''
+  try {
+    raw = readFileSync(msgFile, 'utf8')
+  } catch {
+    raw = ''
+  }
+  /* Comment lines start with '#' and are not the subject. */
+  const subject = raw.split('\n').find((line) => !line.trimStart().startsWith('#'))?.trim() ?? ''
+
+  if (subject.length === 0) {
+    problems.push('empty commit subject — history is how lanes attribute files')
+  } else if (subject.length < 10) {
+    problems.push(`commit subject "${subject}" is too short to attribute`)
+  } else if (!/^(?:[a-z]+(?:\(.+\))?!?:|L\d+:)/.test(subject)) {
+    /* Two house styles are in use and both are accepted: a conventional-commit
+       scope (`feat(pay): ...`) and a lane prefix (`L5: ...`). Rejecting the
+       lane form would block the other platforms' own workflow, which is the
+       opposite of what this guard is for. What it still catches is the real
+       failure mode — a one-character subject like `0`. */
+    problems.push(
+      `commit subject "${subject}" is neither conventional-commit scoped (feat(pay): ...) nor lane-prefixed (L5: ...)`,
+    )
+  }
+
+  if (problems.length > 0) {
+    console.error('\ncollab-check blocked this commit:\n')
+    for (const p of problems) console.error('  \u2717 ' + p)
+    console.error('\n  bypass with --no-verify only if you know it is safe.\n')
+    process.exit(1)
+  }
+  process.exit(0)
+}
+
 function main() {
+  if (has('--hook')) return hookMode()
+  const msgFile = valueOf('--hook-msg')
+  if (msgFile) return hookMsgMode(msgFile)
   console.log('\x1b[1mcollab-check\x1b[0m — docs/11-COLLAB.md, enforced\n')
 
   /* commit message shape (docs/11: never single-character or empty) */

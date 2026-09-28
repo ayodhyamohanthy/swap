@@ -31,6 +31,41 @@ Shared files (`package.json`, `routeTree.gen.ts`, `app/vite.config.ts`)
 are **generated or additive-only**: run the build after touching routes and
 commit the regenerated tree; never hand-edit.
 
+Two more were unowned (flagged by L9, 2026-09-28) and are now assigned here:
+`app/vitest.config.ts` follows L1, and `app/scripts/**` — the collab guard and
+its installer — follows **L9**, because the guard is what enforces every other
+lane's boundary.
+
+### Pre-commit guard (L9, live since 2026-09-29)
+
+`app/scripts/collab-check.mjs` existed and was even named in the integration
+prompt below, but nothing ran it on commit: `core.hooksPath` was unset and
+`.git/hooks` held only the desktop app's `post-checkout`/`post-commit`. So the
+protocol existed on paper. It is now wired:
+
+```
+npm run collab:install-hooks      # once per clone; local git config only
+```
+
+That activates two versioned hooks in `.githooks/`:
+
+- `prepare-commit-msg` — refuses a subject that cannot attribute a change
+  (empty, shorter than 10 chars, or neither `feat(pay): …` nor `L5: …`).
+  This check is in `prepare-commit-msg` and **not** `pre-commit` because git
+  writes `COMMIT_EDITMSG` only after `pre-commit` runs — a `pre-commit` read of
+  the message sees the *previous* commit's subject. That was found by testing
+  `git commit -m "0"`, which passed a naive hook.
+- `pre-commit` — refuses a commit that contains a file belonging to a lane
+  marked `active:` in `docs/14-LANES.md`, or a file written in the last 15
+  minutes. Lanes and surfaces are parsed from `docs/14` + `docs/13` at run time,
+  so the guard cannot drift from the board.
+
+**One honest limit:** a hook cannot detect *which* `git add` spelling produced
+the index — `git add -A` and a path-scoped add are byte-identical there. The
+guard therefore checks the effect the protocol cares about (not committing
+another live lane's files), not the command. The green rule stays in CI so a
+commit is never blocked for minutes on a laptop.
+
 ## 2. Integration protocol (how lanes merge without conflicts)
 
 1. **Announce** — write your lane + files in `docs/14-LANES.md` before the
@@ -69,6 +104,7 @@ docs/14-LANES.md and stop. Never `git add -A`. Never add a paid dependency.
 **Integration prompt (run once after lanes report done):**
 
 ```
+npm run collab:install-hooks                # once per clone
 git pull --rebase && git status --short
 node app/scripts/collab-check.mjs          # hot files + generated + green
 npm run typecheck --workspace seatswap-app
