@@ -20,7 +20,7 @@ export interface RequestNewSearch {
 }
 
 export const Route = createFileRoute('/request/new')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'swaps' } satisfies RouteChrome,
   validateSearch: (search: Record<string, unknown>): RequestNewSearch => ({
     tripId: typeof search.tripId === 'string' ? search.tripId : undefined,
   }),

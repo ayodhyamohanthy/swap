@@ -19,7 +19,7 @@ import { useSwapRequest } from '@/lib/use-store'
    never costs anything (rule 2). Zero matches => "You're the first" + share. */
 
 export const Route = createFileRoute('/request/$id/matches')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'swaps' } satisfies RouteChrome,
   component: MatchesScreen,
 })
 

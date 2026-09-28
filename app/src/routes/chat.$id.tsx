@@ -1,6 +1,6 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
-import { CheckCheck, Send, ShieldCheck } from 'lucide-react'
+import { CheckCheck, ChevronLeft, Send, ShieldCheck } from 'lucide-react'
 import { AppFooter, type RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
@@ -27,7 +27,7 @@ interface Msg {
 }
 /* Locked-swap chat (docs/04 A12): bubbles + quick replies + guard + report. */
 export const Route = createFileRoute('/chat/$id')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'swaps', header: ChatHeader } satisfies RouteChrome,
   component: ChatScreen,
 })
 const QUICK_FALLBACK: Record<string, string> = {
@@ -40,12 +40,56 @@ function stamp(at?: number): string {
   if (!at) return ''
   return new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
+/* Design 4b draws the chat's chrome *in* the green bar — back chevron, the
+   person, and where to find them — above the tab bar docs/05 pins for /chat.
+   AppShell renders this through RouteChrome.header in place of the wordmark
+   bar. The coach · berth line keeps rule 13's gate: revealedBerths is null
+   until payment, so nothing shows before then. */
+function ChatHeader() {
+  /* Route-bound hook, not generic useParams — it reads router state, so it
+     works up here in AppShell's tree too (the /chat/$id match is in state by
+     the time the shell renders its chrome). */
+  const { id } = Route.useParams()
+  const { t } = useI18n()
+  const req = demoRequest(id)
+  const berths = revealedBerths(id)
+  return (
+    <header className="sticky top-0 z-20 flex min-h-14 items-center gap-2 bg-primary px-2 text-white">
+      <Link
+        to="/"
+        aria-label={t('common.back')}
+        className="tap flex items-center justify-center rounded-full text-white"
+        onClick={(event) => {
+          /* Prefer real history so "back" lands where the user came from. */
+          if (window.history.length > 1) {
+            event.preventDefault()
+            window.history.back()
+          }
+        }}
+      >
+        <ChevronLeft aria-hidden className="size-6" />
+      </Link>
+      <span
+        aria-hidden
+        className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white/20 font-head text-body font-bold"
+      >
+        {req.acceptorName.charAt(0)}
+      </span>
+      <span className="flex min-w-0 flex-col px-1">
+        <span className="truncate font-head text-body font-bold">{req.acceptorName}</span>
+        {berths?.coach && berths.theirsNo ? (
+          <span className="truncate text-caption text-white/85">
+            {t('trip.coach', { coach: berths.coach })} · {t('trip.berth', { no: berths.theirsNo })}
+          </span>
+        ) : null}
+      </span>
+    </header>
+  )
+}
 function ChatScreen() {
   const { id } = Route.useParams()
   const { t } = useI18n()
   const req = demoRequest(id)
-  /* Post-payment only (rule 13): the header line names where to find them. */
-  const berths = revealedBerths(id)
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [draft, setDraft] = useState('')
   const [warn, setWarn] = useState<string | null>(null)
@@ -148,16 +192,10 @@ function ChatScreen() {
   }
   return (
     <div>
-      <h1 className="text-title text-ink">{t('chat.title', { name: req.acceptorName })}</h1>
-      {berths?.coach && berths.theirsNo ? (
-        /* Design 4b carries the person's name and where they are sitting in
-           the bar; here it sits under the title. Rule 13 allows coach + berth
-           because a chat only exists once the swap is paid and locked. */
-        <p className="mt-1 text-body text-muted">
-          {t('trip.coach', { coach: berths.coach })} · {t('trip.berth', { no: berths.theirsNo })}
-        </p>
-      ) : null}
-      <div className="mt-3 flex flex-col gap-2" aria-live="polite">
+      {/* The name and coach line live in ChatHeader now — design 4b draws them
+          in the green bar, not as a title under it. The messages start at the
+          top of the body, exactly as the design does. */}
+      <div className="flex flex-col gap-2" aria-live="polite">
         {msgs.map((m) => (
           <p key={m.id} className={m.mine
             /* Design 4b: the sent bubble is the soft green (bg-wash) with ink

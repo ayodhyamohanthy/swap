@@ -17,7 +17,7 @@ import { useOnline } from '@/lib/use-online'
    never leaves the phone until scanned. */
 
 export const Route = createFileRoute('/share/$trainDate')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'swaps' } satisfies RouteChrome,
   component: ShareScreen,
 })
 

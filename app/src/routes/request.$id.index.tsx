@@ -6,6 +6,6 @@ import type { RouteChrome } from '@/components/app-shell'
    + screen 22 "2nd choice match" (14c). Lives at the index route so the
    /matches child screen can render under the /request/$id layout. */
 export const Route = createFileRoute('/request/$id/')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'swaps' } satisfies RouteChrome,
   component: ManageRequestScreen,
 })

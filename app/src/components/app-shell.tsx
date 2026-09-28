@@ -1,6 +1,6 @@
 import { Link, useLocation, useMatches } from '@tanstack/react-router'
 import { ArrowLeftRight, ChevronLeft, House, Settings, User } from 'lucide-react'
-import type { ReactNode } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import { isAdminRoute } from '@/lib/admin'
 import { useI18n } from '@/lib/i18n'
 import { useOnline } from '@/lib/use-online'
@@ -21,6 +21,11 @@ export interface RouteChrome {
   showSettings?: boolean
   /** Brand strapline under the wordmark (design 1a "Home · my trips"). */
   tagline?: boolean
+  /** Route-provided top bar replacing the default wordmark bar (design 4b's
+      green chat bar: the route owns the content, so a live name and the
+      rule-13-revealed coach line can live *in* the bar like the design draws
+      it). Tab-bar behaviour is unchanged — pair it with `chrome: 'tabs'`. */
+  header?: ComponentType
 }
 
 function Wordmark({ className }: { className?: string }) {
@@ -172,11 +177,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className={cn('flex min-h-dvh flex-col', inColumn && 'app-column')}>
       {mode !== 'setup' ? (
-        <TopBar
-          back={mode === 'plain'}
-          showSettings={chrome.showSettings}
-          tagline={chrome.tagline}
-        />
+        chrome.header ? (
+          <chrome.header />
+        ) : (
+          <TopBar
+            back={mode === 'plain'}
+            showSettings={chrome.showSettings}
+            tagline={chrome.tagline}
+          />
+        )
       ) : null}
       <OfflineBanner />
       <main className={cn('flex-1 px-4 pt-4', mode === 'setup' && 'pt-10', 'pb-8')}>{children}</main>
