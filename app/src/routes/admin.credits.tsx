@@ -25,6 +25,14 @@ export const Route = createFileRoute('/admin/credits')({
   component: AdminCredits,
 })
 
+/** Wallet `kind` is a machine enum; an admin table must never print it raw —
+    the same rule the traveller-facing screens follow for statuses. */
+function creditKindLabel(kind: string): 'payments.paid' | 'payments.toCredit' | 'profile.credit' {
+  if (kind === 'used' || kind === 'expired') return 'profile.credit'
+  if (kind === 'acceptor_credit' || kind === 'swap_to_credit') return 'payments.toCredit'
+  return 'payments.paid'
+}
+
 function AdminCredits() {
   const { t, date } = useI18n()
   const { wallet } = useAppState()
@@ -108,7 +116,9 @@ function AdminCredits() {
                 className="flex items-center justify-between gap-3 rounded-card border border-line bg-card p-3"
               >
                 <span className="min-w-0">
-                  <b className="block truncate font-head text-body text-ink">{row.kind}</b>
+                  <b className="block truncate font-head text-body text-ink">
+                    {t(creditKindLabel(row.kind))}
+                  </b>
                   <small className="block text-caption text-muted">{date(row.created_at)}</small>
                 </span>
                 <span className="text-right">

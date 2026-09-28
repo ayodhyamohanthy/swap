@@ -478,6 +478,21 @@ export function setReminder(id: string, on: boolean): Trip | undefined {
   return trip
 }
 
+/** Chart-is-out flip (docs/08 growth loop 4, design 7c, screen 19). The real
+    trigger is the chart-time job or its push; this is the device-side write so
+    the push target `/trips/$id` can actually render the state its copy was
+    written for — `growth.chartTitle` existed with nothing to render it. */
+export function setChartPrepared(id: string, prepared: boolean): Trip | undefined {
+  const trip = patchTrip(id, { chart_prepared: prepared })
+  if (!trip) return undefined
+  logActivity(
+    prepared ? 'chart_out' : 'chart_reset',
+    { train_no: trip.train_no, journey_date: trip.journey_date },
+    { type: 'booking', id },
+  )
+  return trip
+}
+
 /* ------------------------------------------------------------------ *
  * Small flags, settings and the credit ledger (read-only in steps 1-2) *
  * ------------------------------------------------------------------ */

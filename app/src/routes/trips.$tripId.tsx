@@ -85,10 +85,23 @@ function TripScreen() {
         </Card>
       ) : null}
 
+      {/* Screen 19 "Chart is out" (design 7c): the push target once the chart
+          is prepared and berths are final. `chart_prepared` was on the Trip
+          type with no reader anywhere in the app. */}
+      {trip.chart_prepared ? (
+        <Card className="mt-3 border-primary/30 bg-wash">
+          <CardTitle>{t('growth.chartTitle')}</CardTitle>
+          <CardBody>{t('growth.chartBody')}</CardBody>
+        </Card>
+      ) : null}
+
       {ticketStatus === 'CNF' ? (
-        <Card className="mt-3">
-          <CardTitle>{t('trip.firstTitle')}</CardTitle>
-          <CardBody>{t('trip.firstBody')}</CardBody>
+        <Card className="mt-3 flex items-center gap-3 border-accent/40 bg-accent-soft">
+          <Users aria-hidden className="size-6 shrink-0 text-accent" />
+          <span className="min-w-0 flex-1">
+            <CardTitle>{t('trip.firstTitle')}</CardTitle>
+            <CardBody className="text-ink">{t('trip.firstBody')}</CardBody>
+          </span>
         </Card>
       ) : null}
 

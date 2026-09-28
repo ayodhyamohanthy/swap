@@ -30,7 +30,17 @@ function kindLabel(kind: string): 'payments.paid' | 'payments.toCredit' | 'profi
 
 export function PaymentsScreen() {
   const { t, date } = useI18n()
-  const { wallet } = useAppState()
+  const { wallet, payments } = useAppState()
+
+  /* A list row is a `wallet_tx` row, but a receipt belongs to a `payments` row.
+     They join on the request, so "View receipt" is only offered when a payment
+     actually exists for that request — never a link to a receipt that isn't
+     there (design 29a). */
+  const receiptFor = new Map<string, string>()
+  for (const payment of payments) {
+    if (payment.status !== 'paid' || !payment.request_id) continue
+    if (!receiptFor.has(payment.request_id)) receiptFor.set(payment.request_id, payment.id)
+  }
 
   const rows = [...wallet].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
   const totalPaise = rows.reduce((sum, row) => sum + row.amount_paise, 0)
@@ -58,11 +68,10 @@ export function PaymentsScreen() {
           </Card>
 
           <section className="mt-4 space-y-2">
-            {rows.map((row) => (
-              <div
-                key={row.id}
-                className="flex items-center gap-3 rounded-card border border-line bg-card p-3 shadow-soft"
-              >
+            {rows.map((row) => {
+              const receiptId = row.ref_request_id ? receiptFor.get(row.ref_request_id) : undefined
+              const inner = (
+                <>
                 <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-wash text-primary">
                   <Receipt aria-hidden className="size-5" />
                 </span>
@@ -78,16 +87,30 @@ export function PaymentsScreen() {
                   <b className="block font-head text-body text-ink">
                     {formatRupees(row.amount_paise)}
                   </b>
-                  {row.ref_request_id ? (
-                    <Pill tone="neutral">
-                      {t('payments.receipt', {
-                        n: row.ref_request_id.slice(-5).toUpperCase(),
-                      })}
-                    </Pill>
+                  {receiptId ? (
+                    <Pill tone="neutral">{t('payments.view')}</Pill>
                   ) : null}
                 </span>
-              </div>
-            ))}
+                </>
+              )
+              return receiptId ? (
+                <Link
+                  key={row.id}
+                  to="/profile/payments/$id"
+                  params={{ id: receiptId }}
+                  className="tap flex items-center gap-3 rounded-card border border-line bg-card p-3 shadow-soft"
+                >
+                  {inner}
+                </Link>
+              ) : (
+                <div
+                  key={row.id}
+                  className="flex items-center gap-3 rounded-card border border-line bg-card p-3 shadow-soft"
+                >
+                  {inner}
+                </div>
+              )
+            })}
           </section>
 
           <p className="mt-4 text-caption text-muted">{t('payments.demo')}</p>

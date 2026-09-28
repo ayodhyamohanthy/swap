@@ -69,12 +69,14 @@ function StatusScreen() {
           <CardBody className="font-head text-section font-bold text-ink">
             {t('pay.failedHead')}
           </CardBody>
-          <CardBody>{t('pay.failed')}</CardBody>
+          <CardBody>{t('pay.failedBank')}</CardBody>
           <div className="mt-3 flex flex-col gap-2">
             <Button asChild>
               <Link to="/pay/$requestId/method" params={{ requestId }} search={{ useCredit: 1 }}>{t('pay.tryAgain')}</Link>
             </Button>
-            <Button variant="outline" asChild>
+            {/* Design 28c draws "Pay another way" as a saffron outline, not the
+                default green one. */}
+            <Button variant="outline" className="border-accent bg-accent-soft text-ink" asChild>
               <Link to="/pay/$requestId/method" params={{ requestId }} search={{ useCredit: 1 }}>{t('pay.otherWay')}</Link>
             </Button>
           </div>
@@ -88,7 +90,9 @@ function StatusScreen() {
     <div>
       <h1 className="text-title text-ink">{t('pay.pendingTitle')}</h1>
       <Card className="mt-4">
-        <CardTitle>{t('pay.pending')}</CardTitle>
+        <CardTitle className="font-head text-section font-bold text-ink">
+          {t('pay.pendingLead')}
+        </CardTitle>
         <CardBody>{t('pay.pendingNote')}</CardBody>
       </Card>
       <Button className="mt-4" disabled={busy || !payment} onClick={check}>

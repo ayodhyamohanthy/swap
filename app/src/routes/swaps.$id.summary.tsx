@@ -1,15 +1,18 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { AppFooter, type RouteChrome } from '@/components/app-shell'
+import { TicketCard } from '@/components/ticket-card'
 import { Button } from '@/components/ui/button'
-import { Card, CardBody, CardTitle } from '@/components/ui/card'
+import { Card, CardTitle } from '@/components/ui/card'
 import { useI18n } from '@/lib/i18n'
 import { acceptedOffer, getRequest, offersFor, revealedBerths } from '@/lib/requests'
 import { getTrip } from '@/lib/store'
 
-/* Swap summary — offline-capable card (docs/04 A12, design 9c) + footer.
+/* Swap summary — the offline ticket stub (docs/04 A12, design 9c) + footer.
    Every value comes from the real locked request: the train, the date, and
    the two exact berths (rule 13: revealed only after payment). Nothing here
-   is fabricated — unknown berths render masked ("Berth ••"), never guessed. */
+   is fabricated — unknown berths render masked ("Berth ••"), never guessed.
+   Design 9c draws this as a kept ticket: green header, the berth pair, an
+   explicit "works without network" badge, then the tear and the stub. */
 export const Route = createFileRoute('/swaps/$id/summary')({
   staticData: { chrome: 'plain' } satisfies RouteChrome,
   component: SummaryScreen,
@@ -39,25 +42,35 @@ function SummaryScreen() {
 
   const trainLabel = trip.train_name ? `${trip.train_name} ${trip.train_no}` : trip.train_no
   const masked = t('matches.berthMasked')
+  /* The ticket's hero line needs both berth numbers; without them (not locked
+     yet, or an older offline record) fall back to the give/get wording so the
+     numbers are never guessed. */
+  const pair =
+    berths?.coach && berths.mineNo && berths.theirsNo
+      ? t('summary.berths', { coach: berths.coach, mine: berths.mineNo, theirs: berths.theirsNo })
+      : `${t('summary.youGive', { berth: berths?.mine ?? masked })} · ${t('summary.youGet', { berth: berths?.theirs ?? masked })}`
+
   return (
     <div>
-      <h1 className="text-title text-ink">{t('summary.title')}</h1>
-      <p className="mt-1 text-caption text-muted">{t('summary.offline')}</p>
-      <Card className="mt-4">
-        <CardTitle>
-          {t('summary.train', { n: trainLabel, date: trip.journey_date ? date(trip.journey_date) : '—' })}
-        </CardTitle>
-        <CardBody>
-          {t('summary.youGive', { berth: berths?.mine ?? masked })} ·{' '}
-          {t('summary.youGet', { berth: berths?.theirs ?? masked })}
-          {locked ? (
-            <span className="mt-1 block text-caption text-muted">
-              {t('chat.title', { name: locked.acceptor_name })} · {type(locked.acceptor_berth_type)}
-            </span>
-          ) : null}
-        </CardBody>
-        <p className="mt-2 text-body text-ink">{t('summary.keep')}</p>
-      </Card>
+      <TicketCard
+        brand={t('brand.wordmark')}
+        tagline={t('summary.tagline')}
+        title={t('summary.title')}
+        headline={pair}
+        subline={t('summary.train', {
+          n: trainLabel,
+          date: trip.journey_date ? date(trip.journey_date) : '—',
+        })}
+        offlineLabel={t('summary.offlinePill')}
+        stubTitle={t('footer.line1')}
+        stubBody={t('footer.line2')}
+      >
+        {locked ? (
+          <p className="mt-3 text-center text-caption text-muted">
+            {t('summary.met', { name: locked.acceptor_name })} · {type(locked.acceptor_berth_type)}
+          </p>
+        ) : null}
+      </TicketCard>
       {berths ? (
         <Button className="mt-4" asChild>
           <Link to="/swaps/$id/meet" params={{ id }}>

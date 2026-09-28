@@ -313,13 +313,13 @@
     "berthReveal": "Berth numbers are now visible to both of you.",
     "openChat": "Open chat",
     "groupCover": "Group trip covers up to 3 swaps",
-  "groupTitle": "Family trip · Pay ₹199",
-  "groupLock": "Pay once — up to 3 swaps on this trip lock with no extra charge.",
-  "groupUnder": "If no swaps happen, the unused amount stays as credit for 12 months.",
-  "coveredTitle": "Covered by your family trip",
-  "coveredBody": "Your ₹199 group payment covers this swap — one of up to 3. No extra charge.",
-  "coveredCap": "Your group trip already covers 3 swaps. Further swaps pay ₹99 each.",
-  "lockCovered": "Lock this swap",
+    "groupTitle": "Family trip · Pay ₹199",
+    "groupLock": "Pay once — up to 3 swaps on this trip lock with no extra charge.",
+    "groupUnder": "If no swaps happen, the unused amount stays as credit for 12 months.",
+    "coveredTitle": "Covered by your family trip",
+    "coveredBody": "Your ₹199 group payment covers this swap — one of up to 3. No extra charge.",
+    "coveredCap": "Your group trip already covers 3 swaps. Further swaps pay ₹99 each.",
+    "lockCovered": "Lock this swap",
     "pendingTitle": "Payment pending",
     "failedHead": "No money was taken",
     "receiptThanksFor": "Thank-you credit for {name}",
@@ -329,7 +329,9 @@
     "seeDetails": "See swap details",
     "download": "Download receipt",
     "notYet": "Nobody has said yes yet. You pay ₹99 only after someone accepts.",
-    "alreadyPaid": "This swap is already paid for."
+    "alreadyPaid": "This swap is already paid for.",
+    "pendingLead": "Your bank is still confirming ₹99",
+    "failedBank": "If money left your account, your bank returns it in 3–5 days."
   },
   "chat": {
     "title": "Chat with {name}",
@@ -375,7 +377,11 @@
     "youGive": "You give {berth}",
     "youGet": "You get {berth}",
     "train": "{n} · {date}",
-    "keep": "Keep your original ticket and ID with you."
+    "keep": "Keep your original ticket and ID with you.",
+    "tagline": "Travel together, better",
+    "offlinePill": "Works without network",
+    "berths": "Coach {coach} · Berth {mine} ↔ Berth {theirs}",
+    "met": "You have met {name}"
   },
   "request": {
     "statuses": {

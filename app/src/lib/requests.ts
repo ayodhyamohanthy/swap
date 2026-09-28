@@ -551,6 +551,10 @@ export interface RevealedBerths {
   theirs: string | null
   /** Coach both berths were matched in, when known. */
   coach: string | null
+  /** Berth numbers alone, for the Swap summary ticket's "Berth 34 ↔ 36" line
+      (design 9c) which reads better than the "A2 · 34" composite. */
+  mineNo: string | null
+  theirsNo: string | null
 }
 
 /**
@@ -577,6 +581,8 @@ export function revealedBerths(requestId: string): RevealedBerths | null {
     mine: mine && mineCoach ? `${mineCoach} · ${mine}` : mine,
     theirs: locked.acceptor_coach ? `${locked.acceptor_coach} · ${theirs}` : theirs,
     coach: locked.acceptor_coach,
+    mineNo: mine,
+    theirsNo: locked.acceptor_berth_no,
   }
 }
 

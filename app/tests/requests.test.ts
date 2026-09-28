@@ -265,7 +265,15 @@ describe('revealedBerths (rule 13: exact berths only after payment)', () => {
     sendRequest(request.id)
     acceptOffer(offersFor(request.id)[0].id)
     lockRequest(request.id)
-    expect(revealedBerths(request.id)).toEqual({ mine: 'B3 · 27', theirs: 'B4 · 41', coach: 'B4' })
+    /* mineNo/theirsNo are the bare numbers the Swap summary ticket prints as
+       "Berth 27 ↔ 41" (design 9c); the composite form keeps the coach with it. */
+    expect(revealedBerths(request.id)).toEqual({
+      mine: 'B3 · 27',
+      theirs: 'B4 · 41',
+      coach: 'B4',
+      mineNo: '27',
+      theirsNo: '41',
+    })
   })
 
   it('returns null rather than a guessed berth when the number is unknown', async () => {
