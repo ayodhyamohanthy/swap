@@ -40,13 +40,21 @@ const EXPECT = {
 }
 
 async function loadGuard(argv) {
+  /* `--mirror` means "score the copy", not "score the copy only if I have to".
+     Forcing it on a modern Node is what makes the mirror's own banner testable,
+     and it is the honest reading of the flag. */
+  const wantMirror = argv.includes('--mirror')
+  let importable = false
   try {
     const mod = await import('../src/lib/chat-guard.ts')
-    if (typeof mod.guardMessage === 'function') return { guard: mod.guardMessage, copy: false }
+    if (typeof mod.guardMessage === 'function') {
+      importable = true
+      if (!wantMirror) return { guard: mod.guardMessage, copy: false, banner: null }
+    }
   } catch {
     /* Node without TS type stripping (< 22.6). Fall through to the decision. */
   }
-  if (!argv.includes('--mirror')) {
+  if (!wantMirror) {
     console.error(`[safety] cannot import ../src/lib/chat-guard.ts on ${process.version}.`)
     console.error('[safety] Refusing to score a regex copy by default — those numbers describe the copy,')
     console.error('[safety] not the shipped guard, and the previous version of this file reported them as')
@@ -54,15 +62,21 @@ async function loadGuard(argv) {
     console.error('[safety] score the copy deliberately and read the banner it prints.')
     process.exit(2)
   }
-  /* A strict SUBSET of the guard: no Devanagari list, no evasion squishing, no
-     spelled-out digits. It exists so the corpus can still be eyeballed on a Node
-     too old to import the guard — nothing more. */
+  return mirrorGuard(importable ? 'chat-guard.ts imported fine, --mirror is deliberate' : 'chat-guard.ts could not be imported')
+}
+
+/* A strict SUBSET of the guard: no Devanagari list, no evasion squishing, no
+   spelled-out digits. It exists so the corpus can still be eyeballed on a Node
+   too old to import the guard — and so the difference between "the guard" and
+   "a copy of the guard" stays visible rather than being a footnote. */
+function mirrorGuard(why) {
   const UPI_ID = /[a-z0-9._-]{2,}@[a-z]{2,}/i
   const PHONE = /(?:\+?91[\s-]?)?[6-9]\d{4}[\s-]?\d{5}/
   const WORDS =
     /\b(cash|upi|gpay|phonepe|paytm|pay\s?me|send\s+(me\s+)?money|transfer|account\s*(no|number|detail)|ifsc|qr(\s*code)?|bribe|tip\s*(me|us)?|extra\s*(money|cash|charge|fee|payment)|sell|buy|charge\s*(extra|more)|khareed|kharid|paise|paisa|nakad|nagad)\b/i
   return {
     copy: true,
+    banner: `[safety] *** MIRROR MODE *** scoring the regex copy in this file, NOT chat-guard.ts (${why})`,
     guard: (text) => {
       const value = String(text ?? '')
       return { flagged: UPI_ID.test(value) || PHONE.test(value) || WORDS.test(value) }
@@ -71,10 +85,8 @@ async function loadGuard(argv) {
 }
 
 const argv = process.argv.slice(2)
-const { guard, copy } = await loadGuard(argv)
-if (copy) {
-  console.log('[safety] *** MIRROR MODE *** scoring the regex copy in this file, NOT chat-guard.ts')
-}
+const { guard, copy, banner } = await loadGuard(argv)
+if (banner) console.log(banner)
 
 /* Every label in the corpus must be in EXPECT. An unrecognised label used to
    fall through every branch of the classifier and be counted nowhere at all —

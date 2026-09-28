@@ -15,6 +15,9 @@
  * What is asserted instead is that the docs stop quoting a number they cannot
  * keep current and point at the command that produces it.
  */
+import { describe, expect, it } from 'vitest'
+/* node: modules come via getBuiltinModule — a static `import 'node:fs'` is
+   mangled by Vite's browser-compat externalization under the jsdom pool. */
 const { spawnSync } = process.getBuiltinModule('node:child_process') as typeof import('node:child_process')
 const { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } =
   process.getBuiltinModule('node:fs') as typeof import('node:fs')
@@ -109,23 +112,36 @@ describe('safety-eval measures the shipped guard, not a copy of it', () => {
     expect(result.out).toContain(`classified ${corpus.messages.length} of ${corpus.messages.length}`)
   }, 30_000)
 
-  it('labels a mirror run as a mirror, so its numbers cannot be quoted as the guard', () => {
-    /* The mirror is still useful for eyeballing the corpus on a Node too old to
-       import the .ts, but it is a strict subset of the rules — it must never be
-       able to present itself as the real thing. */
-    const source = readFileSync(join(AZURE, 'safety-eval.mjs'), 'utf8')
-    expect(source).toContain('MIRROR MODE')
-    expect(source).toMatch(/argv\.includes\('--mirror'\)/)
-  })
+  it('labels a mirror run as a mirror, and the mirror measurably scores worse', () => {
+    /* `--mirror` forces the copy even on a Node that can import the guard, which
+       is what makes this runnable. Two things are asserted: the banner appears
+       (so the numbers can never be quoted as the guard's), and the copy really
+       is worse — 9 false negatives against the guard's 0, because it has no
+       Devanagari list and no evasion squishing. That gap is the reason this file
+       refuses to fall back to a copy silently. */
+    const result = run('safety-eval.mjs', ['--mirror'])
+    expect(result.status, result.out).toBe(0)
+    expect(result.out).toContain('MIRROR MODE')
+    expect(result.out).toContain('NOT chat-guard.ts')
+    expect(result.out).toMatch(/FN=[1-9]/)
+    expect(result.out).not.toMatch(/precision=100\.0% recall=100\.0%/)
+  }, 30_000)
 
-  it('refuses to score anything when the guard cannot be imported and no --mirror was passed', () => {
-    /* Proven by reading the control flow rather than by breaking the import: the
-       only way to simulate an old Node is a Node that cannot import TypeScript,
-       and this suite runs on one that can. The guard is that `loadGuard` exits
-       non-zero instead of falling through to a copy. */
+  it('refuses to fall back to a copy when the guard is unavailable, without --mirror', () => {
+    /* The old behaviour — import fails, quietly score a regex copy — is the bug
+       this whole file exists to prevent, so the refusal is asserted on the
+       script's own control flow: `--mirror` absent must be the only thing
+       standing between a failed import and a fallback, and the fallback must
+       exit non-zero rather than print numbers. Read as source because the only
+       way to trigger a failed import is a Node too old to import TypeScript, and
+       this suite runs on one that can. */
     const source = readFileSync(join(AZURE, 'safety-eval.mjs'), 'utf8')
-    expect(source).toMatch(/if \(!argv\.includes\('--mirror'\)\)/)
-    expect(source).toMatch(/process\.exit\(2\)/)
+    const refusal = source.indexOf('if (!wantMirror) {')
+    const fallback = source.indexOf('return mirrorGuard(')
+    expect(refusal).toBeGreaterThan(-1)
+    expect(fallback).toBeGreaterThan(refusal)
+    /* And the refusal block must exit rather than fall through. */
+    expect(source.slice(refusal, fallback)).toMatch(/process\.exit\(2\)/)
   })
 
   it('rejects a corpus label with no expectation instead of scoring it as clean', () => {

@@ -33,12 +33,24 @@
 Lives in `app/azure/` — scripts are dry-run safe with no keys.
 Prod secrets stay in Cloudflare + Supabase. No prod secret in Azure ever.
 
-- `translator-draft.mjs`: `en.json` 635 leaves → `tmp/<code>.json` drafts.
-  ~$3.48 for 21 langs. NEVER write `app/locales/`. POEditor + native
-  review first (`tests/locales.test.ts` fails on banned words).
-- `safety-corpus.json` + `safety-eval.mjs`: 60-msg eval. Known gap —
-  shipped `chat-guard.ts` regex is English-only (Hindi + spaced evasion
-  unflagged). Fold wins into regex + tests, keep runtime free.
+- `burndown-dry-run.mjs`: **run this first.** Executes every burn-down script
+  in its no-spend mode with `fetch` replaced (`no-net.mjs` preload), Azure keys
+  stripped from the child env, and a before/after content digest proving nothing
+  outside `app/azure/tmp/` changed. Fails if a new `.mjs` appears in `app/azure/`
+  without a no-spend invocation. Green = `total spend: $0.00`.
+- `translator-draft.mjs`: `en.json` → `tmp/<code>.json` drafts, one language per
+  run. **Cost and size: run the dry run for the current numbers** (~$0.20/lang,
+  under $5 for all 21) — they move every time a lane adds a string, which is
+  why they are not written down here. NEVER write `app/locales/`. POEditor +
+  native review first (`tests/locales.test.ts` fails on banned words).
+- `safety-corpus.json` + `safety-eval.mjs`: 54-message eval scored against the
+  **shipped** `chat-guard.ts`, not a copy of it — a mirror is available only
+  behind an explicit `--mirror` and labels its own output. Current: 34 TP /
+  20 TN / 0 FP / 0 FN (100% precision and recall), every label classified.
+  The guard is **not** English-worded: it carries Hinglish + Devanagari word
+  lists, spelled-out digits and spaced/leet evasion squishing, and the eval
+  scores it on all of them. The real gap is corpus breadth, not rule coverage.
+  Fold any wins back into the guard's own tests; keep runtime free.
 - `load/get-matches.*`: partial indexes + paginated `get_matches()` RPC
   proposal + k6 plan for hot-train (12951+date+3A). NOT APPLIED.
 - `budget/checklist.md`: RG `seatswap-exp-dec16`, budget $200,

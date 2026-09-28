@@ -19,31 +19,36 @@
 
 | Path | What | Burns $ |
 |---|---|---|
-| `translator-draft.mjs` | `en.json` (635 leaves, ~17k chars) → draft `tmp/<code>.json` for the 20 remaining langs. Never writes `app/locales/`. Banned-word + placeholder scan included. | ~$5 total |
-| `safety-corpus.json` | 60-message eval corpus: clean / cash_en / upi / phone / hinglish / hindi_devanagari / obfuscated. | $0 |
-| `safety-eval.mjs` | Runs local `guardMessage()` over the corpus → precision/recall. Optionally compares Azure AI Content Safety when env is set. | <$30 capped |
-| `load/get-matches.k6.js` | k6 plan for the hot-train board (`12951 + date + 3A`). | ~$20-40 |
-| `load/get-matches.spec.sql` | PROPOSAL ONLY — partial indexes + paginated `get_matches()` RPC. Not applied; schema tests forbid drift. | $0 |
+| `burndown-dry-run.mjs` | **Start here.** Runs every step below in no-spend mode: `fetch` replaced, Azure keys stripped, content digest proves nothing outside `tmp/` changed. Exits 1 on any network attempt, any stray write, or an unlisted script. | $0 by construction |
+| `no-net.mjs` | `--import` preload that makes `fetch` impossible and records the URL it blocked. Loaded by the harness; not a step itself. | $0 |
+| `translator-draft.mjs` | `en.json` → draft `tmp/<code>.json` for the remaining langs. Never writes `app/locales/`. Banned-word + placeholder scan included. Size and cost: whatever the dry run prints (~$0.20/lang). | ~$4 total |
+| `safety-corpus.json` | 54-message eval corpus: clean / cash_en / upi / phone / hinglish / hindi_devanagari / obfuscated. | $0 |
+| `safety-eval.mjs` | Scores the **shipped** `chat-guard.ts` over the corpus → per-label precision/recall. `--mirror` scores a regex copy instead and says so. Optionally compares Azure AI Content Safety when env is set. | <$30 capped |
+| `load/get-matches.k6.js` | k6 plan for the hot-train board (`12951 + date + 3A`). Manual: needs k6 + a staging URL. | ~$20-40 |
+| `load/get-matches.spec*.sql` | PROPOSAL ONLY — partial indexes + paginated `get_matches()` RPC. Not applied; schema tests forbid drift. | $0 |
 | `budget/` | Budget + delete-by-Dec-10 checklist + `az` commands. | $0 |
 
 ## Quick start
 
 ```bash
-# 1. Cost estimate only, no network, no spend
+# 1. Everything, at $0, with no keys and no network (run this first)
+node app/azure/burndown-dry-run.mjs
+
+# 2. Cost estimate only, no network, no spend
 node app/azure/translator-draft.mjs --dry-run
 
-# 2. Draft one language to tmp (needs keys, else stays dry-run)
+# 3. Draft one language to tmp (needs keys, else stays dry-run)
 AZURE_TRANSLATOR_KEY=xxx AZURE_TRANSLATOR_REGION=centralindia \
   node app/azure/translator-draft.mjs --lang bn
 
-# 3. Safety eval, local only ($0)
+# 4. Safety eval, local only ($0)
 node app/azure/safety-eval.mjs
 
-# 4. With Azure Content Safety comparison (optional spend)
+# 5. With Azure Content Safety comparison (optional spend)
 AZURE_CONTENT_SAFETY_ENDPOINT=https://xxx.cognitiveservices.azure.com \
 AZURE_CONTENT_SAFETY_KEY=xxx node app/azure/safety-eval.mjs --azure
 
-# 5. Load plan (needs k6 + staging URL, ephemeral)
+# 6. Load plan (needs k6 + staging URL, ephemeral)
 k6 run app/azure/load/get-matches.k6.js -e BASE_URL=https://staging.toyoufromme.website
 ```
 
