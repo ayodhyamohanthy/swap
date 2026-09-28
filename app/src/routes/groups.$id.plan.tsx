@@ -44,7 +44,12 @@ function GroupPlanScreen() {
 
   const { done, total } = groupTogetherCount(group)
   const trips = listTrips().filter((trip) => group.trip_ids.includes(trip.id))
-  /* Bundle consumption at a glance (docs/01): filled dots = covered swaps
+  /* Two different counts on one screen, on purpose — do not merge them.
+     `done/total` above is how many of the family are seated together now
+     (train + date + coach). `used` below is bundle consumption against
+     GROUP_MAX_SWAPS (locked + confirmed member swaps). A swap can be paid for
+     and still not seat anyone together, and vice versa.
+     Bundle consumption at a glance (docs/01): filled dots = covered swaps
      used. Wordless on purpose — no new copy needed in any language. */
   const used = group.paid ? Math.min(groupLockedCount(group.id), GROUP_MAX_SWAPS) : 0
 

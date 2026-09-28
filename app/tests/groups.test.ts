@@ -64,6 +64,62 @@ describe('family groups', () => {
   })
 })
 
+describe('family groups: "3 of 4 together" (docs/01, docs/04 C)', () => {
+  const DAY = '2026-11-12'
+  let n = 0
+  async function member(coach: string, opts: { journey?: string; train?: string } = {}): Promise<string> {
+    n += 1
+    const trip = await addTrip({
+      pnr: `45127896${String(30 + n).padStart(2, '0')}`,
+      train_no: opts.train ?? '12951',
+      journey_date: opts.journey ?? DAY,
+      class: '3A',
+      from_code: 'MMCT',
+      to_code: 'NDLS',
+      passengers: [{ coach, berth_no: String(10 + n), berth_type: 'LB' }],
+    })
+    return trip.id
+  }
+
+  beforeEach(() => {
+    window.localStorage.clear()
+    resetStore()
+    resetGroups()
+    n = 0
+  })
+
+  it('counts the biggest cluster, not whichever trip was linked first', async () => {
+    /* The odd one out is linked FIRST. Anchoring on trips[0] answered
+       "1 of 4 together" when 3 of 4 really are together. */
+    const outlier = await member('B5')
+    const together = [await member('B1'), await member('B1'), await member('B1')]
+    const group = createGroup('Sharma family', [outlier, ...together])
+    expect(groupTogetherCount(group)).toEqual({ done: 3, total: 4 })
+  })
+
+  it('a different train or journey date is never "together"', async () => {
+    const together = [await member('B1'), await member('B1')]
+    const otherTrain = await member('B1', { train: '12952' })
+    const otherDay = await member('B1', { journey: '2026-11-13' })
+    const group = createGroup('Mixed family', [...together, otherTrain, otherDay])
+    expect(groupTogetherCount(group)).toEqual({ done: 2, total: 4 })
+  })
+
+  it('counts the best coach, not the first coach seen', async () => {
+    const group = createGroup('Two coaches', [
+      await member('B2'),
+      await member('B1'),
+      await member('B1'),
+    ])
+    expect(groupTogetherCount(group)).toEqual({ done: 2, total: 3 })
+  })
+
+  it('a group of one is trivially together', async () => {
+    const only = await member('B1')
+    expect(groupTogetherCount(createGroup('Solo', [only]))).toEqual({ done: 1, total: 1 })
+  })
+})
+
 describe('group checkout (docs/01, docs/04 C)', () => {
   const DAY = '2026-11-12'
   let n = 0

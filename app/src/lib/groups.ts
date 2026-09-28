@@ -119,18 +119,28 @@ export function markGroupPaid(groupId: string): GroupTrip | undefined {
   return updated
 }
 
-/** "3 of 4 together": trips sharing train + date + coach with the organiser. */
+/** "3 of 4 together": the biggest cluster of linked trips sharing train + date
+    + coach (docs/01, docs/04 C). Deliberately NOT anchored on the first-linked
+    trip: `trip_ids` is link order and `linkTrip` appends, so an anchor made the
+    answer depend on the order the organiser happened to add PNRs in — link the
+    odd one out first and "3 of 4 together" read "1 of 4".
+
+    This is a different quantity from `groupLockedCount()` (requests.ts): that
+    one counts bundle *consumption* against GROUP_MAX_SWAPS, this one counts
+    how many of the family are actually seated together. They are allowed to
+    disagree — do not merge them. */
 export function groupTogetherCount(group: GroupTrip): { done: number; total: number } {
   const trips: Trip[] = group.trip_ids
     .map((id) => listTrips().find((trip) => trip.id === id))
     .filter((trip): trip is Trip => Boolean(trip))
   if (trips.length === 0) return { done: 0, total: 0 }
-  const anchor = trips[0]
-  const sameCoach = trips.filter(
-    (trip) =>
-      trip.train_no === anchor.train_no &&
-      trip.journey_date === anchor.journey_date &&
-      (trip.passengers[0]?.coach ?? '') === (anchor.passengers[0]?.coach ?? ''),
-  ).length
-  return { done: sameCoach, total: trips.length }
+  const clusters = new Map<string, number>()
+  let done = 0
+  for (const trip of trips) {
+    const key = `${trip.train_no}|${trip.journey_date}|${trip.passengers[0]?.coach ?? ''}`
+    const size = (clusters.get(key) ?? 0) + 1
+    clusters.set(key, size)
+    if (size > done) done = size
+  }
+  return { done, total: trips.length }
 }

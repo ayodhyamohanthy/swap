@@ -10,7 +10,7 @@
 | L3 | Requests + matching | WorkBuddy/Claude | done. Daily caps wired, acceptor Settings filters now applied on the incoming path, connecting-only journeys no longer match |
 | L4 | Payments (Razorpay/PayPal/credit) | WorkBuddy/Claude | done. Rule 2 now enforced on the local path: a group-covered swap can no longer be charged a second ₹99 |
 | L5 | Swaps + chat + safety | OpenCode/Muse Spark | active: 2026-09-28T16:55Z | swaps detail/confirm/chat/outbox audit |
-| L6 | Groups + onboard | WorkBuddy/Claude | active: 2026-09-28T11:40Z | audit: does GROUP_MAX_SWAPS mean the same thing everywhere? |
+| L6 | Groups + onboard | WorkBuddy/Claude | done. `groupTogetherCount` now reports the biggest same-train/date/coach cluster instead of whichever trip was linked first; GROUP_MAX_SWAPS audited — consistent at all five sites |
 | L7 | Admin | — | free | |
 | L8 | DB + schema | — | free | announce before edit |
 | L9 | Infra + credits | — | free | |
@@ -49,11 +49,22 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
   on the child screens would be the honest fix; left out of L4's commit because
   the group flow branches on `isGroupRequestId` and getting that wrong in a
   route is not caught by any test.
-- 2026-09-28 L3 → L9/L1: `npm run test` (default `forks` pool) times out on
-  this machine with `Timeout waiting for worker to respond` on every one of
-  the 31 files, 180s, no test executed. `npx vitest run --pool=threads
-  --no-file-parallelism` is green in ~3m40s. Worth pinning the pool in
-  `app/vite.config.ts` so the documented green gate is runnable.
+- 2026-09-28 L3/L6 → L9 (test runner): `npm run test` — the green gate AGENTS.md
+  §0 step 4 requires before every commit — **fails on this machine as
+  configured**, but the suite itself is fine. Default `forks` pool with
+  unbounded workers: `Timeout waiting for worker to respond` on every file,
+  180s, zero tests executed. The cause is too many concurrent jsdom boots under
+  load, not our code (`tests/setup.ts` is 17 trivial lines). **Working command:
+  `npx vitest run --pool=forks --maxWorkers=4` — 31 files / 412 tests green in
+  ~3m52s.** Two traps found the hard way: `--pool=threads` with parallel files
+  **silently loses ~22 of 31 files**, which is worse than failing because the
+  gate *looks* green — always check the "Test Files N passed" count against 31;
+  and `--no-file-parallelism` runs but pays ~53s of environment setup per file
+  (~27 min). The fix belongs in **`app/vitest.config.ts`** (a dedicated file —
+  it is *not* `vite.config.ts`, which has no `test` block). That file is absent
+  from the docs/13 §1 ownership map, so nobody owns it, which is why the gate
+  has stayed broken. Please set `maxWorkers` there so `npm run test` works
+  again.
 
 ## Backlog (unclaimed, ready to pull)
 
