@@ -21,6 +21,60 @@ describe('guardMessage', () => {
     expect(g.hidden).toBe(true)
     expect(g.warningKey).toBe('chat.cashWarning')
   })
+
+  it('flags Hindi cash/UPI/buy/sell words (docs/09: Hindi first)', () => {
+    for (const text of [
+      'मुझे नकद दे दो बर्थ के लिए',
+      'यूपीआई पर पैसे भेज दो',
+      'लोअर बर्थ के लिए पैसे लगेंगे',
+      'मेरी सीट खरीद लो',
+      'फोन पे कर दो जल्दी',
+      'बर्थ बेच दोगे क्या',
+    ]) {
+      expect(guardMessage(text).flagged, text).toBe(true)
+    }
+  })
+
+  it('flags Hinglish transliterations of the same verbs', () => {
+    for (const text of [
+      'meri seat khareed lo',
+      'bech de berth sasti',
+      'paise de do jaldi',
+      'phone pe kar do',
+      'bhej do upi id',
+    ]) {
+      expect(guardMessage(text).flagged, text).toBe(true)
+    }
+  })
+
+  it('sees through spaced-out and leet evasion', () => {
+    for (const text of [
+      'p a y m e 200',
+      'U P I par bhej do',
+      's-e-l-l my berth cheap',
+      'c@sh for berth',
+      'pay me $200 now',
+    ]) {
+      expect(guardMessage(text).flagged, text).toBe(true)
+    }
+  })
+
+  it('reads phone numbers spelled out as words', () => {
+    expect(guardMessage('nine eight two zero zero one two three four five').flagged).toBe(true)
+    expect(guardMessage('call nine eight 200 12345').flagged).toBe(false)
+  })
+
+  it('does not glue unrelated numbers into phantom phones', () => {
+    /* Train + date digits must never form a phone number. */
+    expect(guardMessage('12951 Rajdhani DOJ 12-11-2026 coach B3 berth 27').flagged).toBe(false)
+    expect(guardMessage('PNR 4512789630 confirmed').flagged).toBe(false)
+  })
+
+  it('keeps spaced letters in ordinary chat intact', () => {
+    for (const text of ['Meet me near the coach door', 'A2 · 36', 'I am at my berth']) {
+      expect(guardMessage(text).flagged, text).toBe(false)
+    }
+  })
 })
 describe('isRateLimited', () => {
   it('allows a calm chat and slows a flood', () => {
