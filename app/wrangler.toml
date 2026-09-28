@@ -6,7 +6,16 @@ name = "seatswap"
 compatibility_date = "2026-09-01"
 
 [assets]
-directory = "./dist/client"
+# `dist/cf` is dist/client minus `_redirects`, staged by scripts/postbuild.mjs.
+# Workers Static Assets reads `_redirects` itself and rejects the Netlify/Surge
+# catch-all `/* /index.html 200` as an infinite loop (API error 100324: it
+# normalises the destination to `/`, which re-matches its own splat), so the
+# first deploy was refused outright. Cloudflare needs no catch-all rule —
+# `not_found_handling` below IS its SPA fallback — and there is no wrangler
+# escape hatch for the file: `[assets] exclude` is not a supported key
+# (wrangler 4.143 answers "Unexpected fields found in assets field").
+# `_headers`, which Cloudflare also reads, is kept in the staged copy.
+directory = "./dist/cf"
 not_found_handling = "single-page-application"
 
 # Custom domain lives in DNS (CNAME toyoufromme.website at repo root).
