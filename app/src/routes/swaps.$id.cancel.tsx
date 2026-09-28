@@ -6,6 +6,7 @@ import { Card, CardBody } from '@/components/ui/card'
 import { useI18n } from '@/lib/i18n'
 import { acceptedOffer, getRequest } from '@/lib/requests'
 import { voidSwap } from '@/lib/settle'
+import { listTrips } from '@/lib/store'
 import { demoRequest } from '@/lib/demo-swap'
 
 /* Screen 31 "Cancel this swap?" (design 25c): cancelling after payment moves
@@ -21,6 +22,9 @@ function CancelSwapScreen() {
   const request = getRequest(id)
   const locked = request ? acceptedOffer(request.id) : undefined
   const name = locked?.acceptor_name ?? demoRequest(id).acceptorName
+  /* Whose money is this? Only the side that holds the trip on this device
+     paid the ₹99 (rule 6); the acceptor never pays (rule 3). */
+  const requesterSide = Boolean(request && listTrips().some((trip) => trip.id === request.trip_id))
   return (
     <div>
       <div className="mt-2 flex justify-center">
@@ -38,9 +42,19 @@ function CancelSwapScreen() {
         variant="danger"
         onClick={() => {
           /* Either side cancelling after payment voids the swap and moves
-             the ₹99 to the requester's credit — never back to a bank. */
-          if (request?.status === 'locked') voidSwap(id)
-          navigate({ to: '/swaps/$id/done', params: { id }, search: { state: 'credit' } })
+             the ₹99 to the requester's credit — never back to a bank.
+             Before the screen may claim that, both gates must hold: the void
+             has to actually settle (an already-confirmed swap cannot be
+             voided), and the viewer has to be the side that paid. The
+             acceptor lands on the swap's status screen instead of being told
+             ₹99 joined a credit they never funded. */
+          const cancellable = request?.status === 'locked' || request?.status === 'disputed'
+          const settled = cancellable ? Boolean(voidSwap(id).resolution) : false
+          if (settled && requesterSide) {
+            navigate({ to: '/swaps/$id/done', params: { id }, search: { state: 'credit' } })
+          } else {
+            navigate({ to: '/swaps/$id', params: { id } })
+          }
         }}
       >
         {t('cancelSwap.confirm')}

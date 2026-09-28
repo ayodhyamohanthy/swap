@@ -1,4 +1,4 @@
-import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
+import { Link, Navigate, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import {
   ArrowLeft,
@@ -16,7 +16,7 @@ import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { requestStatusLabel, useI18n, type MessageKey } from '@/lib/i18n'
 import { type ConfirmOutcome } from '@/lib/outcomes'
 import { answerSwap } from '@/lib/settle'
-import { getRequest, type SwapRequest } from '@/lib/requests'
+import { getRequest, type RequestStatus, type SwapRequest } from '@/lib/requests'
 import { listTrips } from '@/lib/store'
 
 /* Bare /swaps/$id landing (screens 29/30/47/48/49): every outcome state has a
@@ -46,6 +46,26 @@ const REASONS: ReadonlyArray<{ key: MessageKey; outcome: ConfirmOutcome; icon: L
   { key: 'outcome.pRailway', outcome: 'not_possible', icon: TrainFront, tone: 'bg-wash text-primary' },
 ]
 
+/** Where the bare landing sends each status (docs/05 screens 29/47/48/49).
+    Kept as a pure table so the money rules can be tested without a router. */
+export type LandingForward =
+  | { kind: 'review' } // screen 49: answers don't match, money held (rule 7)
+  | { kind: 'credit' } // screen 48: ₹99 added to the requester's credit (rule 6)
+  | { kind: 'summary' }
+  | { kind: 'pay' }
+  | { kind: 'status' }
+
+export function landingForward(status: RequestStatus, requesterSide: boolean): LandingForward {
+  if (status === 'disputed') return { kind: 'review' }
+  /* `voided` is only ever written by a resolution that also wrote the ₹99 to
+     the requester, so only that side is told the money landed. The acceptor
+     never pays — showing them "Added to your credit" would invent money. */
+  if (status === 'voided') return requesterSide ? { kind: 'credit' } : { kind: 'status' }
+  if (status === 'locked' || status === 'confirmed') return { kind: 'summary' }
+  if (status === 'accepted_awaiting_payment') return { kind: 'pay' }
+  return { kind: 'status' }
+}
+
 function SwapLandingScreen() {
   const { id } = Route.useParams() as { id: string }
   const { view } = Route.useSearch()
@@ -70,10 +90,24 @@ function SwapLandingScreen() {
   if (view === 'problem' && request.status === 'locked') {
     return <ProblemScreen id={id} request={request} />
   }
+  const requesterSide = listTrips().some((trip) => trip.id === request.trip_id)
+  /* Screens 48/49 ARE this route (docs/05), so they are the landing itself —
+     an automatic forward, not a button standing between the traveller and
+     the answer to "what happened to my ₹99". */
+  const forward = landingForward(request.status, requesterSide)
+  if (forward.kind === 'review' || forward.kind === 'credit') {
+    return (
+      <Navigate
+        to="/swaps/$id/done"
+        params={{ id }}
+        search={{ state: forward.kind === 'review' ? 'review' : 'credit' }}
+      />
+    )
+  }
   const target =
-    request.status === 'locked' || request.status === 'confirmed' || request.status === 'disputed'
+    forward.kind === 'summary'
       ? { to: '/swaps/$id/summary' as const, label: t('summary.title') }
-      : request.status === 'accepted_awaiting_payment'
+      : forward.kind === 'pay'
         ? { to: '/pay/$requestId' as const, label: t('manage.payCta') }
         : { to: '/request/$id' as const, label: t('manage.title') }
   return (
