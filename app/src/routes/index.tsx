@@ -22,7 +22,10 @@ export const Route = createFileRoute('/')({
   staticData: {
     chrome: 'tabs',
     tab: 'home',
-    showSettings: true,
+    /* Designs 11a and 25a draw a bell to /updates on Home; 1a's older gear
+       retires (it only ever linked to /profile, and Profile has its own
+       settings rows). */
+    showUpdates: true,
     /* Design 1a puts the strapline under the wordmark on Home. */
     tagline: true,
   } satisfies RouteChrome,

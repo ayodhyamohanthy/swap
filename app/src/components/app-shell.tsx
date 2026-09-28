@@ -1,5 +1,5 @@
 import { Link, useLocation, useMatches } from '@tanstack/react-router'
-import { ArrowLeftRight, ChevronLeft, House, Settings, User } from 'lucide-react'
+import { ArrowLeftRight, Bell, ChevronLeft, House, Settings, User } from 'lucide-react'
 import type { ComponentType, ReactNode } from 'react'
 import { isAdminRoute } from '@/lib/admin'
 import { useI18n } from '@/lib/i18n'
@@ -19,6 +19,11 @@ export interface RouteChrome {
   tab?: TabId
   /** Gear icon on the right of the top bar (Home and Profile designs). */
   showSettings?: boolean
+  /** Bell on the right of the top bar linking to /updates — design 11a and
+      25a both draw it on Home (design 1a's older gear retires; settings
+      stays reachable from the Profile tab, and the gear only ever linked
+      to /profile anyway). */
+  showUpdates?: boolean
   /** Brand strapline under the wordmark (design 1a "Home · my trips"). */
   tagline?: boolean
   /** Route-provided top bar replacing the default wordmark bar (design 4b's
@@ -40,10 +45,12 @@ function Wordmark({ className }: { className?: string }) {
 function TopBar({
   back,
   showSettings,
+  showUpdates,
   tagline,
 }: {
   back?: boolean
   showSettings?: boolean
+  showUpdates?: boolean
   tagline?: boolean
 }) {
   const { t } = useI18n()
@@ -76,6 +83,15 @@ function TopBar({
         <Wordmark className={cn('px-2', back && 'mx-auto')} />
       )}
       <span className="flex-1" />
+      {showUpdates && !back ? (
+        <Link
+          to="/updates"
+          aria-label={t('updates.title')}
+          className="tap flex items-center justify-center rounded-full text-primary"
+        >
+          <Bell aria-hidden className="size-6" />
+        </Link>
+      ) : null}
       {showSettings && !back ? (
         <Link
           to="/profile"
@@ -183,6 +199,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <TopBar
             back={mode === 'plain'}
             showSettings={chrome.showSettings}
+            showUpdates={chrome.showUpdates}
             tagline={chrome.tagline}
           />
         )

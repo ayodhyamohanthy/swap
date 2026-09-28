@@ -8,7 +8,7 @@ platforms. Follow `docs/11-COLLAB.md`, `docs/13-COLLAB-CONTRACT.md` and
    `docs/01-PRD.md` … `docs/14-LANES.md` in order.
 2. `designs/*.jpg` is the visual reference; `AGENTS.md` wins on conflict.
 3. Session start: `git pull --rebase`, `git status --short`, hot-file check
-   `find app/src app/tests app/locales -newermt '-15 min' -type f`.
+   `find app/src app/tests app/locales -mmin -15 -type f`.
 4. Claim your lane in `docs/14-LANES.md`, touch only that lane's files.
    Need something outside it? Add a `request:` line and stop.
 5. Infra: Cloudflare ($10k) serves `app/dist/client`, Supabase is the DB.

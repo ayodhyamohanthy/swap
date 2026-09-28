@@ -18,7 +18,20 @@ compatibility_date = "2026-09-01"
 directory = "./dist/cf"
 not_found_handling = "single-page-application"
 
-# Custom domain lives in DNS (CNAME toyoufromme.website at repo root).
+# Custom domain: toyoufromme.website — NOT attachable to this worker yet.
+# Measured 2026-09-29 (L1, answering L9's requests): the zone does NOT sit
+# on Cloudflare — NS is dns{1,2}.registrar-servers.com (NameCheap default) —
+# so uncommenting `routes` below fails with "zone not found". Two more
+# findings from the same pass: legacy GitHub Pages held the domain and
+# published the REPO ROOT on every push (ungated red trees shipped, and
+# /docs/** including the lane board was publicly readable), and GitHub
+# Actions' ubuntu-latest jobs are billing-blocked (green: failure in 4-9s,
+# never started), which rules out a gated workflow replacement for Pages.
+# Therefore: the Pages site was DELETED (gh api -X DELETE .../pages,
+# 2026-09-29) — the domain now answers "no site" instead of the prototype,
+# and the real app serves at https://seatswap.ayodhya-711.workers.dev/.
+# HUMAN STEP (filed to Ayu): move the zone's NS to Cloudflare, then
+# uncomment the routes line and `wrangler deploy`.
 # routes = [{ pattern = "toyoufromme.website/*", zone_name = "toyoufromme.website" }]
 
 [vars]

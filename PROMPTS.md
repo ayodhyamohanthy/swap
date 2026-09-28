@@ -111,7 +111,7 @@ Do NOT edit any file outside this lane. If you need one, add a
 Do this first:
   git pull --rebase
   git status --short
-  find app/src app/tests app/locales -newermt '-15 min' -type f   # hot files
+  find app/src app/tests app/locales -mmin -15 -type f   # hot files
   node app/scripts/collab-check.mjs --fast
 Then claim your lane: in docs/14-LANES.md set state to
   active: <platform name>, <time>

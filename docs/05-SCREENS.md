@@ -71,4 +71,8 @@ Tab = which bottom tab is highlighted. "—" = no tab bar. Design page refers to
 | 65 | Public train page | `/train/$number` | — (web) | – |
 | A1–A6 | Admin: Overview, Activity log, Users, Swaps, Payments & reports, Credits | `/admin/*` | desktop sidebar | 23, 15, 16, 17, 18, 24 |
 
-The phone screens are mobile-first (360–430 px). The admin screens are responsive desktop pages.
+The phone screens are drawn mobile-first (360–430 px) but **must work at every
+width from 360 to 1440** — see agents.md rule 12a and docs/07 §Responsive. A
+screen is done only after it has been checked at 360 / 430 / 768 / 1440 with no
+horizontal scroll and no clipped text. The admin screens are responsive desktop
+pages.

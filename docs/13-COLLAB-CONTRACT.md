@@ -102,7 +102,7 @@ Repo: /Users/ayodhyarammohanthy/Documents/GitHub/swap
 Read in order: agents.md, docs/11-COLLAB.md, docs/12-INFRA-CREDITS.md,
 docs/13-COLLAB-CONTRACT.md, docs/14-LANES.md.
 You own LANE <Lx> — <surface>. First: git pull --rebase, git status --short,
-hot-file check (find app/src app/tests app/locales -newermt '-15 min' -type f).
+hot-file check (find app/src app/tests app/locales -mmin -15 -type f).
 Claim the lane in docs/14-LANES.md (active: now). Touch ONLY your lane's
 files. Build keyless (no secret needed): npm run dev --workspace seatswap-app.
 Before every commit: npm run typecheck, npm run test, npm run build.

@@ -7,7 +7,7 @@ Ignoring it has already caused lost work and red builds.
 ## Session start (every session, no exceptions)
 1. `git pull --rebase` before touching anything.
 2. `git status --short` — know what is uncommitted and whose it might be.
-3. Hot-file check: `find app/src app/tests app/locales -newermt '-15 min' -type f`
+3. Hot-file check: `find app/src app/tests app/locales -mmin -15 -type f`
    lists files another agent is editing RIGHT NOW. Do not touch them, do not
    rename them, do not delete them — even if they look like dead code or break
    your plan. Pick non-overlapping files or wait.
