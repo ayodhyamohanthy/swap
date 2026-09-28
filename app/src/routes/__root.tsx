@@ -46,7 +46,15 @@ function RootComponent() {
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en">
+    /* `lang` is prerendered in the default language because the server cannot
+       read the stored choice, and BOOT_SCRIPT corrects it before first paint so
+       the document is marked Hindi from the very first frame. The two therefore
+       legitimately disagree for a Hindi reader — which is what
+       `suppressHydrationWarning` is for. Without it React logs a mismatch on
+       every load for every Hindi user. Derived from DEFAULT_LANG for the same
+       reason the meta tags above are: one source for "what the shell
+       prerenders in". */
+    <html lang={DEFAULT_LANG} suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
