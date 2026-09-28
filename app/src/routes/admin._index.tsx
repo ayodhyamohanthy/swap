@@ -2,8 +2,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import type { RouteChrome } from '@/components/app-shell'
 import { Coins } from 'lucide-react'
 import { Card, CardBody } from '@/components/ui/card'
-import { buildOverview } from '@/lib/admin'
-import { useI18n } from '@/lib/i18n'
+import { buildOverview, type SwapDayPoint } from '@/lib/admin'
+import { formatWeekday, useI18n, type LangCode } from '@/lib/i18n'
 import { formatRupees } from '@/lib/money'
 import { useAppState, useRequestsState } from '@/lib/use-store'
 
@@ -20,8 +20,89 @@ export const Route = createFileRoute('/admin/_index')({
   component: AdminOverview,
 })
 
+/* Design 23's "Swaps this week". Hand-rolled SVG rather than a chart library:
+   seven points do not justify a dependency, and a shape this small is easier
+   to review as geometry than as library configuration.
+
+   Days that have not happened yet are `null` and are simply not drawn, so the
+   line stops at today instead of falling to the floor and implying that swaps
+   collapsed. On a Monday that means a single dot, which is the honest picture
+   of a week that has just started. */
+function SwapWeekChart({ points, lang, title }: {
+  points: SwapDayPoint[]
+  lang: LangCode
+  title: string
+}) {
+  const WIDTH = 340
+  const HEIGHT = 150
+  const LEFT = 30
+  const RIGHT = 332
+  const TOP = 12
+  const BOTTOM = 112
+
+  const values = points.map((point) => point.swaps).filter((value): value is number => value !== null)
+  /* A floor of 1 keeps an all-zero week from dividing by zero. */
+  const max = Math.max(1, ...values)
+  const step = (RIGHT - LEFT) / Math.max(1, points.length - 1)
+  const xAt = (index: number): number => LEFT + index * step
+  const yAt = (value: number): number => BOTTOM - (value / max) * (BOTTOM - TOP)
+
+  const drawn = points
+    .map((point, index) => ({ point, index }))
+    .filter((entry) => entry.point.swaps !== null)
+    .map((entry) => ({ x: xAt(entry.index), y: yAt(entry.point.swaps as number) }))
+
+  const line = drawn.map((point) => `${point.x},${point.y}`).join(' ')
+  const area = drawn.length > 1
+    ? `${drawn[0].x},${BOTTOM} ${line} ${drawn[drawn.length - 1].x},${BOTTOM}`
+    : ''
+
+  return (
+    <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="mt-2 w-full" role="img" aria-label={title}>
+      {[0, 0.5, 1].map((fraction) => {
+        const y = yAt(max * fraction)
+        return (
+          <g key={fraction}>
+            <line x1={LEFT} x2={RIGHT} y1={y} y2={y} className="stroke-line" strokeWidth="1" />
+            <text x={LEFT - 6} y={y + 3} textAnchor="end" className="fill-muted text-[9px]">
+              {Math.round(max * fraction)}
+            </text>
+          </g>
+        )
+      })}
+
+      {area ? <polygon points={area} className="fill-wash" /> : null}
+      {drawn.length > 1 ? (
+        <polyline
+          points={line}
+          fill="none"
+          className="stroke-primary"
+          strokeWidth="2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+      ) : null}
+      {drawn.map((point) => (
+        <circle key={`${point.x}`} cx={point.x} cy={point.y} r="3" className="fill-primary" />
+      ))}
+
+      {points.map((point, index) => (
+        <text
+          key={point.day}
+          x={xAt(index)}
+          y={BOTTOM + 16}
+          textAnchor="middle"
+          className="fill-muted text-[9px]"
+        >
+          {formatWeekday(point.day, lang)}
+        </text>
+      ))}
+    </svg>
+  )
+}
+
 function AdminOverview() {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const { activity, wallet, payments, trips } = useAppState()
   const { requests } = useRequestsState()
   const stats = buildOverview({
@@ -64,25 +145,32 @@ function AdminOverview() {
         </p>
       ) : null}
 
-      {stats.busiestTrains.length > 0 ? (
-        <Card className="mt-4">
-          <p className="font-head text-section text-ink">{t('admin.busiest')}</p>
-          <div className="mt-2 grid grid-cols-[1fr_1fr_auto] gap-2 text-caption text-muted">
-            <span>{t('admin.colTrain')}</span>
-            <span>{t('admin.colTrainName')}</span>
-            <span>{t('admin.colSwapsDone')}</span>
-          </div>
-          <ul className="mt-1 space-y-1 text-body text-muted">
-            {stats.busiestTrains.map((row) => (
-              <li key={row.train_no} className="grid grid-cols-[1fr_1fr_auto] gap-2">
-                <span>{row.train_no}</span>
-                <span className="truncate">{row.train_name}</span>
-                <span>{row.swaps}</span>
-              </li>
-            ))}
-          </ul>
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <Card>
+          <p className="font-head text-section text-ink">{t('admin.chartSwaps')}</p>
+          <SwapWeekChart points={stats.swapsThisWeek} lang={lang} title={t('admin.chartSwaps')} />
         </Card>
-      ) : null}
+
+        {stats.busiestTrains.length > 0 ? (
+          <Card>
+            <p className="font-head text-section text-ink">{t('admin.busiest')}</p>
+            <div className="mt-2 grid grid-cols-[1fr_1fr_auto] gap-2 text-caption text-muted">
+              <span>{t('admin.colTrain')}</span>
+              <span>{t('admin.colTrainName')}</span>
+              <span>{t('admin.colSwapsDone')}</span>
+            </div>
+            <ul className="mt-1 space-y-1 text-body text-muted">
+              {stats.busiestTrains.map((row) => (
+                <li key={row.train_no} className="grid grid-cols-[1fr_1fr_auto] gap-2">
+                  <span>{row.train_no}</span>
+                  <span className="truncate">{row.train_name}</span>
+                  <span>{row.swaps}</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ) : null}
+      </div>
 
       <Card className="mt-4 flex items-start gap-2">
         <Coins aria-hidden className="mt-0.5 size-5 shrink-0 text-accent" />

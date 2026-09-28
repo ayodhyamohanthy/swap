@@ -282,6 +282,22 @@ export interface AdminOverview {
    */
   moneyInUnknownToday: number
   busiestTrains: Array<{ train_no: string; train_name: string; swaps: number }>
+  /**
+   * Design 23's "Swaps this week": the current Monday–Sunday week, oldest
+   * first, always exactly 7 entries.
+   */
+  swapsThisWeek: SwapDayPoint[]
+}
+
+/** One column of the week chart. */
+export interface SwapDayPoint {
+  /** Local calendar day, `YYYY-MM-DD`. */
+  day: string
+  /**
+   * Confirmed swaps on that day, or `null` for a day that has not happened
+   * yet. See `swapsThisWeek` for why those are not zero.
+   */
+  swaps: number | null
 }
 
 /** A finite number from log meta, or null when absent/unusable. */
@@ -313,14 +329,67 @@ function moneyInPaise(row: ActivityRow, payments: PaymentRow[]): number | null {
    only market we launch in (rule 14) — so the Overview tiles said "PNRs added
    today" while showing yesterday's activity, and anything added between
    midnight and 05:30 IST was attributed to the previous day. */
+function localDayKey(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+/* Every "which day is this" question in this file goes through `localDayKey`.
+   The tiles and the week chart must not answer it two different ways: if they
+   did, the chart's last point and the "Swaps done" tile could disagree about
+   the same swap, which is the exact defect this file keeps having to fix. */
 function isToday(iso: string, nowMs: number): boolean {
-  const day = new Date(iso)
+  return localDayKey(new Date(iso)) === localDayKey(new Date(nowMs))
+}
+
+const WEEK_LENGTH = 7
+
+/**
+ * Design 23's "Swaps this week": the current Monday–Sunday week, oldest first.
+ *
+ * Two decisions worth stating, because the design does not settle either one:
+ *
+ * 1. **Which seven days.** The design's axis is Mon→Sun and its title is
+ *    "this week", so this is the calendar week, not a rolling 7-day window.
+ *    (The two coincide only on a Sunday, so the mockup cannot distinguish
+ *    them; the wording can, and AGENTS.md makes the images the reference for
+ *    wording.)
+ * 2. **Future days are `null`, not `0`.** A zero means "the day happened and
+ *    no swap was confirmed". A day that has not arrived yet has not happened
+ *    at all. Drawing them as zero makes the line fall to the floor and stay
+ *    there every Monday and Tuesday, which reads as a collapse in swaps
+ *    rather than as a week that has barely started.
+ *
+ * The last non-null entry is today, and it counts `swap_confirmed` by the same
+ * `localDayKey` the tiles use — so it equals `swapsDoneToday` by construction,
+ * not by coincidence.
+ */
+export function swapsThisWeek(activity: ActivityRow[], nowMs: number): SwapDayPoint[] {
   const now = new Date(nowMs)
-  return (
-    day.getFullYear() === now.getFullYear() &&
-    day.getMonth() === now.getMonth() &&
-    day.getDate() === now.getDate()
-  )
+  /* getDay() is 0 = Sunday; shift so Monday is 0 and Sunday is 6. */
+  const mondayOffset = (now.getDay() + 6) % 7
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset)
+
+  const counts = new Map<string, number>()
+  for (const row of activity) {
+    if (row.action !== 'swap_confirmed') continue
+    const key = localDayKey(new Date(row.created_at))
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+
+  const todayKey = localDayKey(now)
+  const points: SwapDayPoint[] = []
+  for (let index = 0; index < WEEK_LENGTH; index += 1) {
+    /* The Date constructor normalises day overflow, so this crosses month and
+       year boundaries without special-casing. */
+    const key = localDayKey(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + index))
+    /* `YYYY-MM-DD` sorts lexicographically, so a string compare is a date
+       compare. */
+    points.push({ day: key, swaps: key > todayKey ? null : (counts.get(key) ?? 0) })
+  }
+  return points
 }
 
 /** Today's tiles from local rows (design 23). Every number is derived; none
@@ -376,6 +445,9 @@ export function buildOverview(input: AdminOverviewInput, nowMs = Date.now()): Ad
     creditInCirculationPaise: input.walletTotalPaise,
     moneyInUnknownToday,
     busiestTrains,
+    /* Deliberately over the WHOLE log, not just `today` — the week starts
+       before today for six days out of seven. */
+    swapsThisWeek: swapsThisWeek(input.activity, nowMs),
   }
 }
 

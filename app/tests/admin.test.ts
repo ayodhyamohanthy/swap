@@ -22,6 +22,7 @@ import {
   creditsToCsv,
   filterActivity,
   paymentsToCsv,
+  swapsThisWeek,
   swapsToCsv,
   toCsv,
   uncategorisedActions,
@@ -604,6 +605,109 @@ describe('buildOverview counts the local day, not the UTC day', () => {
     const nowMs = justAfter.getTime()
     expect(overview({ activity: [rowAt(justAfter)] }, nowMs).pnrsToday).toBe(1)
     expect(overview({ activity: [rowAt(justBefore)] }, nowMs).pnrsToday).toBe(0)
+  })
+})
+
+/* Design 23's "Swaps this week". The chart and the "Swaps done" tile sit on
+   the same screen, so most of this is about them not disagreeing. */
+describe('swapsThisWeek (design 23)', () => {
+  /* Built from local wall-clock, so the intended local day is the same in any
+     timezone the suite runs in. 2026-11-12 is a Thursday, 2026-11-30 a Monday
+     — both asserted below rather than trusted. */
+  const NOW = new Date(2026, 10, 12, 10, 0, 0).getTime()
+
+  function at(iso: string): Date {
+    return new Date(`${iso}T12:00:00`)
+  }
+  function confirmed(when: Date) {
+    return { ...logActivity('swap_confirmed', {}), created_at: when.toISOString() }
+  }
+  /** The days that have actually happened, oldest first. */
+  function elapsed(week: ReturnType<typeof swapsThisWeek>) {
+    return week.filter((point): point is { day: string; swaps: number } => point.swaps !== null)
+  }
+
+  it('always returns one Monday-to-Sunday week of seven contiguous days', () => {
+    const week = swapsThisWeek([], NOW)
+    expect(week).toHaveLength(7)
+    for (const point of week) expect(point.day).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(new Date(`${week[0].day}T00:00:00`).getDay()).toBe(1) // Monday
+    expect(new Date(`${week[6].day}T00:00:00`).getDay()).toBe(0) // Sunday
+    for (let index = 1; index < week.length; index += 1) {
+      const previous = new Date(`${week[index - 1].day}T00:00:00`).getTime()
+      const current = new Date(`${week[index].day}T00:00:00`).getTime()
+      expect(current - previous).toBe(DAY)
+    }
+    expect(week[0].day).toBe('2026-11-09')
+  })
+
+  it('zero-fills a day that happened with no swaps, but leaves future days null', () => {
+    const week = swapsThisWeek(
+      [confirmed(at('2026-11-09')), confirmed(at('2026-11-11')), confirmed(at('2026-11-12'))],
+      NOW,
+    )
+    expect(week.map((point) => point.day)).toEqual([
+      '2026-11-09',
+      '2026-11-10',
+      '2026-11-11',
+      '2026-11-12',
+      '2026-11-13',
+      '2026-11-14',
+      '2026-11-15',
+    ])
+    /* Tue 10th happened and had none (0); Fri–Sun have not happened (null). */
+    expect(week.map((point) => point.swaps)).toEqual([1, 0, 1, 1, null, null, null])
+  })
+
+  it('ends on today, and its last point equals the Swaps done tile', () => {
+    const activity = [
+      confirmed(at('2026-11-10')),
+      confirmed(at('2026-11-12')),
+      confirmed(at('2026-11-12')),
+    ]
+    const stats = overview({ activity }, NOW)
+    const last = elapsed(stats.swapsThisWeek).at(-1)
+    expect(last?.day).toBe('2026-11-12')
+    expect(last?.swaps).toBe(2)
+    /* The whole point: one screen must not show two answers for the same day. */
+    expect(last?.swaps).toBe(stats.swapsDoneToday)
+  })
+
+  it('counts confirmed swaps, not confirmations and not PNRs', () => {
+    const when = at('2026-11-12').toISOString()
+    const activity = [
+      { ...logActivity('confirmation', {}), created_at: when },
+      { ...logActivity('pnr_added', { train_no: '12951' }), created_at: when },
+      { ...logActivity('payment_paid', {}), created_at: when },
+    ]
+    expect(elapsed(swapsThisWeek(activity, NOW)).at(-1)?.swaps).toBe(0)
+  })
+
+  it('starts each column at local midnight, the same boundary the tiles use', () => {
+    const justAfter = new Date(2026, 10, 12, 0, 1, 0, 0)
+    const justBefore = new Date(justAfter.getTime() - 5 * 60 * 1000)
+    const week = elapsed(swapsThisWeek([confirmed(justAfter), confirmed(justBefore)], NOW))
+    expect(week.at(-1)?.swaps).toBe(1) // 00:01 today
+    expect(week.at(-2)?.swaps).toBe(1) // 23:56 yesterday
+  })
+
+  it('crosses a month boundary without skipping or repeating a day', () => {
+    const week = swapsThisWeek([], new Date(2026, 10, 30, 10, 0, 0).getTime())
+    expect(week.map((point) => point.day)).toEqual([
+      '2026-11-30',
+      '2026-12-01',
+      '2026-12-02',
+      '2026-12-03',
+      '2026-12-04',
+      '2026-12-05',
+      '2026-12-06',
+    ])
+  })
+
+  it('ignores swaps outside the week, including ones later the same month', () => {
+    const activity = [confirmed(at('2026-11-08')), confirmed(at('2026-11-20'))]
+    const week = swapsThisWeek(activity, NOW)
+    expect(week.every((point) => point.swaps === null || point.swaps === 0)).toBe(true)
   })
 })
 

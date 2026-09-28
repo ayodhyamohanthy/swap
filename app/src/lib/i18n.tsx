@@ -121,19 +121,45 @@ export function quotaLabel(lang: LangCode, value: Quota): string {
   return (CATALOGS[lang].trip.quotas as Record<string, string>)[value] ?? value
 }
 
+/**
+ * The BCP-47 tag for a shipped language. Kept in one place so adding a third
+ * language is a one-line change rather than a hunt for every `lang === 'hi'`.
+ */
+export function localeFor(lang: LangCode): string {
+  return lang === 'hi' ? 'hi-IN' : 'en-IN'
+}
+
 /** "Fri 12 Jun" — locale-aware, no extra copy to translate. */
 export function formatTripDate(iso: string | null | undefined, lang: LangCode): string {
   if (!iso) return ''
   const date = new Date(`${iso}T00:00:00`)
   if (Number.isNaN(date.getTime())) return iso
   try {
-    return new Intl.DateTimeFormat(lang === 'hi' ? 'hi-IN' : 'en-IN', {
+    return new Intl.DateTimeFormat(localeFor(lang), {
       weekday: 'short',
       day: 'numeric',
       month: 'short',
     }).format(date)
   } catch {
     return iso
+  }
+}
+
+/**
+ * "Mon" for a `YYYY-MM-DD` day key — design 23's chart axis.
+ *
+ * Derived from `Intl` rather than a `weekdays` block in every catalogue: the
+ * names already ship with the platform, and hand-maintaining 7 keys × 22
+ * scheduled languages is a lot of surface for no gain. Falls back to the raw
+ * day key rather than throwing if a runtime has no data for the locale.
+ */
+export function formatWeekday(day: string, lang: LangCode): string {
+  const date = new Date(`${day}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return day
+  try {
+    return new Intl.DateTimeFormat(localeFor(lang), { weekday: 'short' }).format(date)
+  } catch {
+    return day
   }
 }
 

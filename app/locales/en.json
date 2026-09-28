@@ -712,6 +712,7 @@
     "colTrain": "Train no.",
     "colTrainName": "Train name",
     "colSwapsDone": "Swaps done",
+    "chartSwaps": "Swaps this week",
     "searchPh": "Search action, user or train",
     "filterAll": "All actions",
     "catAll": "All",
