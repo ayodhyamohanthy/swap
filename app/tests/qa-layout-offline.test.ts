@@ -154,24 +154,39 @@ describe('offline (step 14: trips + summary readable, chat queued, shell cached)
   })
 })
 
-describe('Home is two designs, not one screen (25a empty vs 1a with trips)', () => {
-  it('keeps the empty-state PNR form out of the with-trips home', () => {
-    /* Design 1a: with trips, Home IS the list (plus the FAB). Design 25a: with
-       no trips, Home is the pitch. One screen rendering both put "Your trips"
-       below a PNR form the traveller no longer needs, under the fold on a
-       360 px phone. The guard is source-shaped because the branch structure IS
-       the behaviour: trips first, form in the else. */
+describe('Home is three designs, one per state (25a empty, 1a trips, 11a past)', () => {
+  it('orders the branches: upcoming list, then past trips, then the pitch', () => {
+    /* Design 1a: with a journey ahead, Home IS the list (plus the FAB).
+       Design 11a (screen 55): no journey ahead but journeys behind — Welcome
+       back, the credit card, "Add your next PNR", Past trips. Design 25a: no
+       trips at all — the pitch. One screen rendering the pitch above a list
+       put "Your trips" below a PNR form the traveller no longer needs, under
+       the fold on a 360 px phone — and the same mistake in reverse would bury
+       the PNR form under a history list. The guard is source-shaped because
+       the branch structure IS the behaviour: list first, past second, form
+       last. */
     const src = read('src/routes/index.tsx')
-    const branch = src.indexOf('{hasTrips ? (')
-    expect(branch).toBeGreaterThan(-1)
-    /* The list comes first, inside the hasTrips branch… */
-    expect(src.indexOf("t('home.trips')")).toBeGreaterThan(branch)
-    /* …and the form is after the `) : (` that opens the else branch. */
-    const elseAt = src.indexOf(') : (', branch)
-    expect(elseAt).toBeGreaterThan(branch)
+    const listBranch = src.indexOf('{upcoming.length > 0 ? (')
+    expect(listBranch).toBeGreaterThan(-1)
+    /* The list comes first, inside the has-upcoming branch… */
+    expect(src.indexOf("t('home.trips')")).toBeGreaterThan(listBranch)
+    /* …then the 11a past-trips state, separated by the journey date… */
+    const pastBranch = src.indexOf(') : past.length > 0 ? (', listBranch)
+    expect(pastBranch).toBeGreaterThan(listBranch)
+    const splitAt = src.indexOf('const todayKey = localDateKey()')
+    expect(splitAt).toBeGreaterThan(-1)
+    expect(splitAt).toBeLessThan(listBranch)
+    expect(src.slice(splitAt, listBranch)).toMatch(/isPastTrip/)
+    expect(src.indexOf("t('home.pastTrips')")).toBeGreaterThan(pastBranch)
+    expect(src.indexOf("t('home.addNextPnr')")).toBeGreaterThan(pastBranch)
+    /* …and the form is in the final else, after the second `) : (`. */
+    const elseAt = src.indexOf(') : (', pastBranch)
+    expect(elseAt).toBeGreaterThan(pastBranch)
     expect(src.indexOf("t('first.title')")).toBeGreaterThan(elseAt)
-    /* The FAB is the with-trips way back into PNR entry (design 1a). */
-    expect(src.slice(branch).indexOf("t('home.addPnr')")).toBeGreaterThan(-1)
+    /* The FAB is the with-upcoming way back into PNR entry (design 1a); the
+       11a branch renders its own button and says which trips swapped. */
+    expect(src.slice(listBranch).indexOf("t('home.addPnr')")).toBeGreaterThan(-1)
+    expect(src.slice(pastBranch, elseAt)).toMatch(/tripWasSwapped\(/)
   })
 
   it('shows the brand strapline on Home only (design 1a)', () => {

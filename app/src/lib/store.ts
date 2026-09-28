@@ -20,6 +20,9 @@ import {
   type TicketStatus,
   type TravelClass,
 } from './pnr'
+/* Type-only, so the arrow stays one-way at runtime (`requests.ts` imports this
+   file's values). Only the shapes are needed, for `tripWasSwapped`. */
+import type { SwapOffer, SwapRequest } from './requests'
 
 export interface Passenger {
   id: string
@@ -361,6 +364,62 @@ export const listTrips = trips
 export function getTrip(id: string | undefined): Trip | undefined {
   if (!id) return undefined
   return snapshot.trips.find((trip) => trip.id === id)
+}
+
+/* ------------------------------------------------------------------ *
+ * Trip history (design 11a — Home once every journey is in the past). *
+ * Pure helpers, so the screen's three states are testable without a   *
+ * browser: which trips are past, which swapped, and in what order.    *
+ * ------------------------------------------------------------------ */
+
+/** Local calendar day as `YYYY-MM-DD` — the same shape `journey_date` uses,
+    so "is this trip past?" is a string compare that a time zone cannot skew.
+    Local, not UTC: a journey date is a calendar date where the traveller is.
+    Deliberately duplicated from `localDayKey` in lib/admin.ts rather than
+    shared — the admin console and the trip list are different lanes' questions
+    and a shared helper would couple them. */
+export function localDateKey(at: Date = new Date()): string {
+  const month = String(at.getMonth() + 1).padStart(2, '0')
+  const day = String(at.getDate()).padStart(2, '0')
+  return `${at.getFullYear()}-${month}-${day}`
+}
+
+/** A trip is past when its journey date is strictly before today. Today counts
+    as upcoming (the traveller is on that train today), and a trip whose date is
+    unknown is never guessed into history. */
+export function isPastTrip(trip: Trip, todayKey: string): boolean {
+  if (!trip.journey_date) return false
+  return trip.journey_date < todayKey
+}
+
+/** Newest journey first (design 11a lists 12 Jun above 3 May above 18 Apr).
+    Copies before sorting; trips with equal dates keep their stored order. */
+export function tripsNewestFirst(trips: Trip[]): Trip[] {
+  return [...trips].sort((a, b) => (b.journey_date ?? '').localeCompare(a.journey_date ?? ''))
+}
+
+/** Design 11a's "Swapped" pill: did this trip's berth actually change hands?
+    `confirmed` is written once, on the locked→confirmed edge (docs/03), and is
+    the only honest "the swap happened" signal — `locked` means paid, not done.
+    The trip can be on either side: the requester's (`request.trip_id`) or the
+    acceptor's (`offer.acceptor_trip_id`). On the acceptor's side only the
+    accepted offer counts — `lockRequest` supersedes every other offer, so a
+    superseded one must never mark its trip as swapped. */
+export function tripWasSwapped(
+  tripId: string,
+  requests: SwapRequest[],
+  offers: SwapOffer[],
+): boolean {
+  const confirmedIds = new Set(
+    requests.filter((row) => row.status === 'confirmed').map((row) => row.id),
+  )
+  if (requests.some((row) => row.status === 'confirmed' && row.trip_id === tripId)) return true
+  return offers.some(
+    (offer) =>
+      offer.acceptor_trip_id === tripId &&
+      offer.status === 'accepted' &&
+      confirmedIds.has(offer.request_id),
+  )
 }
 
 export async function addTrip(input: AddTripInput): Promise<Trip> {
