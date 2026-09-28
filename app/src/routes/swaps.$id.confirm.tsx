@@ -72,11 +72,19 @@ function ConfirmScreen() {
           /* Whose answer is this? Whoever holds this trip on this device is
              the requester; otherwise we are the acceptor. */
           const mine = listTrips().some((trip) => trip.id === request.trip_id)
-          const result = answerSwap(id, mine ? 'requester' : 'acceptor', picked)
+          const side = mine ? 'requester' : 'acceptor'
+          const result = answerSwap(id, side, picked)
           trackEvent('confirmation', { outcome: picked })
           const status = result.resolution?.status
           if (status === 'confirmed') {
-            navigate({ to: '/swaps/$id/done', params: { id }, search: { state: 'swapped' } })
+            /* The acceptor's confirmation earns the ₹50 thank-you credit, so
+               they land on the earned view (rule 3); the requester sees the
+               plain swapped view. */
+            navigate({
+              to: '/swaps/$id/done',
+              params: { id },
+              search: { state: side === 'acceptor' ? 'earned' : 'swapped' },
+            })
           } else if (status === 'voided') {
             navigate({ to: '/swaps/$id/done', params: { id }, search: { state: 'credit' } })
           } else if (status === 'disputed') {
