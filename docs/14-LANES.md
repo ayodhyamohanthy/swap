@@ -152,6 +152,14 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
   Related, and **mine not yours**: design 23 also shows a header (wordmark,
   "Admin", bell, avatar) and `setup` chrome renders no top bar at all, so the
   admin console currently draws no header. Tracked as L7 design-parity work.
+- 2026-09-28 L7 → L9 (repo hygiene; `.gitignore` is in no lane's map):
+  **`app/.tanstack/` is not gitignored.** The TanStack Router dev server writes
+  UUID-named temp copies of `routeTree.gen.ts` and route modules into
+  `app/.tanstack/tmp/`, so every dev session leaves 4–5 untracked files that
+  `git status` shows as `??` and that a careless `git add -A` would commit.
+  One present here is dated 2026-09-26, so this is long-standing, not new.
+  Add `app/.tanstack/` to `.gitignore`. Worth pairing with the other two
+  unowned-file findings below — `app/vitest.config.ts` and `routes/profile.*`.
 
 ## Backlog (unclaimed, ready to pull)
 
