@@ -736,18 +736,57 @@ export function respondToIncoming(tripId: string, response: IncomingResponse): I
   const current = incomingFor(tripId)
   if (!current) return undefined
   commit({ ...ensureLoaded(), incoming: { ...snapshot.incoming, [tripId]: response } })
+  /* Idempotent: a second tap on the same answer is not a second event, so it
+     must not re-log or re-drive (the buttons are hidden after the first, but
+     the function is also called by tests and any future caller). */
+  if (current.state === response) return incomingFor(tripId)
+  /* docs/03: the FIRST acceptance is what moves `searching` to
+     `accepted_awaiting_payment`, and docs/04 A.9's "Someone says yes → Pay ₹99"
+     reads the request from there. This function used to write only the
+     incoming map — while logging `offer_accepted` — so the log claimed an
+     acceptance the state machine had never seen: the offer stayed `sent`, the
+     request stayed `searching`, and no real tap could ever reach the pay
+     screen. The board answers for one trip; offers are per (request, trip),
+     so drive this trip's open offer too. A trip with no offer behind it (the
+     stand-in board, filters, demo data) behaves exactly as before. */
+  const offer =
+    response === 'backed_out'
+      ? openOfferForTrip(tripId, ['accepted'])
+      : openOfferForTrip(tripId, ['sent'])
   if (response === 'accepted') {
-    logActivity('offer_accepted', { side: 'acceptor', trip: tripId }, { type: 'booking', id: tripId })
-    trackEvent('offer_accepted', { side: 'acceptor' })
-  } else if (response === 'declined') {
-    logActivity('offer_declined', { side: 'acceptor', trip: tripId }, { type: 'booking', id: tripId })
-    trackEvent('offer_declined', { side: 'acceptor' })
-  } else if (response === 'backed_out') {
-    logActivity('acceptor_backed_out', { trip: tripId }, { type: 'booking', id: tripId })
+    const accepted = offer ? acceptOffer(offer.id) : undefined
+    if (!accepted?.offer) {
+      logActivity('offer_accepted', { side: 'acceptor', trip: tripId }, { type: 'booking', id: tripId })
+      trackEvent('offer_accepted', { side: 'acceptor' })
+    }
+  } else if (response === 'declined' || response === 'backed_out') {
+    /* Declining a sent offer closes it; backing out of an accepted one also
+       returns the request to `searching` when nothing else is awaiting
+       payment (docs/04 B.4 — "can back out until paid"). */
+    if (offer) declineOffer(offer.id)
+    if (response === 'declined' && !offer) {
+      logActivity('offer_declined', { side: 'acceptor', trip: tripId }, { type: 'booking', id: tripId })
+      trackEvent('offer_declined', { side: 'acceptor' })
+    }
+    if (response === 'backed_out') {
+      logActivity('acceptor_backed_out', { trip: tripId }, { type: 'booking', id: tripId })
+    }
   } else if (response === 'faster') {
     logActivity('someone_faster', { trip: tripId }, { type: 'booking', id: tripId })
   }
   return incomingFor(tripId)
+}
+
+/** This trip's oldest offer in one of `statuses` — the board answers for the
+    trip, and when several requests have asked, the one waiting longest is the
+    one a person standing in the aisle would be looking at first. Offers carry
+    no requester identity beyond their request, so nothing finer is knowable
+    here. `undefined` means the stand-in board: nothing to move, nothing to
+    close. */
+function openOfferForTrip(tripId: string, statuses: readonly SwapOffer['status'][]): SwapOffer | undefined {
+  return ensureLoaded().offers
+    .filter((offer) => offer.acceptor_trip_id === tripId && statuses.includes(offer.status))
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))[0]
 }
 
 /* ------------------------------------------------------------------ *
