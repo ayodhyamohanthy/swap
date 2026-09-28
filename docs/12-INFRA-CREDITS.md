@@ -26,6 +26,7 @@
 | GitHub Student Pack | — | while student | Copilot, POEditor Plus 1yr, LambdaTest, Polypane, Sentry/Honeybadger, Appfigures | — |
 | Supabase Startup | ~Team 6mo | apply after Pack | Remove Free limits, zero rewrite | — |
 | Play Store | $25 once | — | TWA via PWABuilder (optional) | Apple $99/yr — skip, PWA covers |
+| Zoho Suite + Wallet | $1,000 wallet credits | 360 days from enable, non-transferable, non-refundable | Ops only: Mail, Desk, Cliq, Analytics, Creator, Catalyst (see §6) | Never app backend/DB/auth, never PNR or wallet data |
 
 ## 3. Azure $200 burn-down (ephemeral, delete RG by Dec 10 2026)
 
@@ -55,3 +56,35 @@ Queues. See `app/azure/README.md` quick start + §3 spend order.
 2. Never `git add -A`. One topic per commit. Green rule: typecheck +
    full tests + build before commit.
 3. Read `app/azure/README.md` if your task spends Azure credits.
+
+## 6. Zoho $1,000 wallet credits (ops only — never the app backend)
+
+Zoho for Startups wallet: 55+ apps, credits valid **360 days** from enable,
+locked to the super-admin account (non-transferable, no refunds, no cash).
+Workplace/Mail has a per-app cap — plan Mail separately.
+
+Spend it on running the company, NOT serving the PWA:
+
+- **Mail (custom domain `toyoufromme.website`)** — receipts, `SS-#####`
+  confirmations, credit-expiry reminders. Free tier covers 5 users; wallet
+  covers the paid jump when support@ volume grows.
+- **Desk** — the human side of disputes (`docs/04-D`, `disputes` table).
+  Copy rule: "We'll look at both sides and reply as soon as we can. Your
+  money is held safely meanwhile." (AGENTS.md 7). Free 3 agents is enough
+  at launch; wallet funds Standard when tickets spike.
+- **Cliq + Cliq Taz** — 1-person ops alerts: paid-swap spikes, webhook
+  failures, chart-time fan-out. Replaces paid PagerDuty.
+- **Analytics** — `docs/01` success metrics dashboard (PNRs added ·
+  requests · acceptances · paid · confirmed · first-on-train rate ·
+  shares/swap · repeat · credit redeemed). Reads *aggregates* only.
+- **Creator (low-code, optional)** — internal admin forms (manual credit
+  adjust with reason, block review). Never a second user DB — it POSTs to
+  the same Supabase RPCs the app uses.
+- **Catalyst (serverless, optional)** — cron-shaped helpers (credit-expiry
+  mailer, receipt PDF render via SmartBrowz). Free tier + trial covers it;
+  wallet only if you exceed. PWA + API stay on Cloudflare + Supabase.
+
+Banned in Zoho: full PNRs (store `pnr_last4` only, docs/08), full names,
+phone/email export, ticket photos, wallet balances per user. Zoho sees
+`SS-#####` receipt numbers + aggregates — never the DB rows.
+
