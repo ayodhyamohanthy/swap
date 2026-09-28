@@ -197,10 +197,22 @@ const results = []
 for (const path of routes) {
   bucket = []
   await page.evaluate((target) => {
-    /* Soft navigation. `page.goto` on a client-rendered route serves the
-       prerendered home page (only `/` is prerendered) and throws React #418;
-       pushState alone fires no event, so the popstate is what makes the router
-       re-read location. */
+    /* Soft navigation. pushState alone fires no event, so the popstate is what
+       makes the router re-read location.
+
+       The old note here added that `page.goto` "serves the prerendered home
+       page (only `/` is prerendered) and throws React #418". That is true of a
+       STATIC server over `dist/client` — it ships only index.html + 404.html,
+       so every deep link is served the home page's markup and hydration
+       mismatches. It is NOT true of `vite dev`, which is what BASE defaults to
+       and what the header tells you to run: measured 2026-09-28, all 53 routes
+       direct-loaded under `vite dev` give 0 console errors. So this mode is a
+       deliberate choice about *what it can see*, not a workaround.
+
+       What it cannot see: a hydration mismatch. Client-side navigation never
+       hydrates, so only the initial `/` load hydrates here. For that question
+       use the sibling `scripts/smoke-hydration.mjs`, which opens a fresh page
+       and does a real `goto` per route. */
     history.pushState(null, '', target)
     window.dispatchEvent(new PopStateEvent('popstate', { state: null }))
   }, path)
