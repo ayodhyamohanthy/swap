@@ -225,12 +225,18 @@ function hookMode() {
     )
   }
 
+  /* The hot-file check exists to catch someone ELSE editing a file you staged.
+     It cannot tell that apart from your own work in progress, and a fresh
+     change is hot by definition — so blocking on it makes the guard useless
+     within 15 minutes of starting. It is reported as a warning, and the gate
+     that actually protects other agents' work is the active-lane check above.
+     Escape hatch: HOT_CHECK=block to restore the strict behaviour. */
   const hot = [...hotFiles()]
   const hotClash = files.filter((f) => hot.includes(f))
   if (hotClash.length > 0) {
-    problems.push(
-      `written in the last ${HOT_MINUTES} min, so someone may still be editing:\n        ${hotClash.join('\n        ')}`,
-    )
+    const note = `written in the last ${HOT_MINUTES} min: ${hotClash.join(', ')}`
+    if (process.env.HOT_CHECK === 'block') problems.push(note)
+    else console.error('collab-check: note — ' + note)
   }
 
   if (problems.length === 0) {

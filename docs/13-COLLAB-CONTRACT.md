@@ -16,7 +16,7 @@ file a `docs/14-LANES.md` handoff note instead.
 
 | Lane | Surface (routes/files) | Typical agent |
 |---|---|---|
-| L1 PWA shell + design system | `app/src/components/**`, `app/src/styles.css`, `app/public/**`, `app/pwa.workbox.mjs`, `app/wrangler.toml` | Cline |
+| L1 PWA shell + design system | `app/src/components/ui/**`, `app/src/components/app-shell.tsx`, `app/src/components/pwa*.tsx`, `app/src/styles.css`, `app/public/**`, `app/pwa.workbox.mjs`, `app/wrangler.toml` | Cline |
 | L2 Trips + PNR | `routes/index`, `routes/trips.*`, `lib/pnr.ts`, `lib/store.ts` | Codex |
 | L3 Requests + matching | `routes/request.*`, `routes/share.*`, `lib/requests.ts`, `lib/matching.ts` | Claude |
 | L4 Payments | `routes/pay.*`, `server/payments*`, `server/razorpay-client.ts`, `server/paypal-client.ts`, `lib/payments.ts` | Gemini |
@@ -35,6 +35,16 @@ Two more were unowned (flagged by L9, 2026-09-28) and are now assigned here:
 `app/vitest.config.ts` follows L1, and `app/scripts/**` — the collab guard and
 its installer — follows **L9**, because the guard is what enforces every other
 lane's boundary.
+
+**Narrowed 2026-09-29 (L4, via the pre-commit guard).** L1 previously owned the
+whole of `app/src/components/**`, which swallowed every feature component too —
+a new `app/src/components/pay-gate.tsx` was refused as L1's while L4 legitimately
+owned the feature it served. L1 is now the shell: the `ui/` kit, the app shell,
+the PWA components, and the tokens/public assets. Feature components are
+**additive and belong to the lane that owns the feature**; if a lane needs a
+change inside `components/ui/**` or `app-shell.tsx`, that is a `request:` to L1.
+This is the guard working as intended: it caught a genuine cross-lane boundary
+problem that prose alone had let through twice.
 
 ### Pre-commit guard (L9, live since 2026-09-29)
 

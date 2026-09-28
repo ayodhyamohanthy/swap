@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import { AppFooter, type RouteChrome } from '@/components/app-shell'
+import { PayGate } from '@/components/pay-gate'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
@@ -167,6 +168,7 @@ function PaypalScreen() {
   if (gate !== 'payable') return <PayBlocked requestId={requestId} gate={gate} />
 
   return (
+    <PayGate requestId={requestId}>
     <div>
       <h1 className="text-title text-ink">{t('pay.paypalTitle')}</h1>
       <Card className="mt-4">
@@ -188,5 +190,6 @@ function PaypalScreen() {
       </div>
       <AppFooter />
     </div>
+    </PayGate>
   )
 }

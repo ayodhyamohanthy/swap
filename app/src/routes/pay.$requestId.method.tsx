@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { CreditCard, Smartphone, Wallet } from 'lucide-react'
 import { AppFooter, type RouteChrome } from '@/components/app-shell'
+import { PayGate } from '@/components/pay-gate'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
@@ -111,6 +112,7 @@ function MethodScreen() {
   }
 
   return (
+    <PayGate requestId={requestId}>
     <div>
       <h1 className="text-title text-ink">{t('pay.methodTitle')}</h1>
       <Card className="mt-4">
@@ -154,5 +156,6 @@ function MethodScreen() {
       <p className="mt-3 text-center text-body font-semibold text-ink">{t('pay.under')}</p>
       <AppFooter />
     </div>
+    </PayGate>
   )
 }
