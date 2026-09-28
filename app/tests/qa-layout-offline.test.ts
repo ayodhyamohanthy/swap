@@ -244,3 +244,37 @@ describe('Requests are the design\'s three screens (2a matches, 12b manage, 12c 
     }
   })
 })
+
+describe('The pay screen is the design\'s 3c, not a bare ledger', () => {
+  it('says what changes hands before any money moves', () => {
+    /* Design 3c opens on the acceptor's avatar, the line "Complete payment to
+       confirm the swap", and a "You give ⇄ You get" card. The screen had the
+       ledger and nothing else, so the traveller could not see the trade they
+       were about to buy. Only the berth TYPE is ever shown here — the number
+       stays hidden until payment (rule 13). */
+    const src = read('src/routes/pay.$requestId.tsx')
+    expect(src).toMatch(/pay\.youGive/)
+    expect(src).toMatch(/pay\.youGet/)
+    expect(src).toMatch(/pay\.confirmSub/)
+    expect(src).toMatch(/acceptor_berth_type/)
+    /* The number must not leak onto this screen. */
+    expect(src).not.toMatch(/acceptor_berth_no/)
+  })
+
+  it('ends on the washed "you pay / no swap" card (rule 6)', () => {
+    const src = read('src/routes/pay.$requestId.tsx')
+    expect(src).toMatch(/bg-wash/)
+    expect(src).toMatch(/pay\.youPay/)
+    expect(src).toMatch(/pay\.under/)
+  })
+
+  it('keeps the price fixed at 49 + 50 with no discount path (rules 1, 4)', () => {
+    expect(en.pay.fee).toContain('₹49')
+    expect(en.pay.thankYou).toContain('₹50')
+    expect(hi.pay.fee).toContain('₹49')
+    expect(hi.pay.thankYou).toContain('₹50')
+    const src = read('src/routes/pay.$requestId.tsx')
+    /* Credit may only lower the amount — no second price, no coupon. */
+    expect(src).toMatch(/buildQuote\(useCredit \? credit : 0, isGroup\)/)
+  })
+})

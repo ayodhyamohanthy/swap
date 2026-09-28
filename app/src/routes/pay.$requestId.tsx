@@ -1,4 +1,5 @@
 import { Link, Outlet, createFileRoute, useNavigate } from '@tanstack/react-router'
+import { ArrowLeftRight } from 'lucide-react'
 import { useState } from 'react'
 import { AppFooter } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
@@ -12,6 +13,7 @@ import { buildQuote, priceFor } from '@/lib/payments'
 import { FEE_PAISE, GROUP_MAX_SWAPS, THANK_YOU_PAISE, formatRupees } from '@/lib/money'
 import { useCreditPaise, usePaymentFor } from '@/lib/use-store'
 import { getGroup, isGroupRequestId } from '@/lib/groups'
+import { getTrip } from '@/lib/store'
 
 /* Pay screen (docs/04 A9): breakdown 49+50, credit line if balance>0,
    lock note, No-swap-to-credit. Sending requests is free; pay after accept. */
@@ -80,7 +82,7 @@ export function PayBlocked({
 
 export function PayScreen() {
   const { requestId } = Route.useParams()
-  const { t } = useI18n()
+  const { t, type } = useI18n()
   const toast = useToast()
   const navigate = useNavigate()
   const credit = useCreditPaise()
@@ -130,12 +132,51 @@ export function PayScreen() {
   /* Design 03c: the traveller chooses whether credit lowers this payment. */
   const [useCredit, setUseCredit] = useState(true)
   const quote = buildQuote(useCredit ? credit : 0, isGroup)
+  /* Design 3c leads with the acceptor's face and what changes hands. Only the
+     berth TYPE is shown — the number is still hidden until payment (rule 13) —
+     and the avatar is their initial, which is all we are ever allowed to keep. */
+  const mine = request ? getTrip(request.trip_id)?.passengers[0] : undefined
+  const give = mine?.berth_type
+  const get = offer?.acceptor_berth_type
+  const trade = !isGroup && give && get
   return (
     <div>
+      {offer && !isGroup ? (
+        <div className="flex justify-center">
+          <span
+            aria-hidden
+            className="flex size-16 items-center justify-center rounded-full bg-primary font-head text-title font-bold text-white"
+          >
+            {name.slice(0, 1).toUpperCase()}
+          </span>
+        </div>
+      ) : null}
+
       <h1 className="text-title text-ink">{isGroup ? t('pay.groupTitle') : t('pay.title', { name })}</h1>
-      <p className="mt-1 font-head text-section font-bold text-ink">
-        {isGroup ? t('pay.pay199') : t('pay.pay99')}
-      </p>
+      {trade ? (
+        <p className="mt-1 text-body text-muted">{t('pay.confirmSub')}</p>
+      ) : (
+        <p className="mt-1 font-head text-section font-bold text-ink">
+          {isGroup ? t('pay.pay199') : t('pay.pay99')}
+        </p>
+      )}
+
+      {/* Design 3c: "You give ⇄ You get", the one line that says what the swap
+          actually is, before any money moves. */}
+      {trade ? (
+        <Card className="mt-4 flex items-center gap-3">
+          <span className="flex-1 text-center">
+            <small className="block text-caption text-muted">{t('pay.youGive')}</small>
+            <b className="block font-head text-body text-ink">{type(give)}</b>
+          </span>
+          <ArrowLeftRight aria-hidden className="size-5 shrink-0 text-accent" />
+          <span className="flex-1 text-center">
+            <small className="block text-caption text-muted">{t('pay.youGet')}</small>
+            <b className="block font-head text-body text-ink">{type(get)}</b>
+          </span>
+        </Card>
+      ) : null}
+
       <Card className="mt-4">
         <dl className="text-body">
           {isGroup ? (
@@ -160,7 +201,6 @@ export function PayScreen() {
         </dl>
       </Card>
       <p className="mt-3 text-body text-muted">{isGroup ? t('pay.groupLock') : t('pay.lock')}</p>
-      <p className="mt-1 text-body font-semibold text-ink">{isGroup ? t('pay.groupUnder') : t('pay.under')}</p>
       {credit > 0 ? (
         <Card className="mt-4 flex items-center gap-3">
           <span className="flex-1">
@@ -178,9 +218,16 @@ export function PayScreen() {
           />
         </Card>
       ) : null}
-      <p className="mt-3 font-head text-section font-bold text-ink">
-        {t('pay.youPay', { amount: quote.due / 100 })}
-      </p>
+      {/* Design 3c ends on one washed card: the amount, and the promise that
+          the money is never lost if the swap doesn't happen (rule 6). */}
+      <div className="mt-4 flex items-start justify-between gap-3 rounded-card bg-wash p-4">
+        <b className="font-head text-section font-bold text-ink">
+          {t('pay.youPay', { amount: quote.due / 100 })}
+        </b>
+        <span className="text-caption text-ink">
+          {isGroup ? t('pay.groupUnder') : t('pay.under')}
+        </span>
+      </div>
       {paid && paid.status !== 'failed' ? (
         <Button className="mt-4" asChild>
           <Link to="/pay/$requestId/status" params={{ requestId }} search={{ state: 'pending' }}>

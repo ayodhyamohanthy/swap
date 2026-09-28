@@ -332,7 +332,10 @@
     "notYet": "Nobody has said yes yet. You pay ₹99 only after someone accepts.",
     "alreadyPaid": "This swap is already paid for.",
     "pendingLead": "Your bank is still confirming ₹99",
-    "failedBank": "If money left your account, your bank returns it in 3–5 days."
+    "failedBank": "If money left your account, your bank returns it in 3–5 days.",
+    "confirmSub": "Complete payment to confirm the swap.",
+    "youGive": "You give",
+    "youGet": "You get"
   },
   "chat": {
     "title": "Chat with {name}",
