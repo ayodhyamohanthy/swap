@@ -2,6 +2,13 @@ node_modules/
 dist/
 .output/
 .vite/
+/* TanStack Start's build cache (`app/.tanstack/tmp/<uuid>`). Every `vite dev`
+   drops a new randomly-named file here, so `git status` showed a fresh
+   untracked entry after every run — and a blanket `git add -A` swept five of
+   them onto `main` (docs/14, L4 -> L1). They are a cache, not source: the
+   tracked route tree is `app/src/routeTree.gen.ts`, which is a different file
+   and stays tracked. */
+.tanstack/
 *.local
 *.log
 .DS_Store
