@@ -14,7 +14,9 @@ import {
   swapsToCsv,
   toCsv,
   usersToCsv,
+  type AdminOverviewInput,
   type AdminSwapRow,
+  type AdminUserRow,
 } from '@/lib/admin'
 import {
   isCreditExpired,
@@ -24,7 +26,14 @@ import {
   shouldNotifyChartTime,
 } from '@/lib/jobs'
 import { FEE_PAISE, GROUP_PRICE_PAISE, PRICE_PAISE, THANK_YOU_PAISE } from '@/lib/money'
-import { activityLog, logActivity, resetStore } from '@/lib/store'
+import {
+  activityLog,
+  getSnapshot,
+  logActivity,
+  resetStore,
+  setPaymentStatus,
+  startPayment,
+} from '@/lib/store'
 
 const DAY = 24 * 60 * 60 * 1000
 const T0 = Date.parse('2026-11-12T10:00:00.000Z')
@@ -83,6 +92,21 @@ describe('admin CSV exporters never leak a full PNR', () => {
   })
 })
 
+/** buildOverview over the local store's own rows (design 23). */
+function overview(overrides: Partial<AdminOverviewInput> = {}, nowMs = Date.now()) {
+  return buildOverview(
+    {
+      activity: activityLog(),
+      walletTotalPaise: 0,
+      payments: getSnapshot().payments,
+      requests: [],
+      trips: [],
+      ...overrides,
+    },
+    nowMs,
+  )
+}
+
 describe('buildOverview', () => {
   beforeEach(() => resetStore())
 
@@ -93,24 +117,121 @@ describe('buildOverview', () => {
     logActivity('request_sent', { train_no: '12951' })
 
     /* logActivity stamps real wall-clock time, so "today" is the real today. */
-    const stats = buildOverview(
-      { activity: activityLog(), walletTotalPaise: 5000 },
-      Date.now(),
-    )
+    const stats = overview({ walletTotalPaise: 5000 })
     expect(stats.pnrsToday).toBe(3)
     expect(stats.requestsToday).toBe(1)
-    expect(stats.creditIssuedPaise).toBe(5000)
-    expect(stats.busiestTrains[0]).toEqual({ train_no: '12951', count: 3 })
-    expect(stats.busiestTrains).toHaveLength(2)
+    expect(stats.creditInCirculationPaise).toBe(5000)
+    /* A PNR is not a swap: nothing has been swapped, so no train is "busiest". */
+    expect(stats.busiestTrains).toEqual([])
+  })
+
+  /* The panel is headed "Swaps done" (design 23) but counted every row that
+     carried a `train_no` — and `pnr_added` and the chart toggle both do. */
+  it('ranks trains by confirmed swaps, not by any activity on the train', () => {
+    logActivity('pnr_added', { train_no: '12951' })
+    logActivity('pnr_added', { train_no: '12951' })
+    logActivity('pnr_added', { train_no: '12951' })
+    logActivity('swap_confirmed', {}, { type: 'swap_request', id: 'req_b' })
+
+    const stats = overview({
+      requests: [{ id: 'req_b', trip_id: 'trip_b' }],
+      trips: [{ id: 'trip_b', train_no: '12219', train_name: 'Rajdhani' }],
+    })
+
+    expect(stats.busiestTrains).toEqual([{ train_no: '12219', train_name: 'Rajdhani', swaps: 1 }])
+  })
+
+  /* `confirmation` is written once PER SIDE and re-answering logs again, so
+     counting it made "Swaps done" larger than the number of swaps. */
+  it('counts one swap per confirmed swap, not one per side that answered', () => {
+    logActivity('confirmation', { side: 'requester', outcome: 'swapped' })
+    logActivity('confirmation', { side: 'acceptor', outcome: 'swapped' })
+    logActivity('confirmation', { side: 'requester', outcome: 'swapped' })
+    expect(overview().swapsDoneToday).toBe(0)
+
+    logActivity('swap_confirmed', {}, { type: 'swap_request', id: 'req_1' })
+    expect(overview().swapsDoneToday).toBe(1)
+  })
+
+  it('counts an accepted offer from either acceptance path', () => {
+    /* `acceptOffer` (offer flow) and `respondToIncoming` (incoming board) are
+       different state machines that log the same action. */
+    logActivity('offer_accepted', { rank: 1 }, { type: 'swap_request', id: 'req_1' })
+    logActivity('offer_accepted', { side: 'acceptor', trip: 'trip_1' }, { type: 'booking', id: 'trip_1' })
+    expect(overview().acceptedToday).toBe(2)
   })
 
   it('excludes rows from a previous day', () => {
     const yesterday = new Date(Date.now() - 2 * DAY).toISOString()
-    const stats = buildOverview(
-      { activity: [{ ...logActivity('pnr_added'), created_at: yesterday }], walletTotalPaise: 0 },
-      Date.now(),
-    )
+    const stats = overview({ activity: [{ ...logActivity('pnr_added'), created_at: yesterday }] })
     expect(stats.pnrsToday).toBe(0)
+  })
+})
+
+/* "Money in" is the money the gateway actually captured. `amount_paise` on a
+   payment is the GROSS price, and credit can cover part of it (rule 4), so
+   summing the gross would count credit as revenue. */
+describe('buildOverview money in (rule 1)', () => {
+  beforeEach(() => resetStore())
+
+  it('counts the full price when no credit was used', () => {
+    const row = startPayment({
+      request_id: 'req_1',
+      provider: 'razorpay',
+      amount_paise: PRICE_PAISE,
+      credit_used_paise: 0,
+    })
+    setPaymentStatus(row.id, 'paid')
+    expect(overview().moneyInTodayPaise).toBe(PRICE_PAISE)
+  })
+
+  it('subtracts the credit that was spent, and logs it on the row', () => {
+    const row = startPayment({
+      request_id: 'req_1',
+      provider: 'razorpay',
+      amount_paise: PRICE_PAISE,
+      credit_used_paise: 5000,
+    })
+    setPaymentStatus(row.id, 'paid')
+
+    const paid = activityLog().find((entry) => entry.action === 'payment_paid')
+    expect(paid?.meta).toMatchObject({ amount_paise: 9900, credit_used_paise: 5000 })
+    expect(overview().moneyInTodayPaise).toBe(4900)
+  })
+
+  it('counts a credit-only payment as no money in', () => {
+    const row = startPayment({
+      request_id: 'req_1',
+      provider: 'credit',
+      amount_paise: PRICE_PAISE,
+      credit_used_paise: PRICE_PAISE,
+      status: 'paid',
+    })
+    expect(getSnapshot().payments.some((p) => p.id === row.id)).toBe(true)
+    expect(overview().moneyInTodayPaise).toBe(0)
+    expect(overview().paidToday).toBe(0)
+  })
+
+  /* Never assume an unreadable row collected the full price. */
+  it('leaves an unknown credit portion out and counts it, rather than guessing', () => {
+    logActivity('payment_paid', { amount_paise: 9900 }, { type: 'payment', id: 'pay_pruned' })
+    const stats = overview({ payments: [] })
+    expect(stats.moneyInTodayPaise).toBe(0)
+    expect(stats.moneyInUnknownToday).toBe(1)
+  })
+})
+
+describe('buildOverview credit given (rule 4)', () => {
+  beforeEach(() => resetStore())
+
+  it('counts credit issued today, not the balance still outstanding', () => {
+    logActivity('credit_added', { to: 'u_acc', amount_paise: 5000, kind: 'acceptor_credit' })
+    logActivity('credit_added', { to: 'u_req', amount_paise: 9900, kind: 'swap_to_credit' })
+    logActivity('credit_used', { amount_paise: 4900 })
+
+    const stats = overview({ walletTotalPaise: 10000 })
+    expect(stats.creditGivenTodayPaise).toBe(14900)
+    expect(stats.creditInCirculationPaise).toBe(10000)
   })
 })
 
@@ -276,7 +397,36 @@ describe('buildOverview counts the local day, not the UTC day', () => {
     justAfter.setHours(0, 1, 0, 0)
     const justBefore = new Date(justAfter.getTime() - 5 * 60 * 1000)
 
-    expect(buildOverview({ activity: [rowAt(justAfter)], walletTotalPaise: 0 }, justAfter.getTime()).pnrsToday).toBe(1)
-    expect(buildOverview({ activity: [rowAt(justBefore)], walletTotalPaise: 0 }, justAfter.getTime()).pnrsToday).toBe(0)
+    const nowMs = justAfter.getTime()
+    expect(overview({ activity: [rowAt(justAfter)] }, nowMs).pnrsToday).toBe(1)
+    expect(overview({ activity: [rowAt(justBefore)] }, nowMs).pnrsToday).toBe(0)
+  })
+})
+
+/* Design 16's table is Name / Joined / Trips / Swaps / Credit / Status. */
+describe('usersToCsv carries the design-16 columns', () => {
+  const user: AdminUserRow = {
+    id: 'u_1',
+    first_name: 'Asha',
+    last_initial: 'R',
+    created_at: '2026-11-01',
+    trips: 2,
+    swaps: 1,
+    credit_paise: 5000,
+    blocked: false,
+    reported: true,
+  }
+
+  it('exports trips, swaps and credit alongside the account state', () => {
+    const csv = usersToCsv([user])
+    expect(csv.split('\n')[0]).toBe(
+      'id,first_name,last_initial,created_at,trips,swaps,credit_paise,blocked,reported',
+    )
+    expect(csv.split('\n')[1]).toBe('u_1,Asha,R,2026-11-01,2,1,5000,false,true')
+  })
+
+  it('keeps credit in whole paise, never rupees', () => {
+    expect(usersToCsv([user])).toContain(',5000,')
+    expect(usersToCsv([user])).not.toContain(',50,')
   })
 })

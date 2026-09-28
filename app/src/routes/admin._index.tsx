@@ -5,10 +5,15 @@ import { Card, CardBody } from '@/components/ui/card'
 import { buildOverview } from '@/lib/admin'
 import { useI18n } from '@/lib/i18n'
 import { formatRupees } from '@/lib/money'
-import { useAppState } from '@/lib/use-store'
+import { useAppState, useRequestsState } from '@/lib/use-store'
 
 /* Admin A1 "Overview" (design 23). Today at a glance, straight from this
-   device's activity_log until the backend is wired. Money stays in paise. */
+   device's activity_log until the backend is wired. Money stays in paise.
+
+   Design 23's six tiles are PNRs added / Requests sent / Accepted / Swaps done /
+   Money in / Credit given; "Payments today" and "Credit in circulation" are
+   kept alongside them because a count and a rupee total answer different
+   questions. */
 
 export const Route = createFileRoute('/admin/_index')({
   staticData: { chrome: 'setup' } satisfies RouteChrome,
@@ -17,15 +22,25 @@ export const Route = createFileRoute('/admin/_index')({
 
 function AdminOverview() {
   const { t } = useI18n()
-  const { activity, wallet } = useAppState()
-  const stats = buildOverview({ activity, walletTotalPaise: wallet.reduce((n, row) => n + row.amount_paise, 0) })
+  const { activity, wallet, payments, trips } = useAppState()
+  const { requests } = useRequestsState()
+  const stats = buildOverview({
+    activity,
+    walletTotalPaise: wallet.reduce((n, row) => n + row.amount_paise, 0),
+    payments,
+    requests,
+    trips,
+  })
 
   const tiles: Array<[string, string | number]> = [
     [t('admin.s_pnrs'), stats.pnrsToday],
     [t('admin.s_requests'), stats.requestsToday],
+    [t('admin.s_accepted'), stats.acceptedToday],
     [t('admin.s_paid'), stats.paidToday],
-    [t('admin.s_confirmed'), stats.confirmedToday],
-    [t('admin.s_credit'), formatRupees(stats.creditIssuedPaise)],
+    [t('admin.s_swaps_done'), stats.swapsDoneToday],
+    [t('admin.s_money_in'), formatRupees(stats.moneyInTodayPaise)],
+    [t('admin.s_credit_given'), formatRupees(stats.creditGivenTodayPaise)],
+    [t('admin.s_credit'), formatRupees(stats.creditInCirculationPaise)],
   ]
 
   return (
@@ -41,14 +56,28 @@ function AdminOverview() {
         ))}
       </div>
 
+      {/* A paid row whose credit portion is unknown is left out of Money in
+          rather than counted as a full collection — say so instead of hiding it. */}
+      {stats.moneyInUnknownToday > 0 ? (
+        <p className="mt-2 text-caption text-muted">
+          {stats.moneyInUnknownToday} {t('admin.moneyInUnknown')}
+        </p>
+      ) : null}
+
       {stats.busiestTrains.length > 0 ? (
         <Card className="mt-4">
           <p className="font-head text-section text-ink">{t('admin.busiest')}</p>
-          <ul className="mt-2 space-y-1 text-body text-muted">
+          <div className="mt-2 grid grid-cols-[1fr_1fr_auto] gap-2 text-caption text-muted">
+            <span>{t('admin.colTrain')}</span>
+            <span>{t('admin.colTrainName')}</span>
+            <span>{t('admin.colSwapsDone')}</span>
+          </div>
+          <ul className="mt-1 space-y-1 text-body text-muted">
             {stats.busiestTrains.map((row) => (
-              <li key={row.train_no} className="flex justify-between">
+              <li key={row.train_no} className="grid grid-cols-[1fr_1fr_auto] gap-2">
                 <span>{row.train_no}</span>
-                <span>{row.count}</span>
+                <span className="truncate">{row.train_name}</span>
+                <span>{row.swaps}</span>
               </li>
             ))}
           </ul>

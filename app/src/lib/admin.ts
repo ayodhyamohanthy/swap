@@ -4,7 +4,7 @@
    This file: route meta, pure CSV exporters, overview aggregates,
    activity filters, demo-mode admin_action log. Money = paise. */
 
-import { logActivity, type ActivityRow } from './store'
+import { logActivity, type ActivityRow, type PaymentRow, type Trip } from './store'
 import { trackEvent } from './analytics'
 import { isSupabaseConfigured } from './supabase'
 import type { MessageKey } from './i18n'
@@ -64,12 +64,16 @@ export interface AdminUserRow {
   created_at: string
   blocked: boolean
   reported: boolean
+  /** Design 16's Trips / Swaps / Credit columns. Credit is in paise. */
+  trips: number
+  swaps: number
+  credit_paise: number
 }
 
 export function usersToCsv(rows: AdminUserRow[]): string {
   return toCsv(
-    ['id', 'first_name', 'last_initial', 'created_at', 'blocked', 'reported'],
-    rows.map((r) => [r.id, r.first_name, r.last_initial, r.created_at, r.blocked, r.reported]),
+    ['id', 'first_name', 'last_initial', 'created_at', 'trips', 'swaps', 'credit_paise', 'blocked', 'reported'],
+    rows.map((r) => [r.id, r.first_name, r.last_initial, r.created_at, r.trips, r.swaps, r.credit_paise, r.blocked, r.reported]),
   )
 }
 
@@ -241,15 +245,65 @@ export async function runAdminAction(
 export interface AdminOverviewInput {
   activity: ActivityRow[]
   walletTotalPaise: number
+  /** Payments, so "Money in" can subtract credit. `amount_paise` is GROSS. */
+  payments: PaymentRow[]
+  /** Requests + trips, so a confirmed swap can be attributed to a train. */
+  requests: Array<{ id: string; trip_id: string }>
+  trips: Array<Pick<Trip, 'id' | 'train_no' | 'train_name'>>
 }
 
 export interface AdminOverview {
   pnrsToday: number
   requestsToday: number
+  /** Offers an acceptor said yes to today (both acceptance paths). */
+  acceptedToday: number
   paidToday: number
-  confirmedToday: number
-  creditIssuedPaise: number
-  busiestTrains: Array<{ train_no: string; count: number }>
+  /**
+   * Swaps that reached `confirmed` today — one per swap.
+   *
+   * NOT the same as counting the `confirmation` action: that row is written
+   * once PER SIDE (docs/02 `confirmations` is keyed `(request_id,user_id)`),
+   * and `recordConfirmation` allows re-answering, so a single swap can log
+   * three `confirmation` rows and a half-answered swap logs one. `settleRequest`
+   * writes `swap_confirmed` exactly once, on the locked -> confirmed edge.
+   */
+  swapsDoneToday: number
+  /** Rupees the gateway actually captured today: gross minus credit used. */
+  moneyInTodayPaise: number
+  /** Credit ISSUED today — not the balance still outstanding (rule 4). */
+  creditGivenTodayPaise: number
+  /** Credit still unspent and unexpired (the wallet balance). */
+  creditInCirculationPaise: number
+  /**
+   * Paid-today rows whose received amount cannot be known — no payment row and
+   * no `credit_used_paise` in the log meta. Counted separately so an unknown is
+   * never quietly reported as a full collection.
+   */
+  moneyInUnknownToday: number
+  busiestTrains: Array<{ train_no: string; train_name: string; swaps: number }>
+}
+
+/** A finite number from log meta, or null when absent/unusable. */
+function num(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+/**
+ * What the gateway captured for one paid payment, paise — or null when the
+ * credit portion is unknown.
+ *
+ * `checkout.ticket()` already defines the received amount as
+ * `max(0, amount_paise - credit_used_paise)`. Summing `amount_paise` alone
+ * would count credit as revenue: ₹99 charged with ₹50 of credit collected is
+ * ₹49 in the bank, not ₹99. Prefer the payment row (the record); fall back to
+ * the log meta for a row whose payment has been pruned.
+ */
+function moneyInPaise(row: ActivityRow, payments: PaymentRow[]): number | null {
+  const payment = payments.find((candidate) => candidate.id === row.entity_id)
+  const gross = payment ? payment.amount_paise : num(row.meta.amount_paise)
+  const credit = payment ? payment.credit_used_paise : num(row.meta.credit_used_paise)
+  if (gross === null || credit === null) return null
+  return Math.max(0, gross - credit)
 }
 
 /* The console's "today" is the operator's LOCAL day, matching `dayKey()` in
@@ -268,25 +322,58 @@ function isToday(iso: string, nowMs: number): boolean {
   )
 }
 
-/** Today's PNRs/requests/paid/confirmed + busiest trains from local rows. */
+/** Today's tiles from local rows (design 23). Every number is derived; none
+    is a placeholder. */
 export function buildOverview(input: AdminOverviewInput, nowMs = Date.now()): AdminOverview {
   const today = input.activity.filter((row) => isToday(row.created_at, nowMs))
   const count = (action: string): number => today.filter((row) => row.action === action).length
-  const byTrain = new Map<string, number>()
+
+  let moneyInTodayPaise = 0
+  let moneyInUnknownToday = 0
   for (const row of today) {
-    const train = (row.meta as Record<string, unknown>)?.train_no
-    if (typeof train === 'string' && train) byTrain.set(train, (byTrain.get(train) ?? 0) + 1)
+    if (row.action !== 'payment_paid') continue
+    const received = moneyInPaise(row, input.payments)
+    if (received === null) moneyInUnknownToday += 1
+    else moneyInTodayPaise += received
   }
-  const busiestTrains = [...byTrain.entries()]
-    .map(([train_no, n]) => ({ train_no, count: n }))
-    .sort((a, b) => b.count - a.count || (a.train_no < b.train_no ? -1 : 1))
+
+  /* Design 23's column is "Swaps done", so only confirmed swaps count. Any row
+     carrying a `train_no` used to count here, which made this panel "busiest by
+     any activity" — `pnr_added` and the chart toggle both log one. */
+  const tripIdForRequest = new Map(input.requests.map((row) => [row.id, row.trip_id]))
+  const tripById = new Map(input.trips.map((trip) => [trip.id, trip]))
+  const byTrain = new Map<string, { train_no: string; train_name: string; swaps: number }>()
+  for (const row of today) {
+    if (row.action !== 'swap_confirmed') continue
+    const tripId = row.entity_id ? tripIdForRequest.get(row.entity_id) : undefined
+    const trip = tripId ? tripById.get(tripId) : undefined
+    /* A swap whose trip is gone still counts in `swapsDoneToday`; it just
+       cannot be placed on a train. */
+    if (!trip) continue
+    const entry = byTrain.get(trip.train_no)
+      ?? { train_no: trip.train_no, train_name: trip.train_name, swaps: 0 }
+    entry.swaps += 1
+    byTrain.set(trip.train_no, entry)
+  }
+  const busiestTrains = [...byTrain.values()]
+    .sort((a, b) => b.swaps - a.swaps || (a.train_no < b.train_no ? -1 : 1))
     .slice(0, 5)
+
   return {
     pnrsToday: count('pnr_added'),
     requestsToday: count('request_sent'),
+    acceptedToday: count('offer_accepted'),
     paidToday: count('payment_paid'),
-    confirmedToday: count('confirmation'),
-    creditIssuedPaise: input.walletTotalPaise,
+    swapsDoneToday: count('swap_confirmed'),
+    moneyInTodayPaise,
+    /* Signed sum: the store only writes the two fixed rule amounts (₹50
+       `acceptor_credit`, ₹99 `swap_to_credit`) plus staff grants, so this
+       equals gross credit issued today. */
+    creditGivenTodayPaise: today
+      .filter((row) => row.action === 'credit_added')
+      .reduce((sum, row) => sum + (num(row.meta.amount_paise) ?? 0), 0),
+    creditInCirculationPaise: input.walletTotalPaise,
+    moneyInUnknownToday,
     busiestTrains,
   }
 }

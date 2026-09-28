@@ -6,7 +6,7 @@ import { Card, CardBody } from '@/components/ui/card'
 import { Pill } from '@/components/ui/pill'
 import { adminNoticeKey, downloadCsv, runAdminAction, usersToCsv, type AdminUserRow } from '@/lib/admin'
 import { useI18n } from '@/lib/i18n'
-import { useAppState, useCreditPaise } from '@/lib/use-store'
+import { useAppState, useCreditPaise, useRequestsState } from '@/lib/use-store'
 
 /* Admin A3 "Users" (design 16). No full PNR, name or phone is ever rendered
    here (rule 13): the row set is limited to the masked last4 and account state.
@@ -19,7 +19,8 @@ export const Route = createFileRoute('/admin/users')({
 
 function AdminUsers() {
   const { t, date } = useI18n()
-  const { activity, settings } = useAppState()
+  const { activity, settings, trips } = useAppState()
+  const { requests } = useRequestsState()
   const creditPaise = useCreditPaise()
   const [blocked, setBlocked] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState<string | null>(null)
@@ -34,7 +35,10 @@ function AdminUsers() {
     setNotice(t(adminNoticeKey(result, 'admin.blocked')))
   }
 
-  /* One row for the signed-in account, or a device-only placeholder. */
+  /* One row for the signed-in account, or a device-only placeholder.
+     Trips/Swaps/Credit are this device's own counts (design 16) — with no
+     backend there is no other user to list, so the search box and the
+     All/Active/Reported/Blocked chips the design shows would filter one row. */
   const rows: AdminUserRow[] = [
     {
       id: settings.user_id ?? 'local-device',
@@ -43,6 +47,9 @@ function AdminUsers() {
       created_at: (activity[0]?.created_at ?? new Date().toISOString()).slice(0, 10),
       blocked: false,
       reported: activity.some((row) => row.action === 'report_filed'),
+      trips: trips.length,
+      swaps: requests.filter((request) => request.status === 'confirmed').length,
+      credit_paise: creditPaise,
     },
   ]
 

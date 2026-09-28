@@ -701,15 +701,21 @@ export function setPaymentStatus(
     ...snapshot,
     payments: snapshot.payments.map((row) => (row.id === id ? next : row)),
   })
+  /* `amount_paise` is the GROSS price. The gateway only ever captured
+     `amount_paise - credit_used_paise`, so an audit row carrying the gross
+     alone overstates money received by every rupee of credit spent — and the
+     activity log is the system of record (docs/08), which is exactly what a
+     later money metric reads. Log the credit alongside it. */
   logActivity(
     status === 'paid' ? 'payment_paid' : status === 'failed' ? 'payment_failed' : 'payment_pending',
-    { provider: next.provider, amount_paise: next.amount_paise },
+    { provider: next.provider, amount_paise: next.amount_paise, credit_used_paise: next.credit_used_paise },
     { type: 'payment', id: next.id },
   )
   /* docs/08 names only created/paid/failed as metrics; pending stays a log row. */
   if (status === 'paid' || status === 'failed') {
     trackEvent(status === 'paid' ? 'payment_paid' : 'payment_failed', {
       amount_paise: next.amount_paise,
+      credit_used_paise: next.credit_used_paise,
     })
   }
   return next
