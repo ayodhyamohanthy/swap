@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { Pill } from '@/components/ui/pill'
 import { useToast } from '@/components/ui/toast'
-import { useI18n } from '@/lib/i18n'
+import { choiceRankKey, useI18n } from '@/lib/i18n'
 import { matchesFor, sendCapped, sendRequest } from '@/lib/requests'
 import { getTrip, isSeen, logActivity } from '@/lib/store'
 import type { Trip } from '@/lib/store'
@@ -173,7 +173,7 @@ function MatchesScreen() {
                       .join(' · ')}
                   </small>
                   <small className="block text-caption text-muted">
-                    {t('matches.berthMasked')} · {t('matches.choice', { rank: offer.matched_choice_rank })}
+                    {t('matches.berthMasked')} · {t(choiceRankKey(offer.matched_choice_rank))}
                   </small>
                 </span>
                 <Pill tone={accepted ? 'primary' : 'neutral'}>

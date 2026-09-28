@@ -225,6 +225,23 @@ describe('Requests are the design\'s three screens (2a matches, 12b manage, 12c 
     expect(src).toMatch(/manage\.noReplyOn/)
   })
 
+  it('writes the offer rank as a real ordinal in both languages', () => {
+    /* A "{rank} choice" template rendered as the ungrammatical "1 choice"
+       / "1 पसंद". Ordinals are per-language (1st/2nd/3rd vs
+       पहली/दूसरी/तीसरी), so they are separate keys, never a slot. */
+    expect(en.matches).not.toHaveProperty('choice')
+    expect(en.matches.choiceFirst).toBe('1st choice')
+    expect(en.matches.choiceSecond).toBe('2nd choice')
+    expect(en.matches.choiceThird).toBe('3rd choice')
+    /* Hindi agrees in gender, so the translation is not the English one. */
+    expect(hi.matches.choiceFirst).toBeTruthy()
+    expect(hi.matches.choiceFirst).not.toBe(en.matches.choiceFirst)
+    for (const src of [read('src/routes/request.$id.matches.tsx'), read('src/routes/request.$id.tsx')]) {
+      expect(src).toMatch(/choiceRankKey\(offer\.matched_choice_rank\)/)
+      expect(src).not.toMatch(/matches\.choice'/)
+    }
+  })
+
   it('leads the share screen with WhatsApp (design 2b) and keeps every channel', () => {
     const src = read('src/routes/share.$trainDate.tsx')
     expect(src.indexOf("open('whatsapp')")).toBeLessThan(src.indexOf("t('share.native')"))

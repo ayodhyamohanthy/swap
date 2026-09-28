@@ -163,6 +163,18 @@ export function formatWeekday(day: string, lang: LangCode): string {
   }
 }
 
+/** i18n key for the offer's rank: "1st choice" / "पहली पसंद".
+
+    Ordinals are separate keys, not a `{rank}` slot, because English needs
+    "1st/2nd/3rd" and Hindi needs its own agreement (पहली/दूसरी/तीसरी) — one
+    template cannot produce both. `matched_choice_rank` is 1|2|3 by type, so
+    the fallback is unreachable in practice and only guards a corrupt row. */
+export function choiceRankKey(rank: number): 'matches.choiceFirst' | 'matches.choiceSecond' | 'matches.choiceThird' {
+  if (rank === 1) return 'matches.choiceFirst'
+  if (rank === 2) return 'matches.choiceSecond'
+  return 'matches.choiceThird'
+}
+
 export function readStoredLang(): LangCode {
   try {
     const raw = typeof window === 'undefined' ? null : window.localStorage.getItem(LANG_KEY)

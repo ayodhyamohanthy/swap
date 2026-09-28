@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { Pill } from '@/components/ui/pill'
 import { useToast } from '@/components/ui/toast'
-import { requestStatusLabel, useI18n } from '@/lib/i18n'
+import { choiceRankKey, requestStatusLabel, useI18n } from '@/lib/i18n'
 import { acceptedOffer, offersFor, setRequestPaused, withdrawRequest } from '@/lib/requests'
 import { getTrip } from '@/lib/store'
 import { cn } from '@/lib/utils'
@@ -244,7 +244,7 @@ export function ManageRequestScreen() {
               <span className="min-w-0 flex-1">
                 <b className="block truncate font-head text-body text-ink">{offer.acceptor_name}</b>
                 <small className="block text-caption text-muted">
-                  {t('matches.choice', { rank: offer.matched_choice_rank })}
+                  {t(choiceRankKey(offer.matched_choice_rank))}
                 </small>
               </span>
               <Pill tone="neutral">{t('matches.sentState')}</Pill>
