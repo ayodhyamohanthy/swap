@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import en from '../locales/en.json'
 import hi from '../locales/hi.json'
 import { CATALOGS } from '@/lib/i18n'
+import { isAdminRoute } from '@/lib/admin'
 import { enqueue, flush } from '@/lib/outbox'
 import { acceptOffer, createRequest, getRequest, lockRequest } from '@/lib/requests'
 import { offersFor, resetRequests, sendRequest } from '@/lib/requests'
@@ -57,6 +58,22 @@ async function seedLocked() {
 describe('360 px layout (step 14: every flow on a 360 px Android phone)', () => {
   it('constrains the tab bar to a phone column', () => {
     expect(read('src/components/app-shell.tsx')).toMatch(/max-w-\[34rem\]/)
+  })
+
+  it('keeps the phone clamp on passenger screens and lets /admin out (design 23)', () => {
+    /* Both halves are load-bearing. The clamp is what keeps a phone design a
+       phone design at a 1180px window (measured 544px); the admin console
+       opts out because designs/23 is a ~1080px sidebar console and inside a
+       544px column it had ~300px of content (L7 → L1 request). Drop the
+       `inColumn &&` and every screen goes full-bleed; drop the isAdminRoute
+       call and /admin is back to three-line tiles. */
+    expect(isAdminRoute('/admin')).toBe(true)
+    expect(isAdminRoute('/admin/activity')).toBe(true)
+    expect(isAdminRoute('/adminx')).toBe(false)
+    expect(isAdminRoute('/')).toBe(false)
+    const shell = read('src/components/app-shell.tsx')
+    expect(shell).toMatch(/inColumn && 'app-column'/)
+    expect(shell).toMatch(/isAdminRoute\(location\.pathname\)/)
   })
 
   it('ships a device-width viewport with the install theme colour', () => {
