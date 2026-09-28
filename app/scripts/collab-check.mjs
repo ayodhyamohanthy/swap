@@ -152,12 +152,16 @@ function checkGenerated() {
 function activeLanes() {
   const board = readFileSync(join(REPO, 'docs', '14-LANES.md'), 'utf8')
   const active = new Set()
+  /* The state cell is matched as free text, not as a fixed column. Entries
+     legitimately read `active: <agent> — claimed <time>` or
+     `active: <agent>, <time> — <what they are doing>`, and anchoring on the
+     exact column meant a lane claimed with an agent name was invisible to the
+     guard — the guard has to be able to refuse the committer's own lane too. */
   for (const line of board.split('\n')) {
     if (!line.startsWith('| L')) continue
-    const cells = line.split('|').map((c) => c.trim())
-    const id = (cells[1] ?? '').split(/\s+/)[0]
-    const state = cells[4] ?? ''
-    if (/^active:\s*(?!none)/i.test(state)) active.add(id)
+    const id = (line.split('|')[1] ?? '').trim().split(/\s+/)[0]
+    const state = line.split('|').slice(4).join('|')
+    if (/\bactive\s*:\s*(?!none\b)/i.test(state)) active.add(id)
   }
   if (active.size === 0) return []
   const contract = readFileSync(join(REPO, 'docs', '13-COLLAB-CONTRACT.md'), 'utf8')
