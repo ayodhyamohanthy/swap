@@ -153,3 +153,32 @@ describe('offline (step 14: trips + summary readable, chat queued, shell cached)
     expect(src).toContain('api')
   })
 })
+
+describe('Home is two designs, not one screen (25a empty vs 1a with trips)', () => {
+  it('keeps the empty-state PNR form out of the with-trips home', () => {
+    /* Design 1a: with trips, Home IS the list (plus the FAB). Design 25a: with
+       no trips, Home is the pitch. One screen rendering both put "Your trips"
+       below a PNR form the traveller no longer needs, under the fold on a
+       360 px phone. The guard is source-shaped because the branch structure IS
+       the behaviour: trips first, form in the else. */
+    const src = read('src/routes/index.tsx')
+    const branch = src.indexOf('{hasTrips ? (')
+    expect(branch).toBeGreaterThan(-1)
+    /* The list comes first, inside the hasTrips branch… */
+    expect(src.indexOf("t('home.trips')")).toBeGreaterThan(branch)
+    /* …and the form is after the `) : (` that opens the else branch. */
+    const elseAt = src.indexOf(') : (', branch)
+    expect(elseAt).toBeGreaterThan(branch)
+    expect(src.indexOf("t('first.title')")).toBeGreaterThan(elseAt)
+    /* The FAB is the with-trips way back into PNR entry (design 1a). */
+    expect(src.slice(branch).indexOf("t('home.addPnr')")).toBeGreaterThan(-1)
+  })
+
+  it('shows the brand strapline on Home only (design 1a)', () => {
+    expect(read('src/routes/index.tsx')).toMatch(/tagline: true/)
+    expect(read('src/components/app-shell.tsx')).toMatch(/t\('brand\.tagline'\)/)
+    for (const file of ['src/routes/swaps.index.tsx', 'src/routes/profile.index.tsx']) {
+      expect(read(file), `${file} must not ask for the Home strapline`).not.toMatch(/tagline: true/)
+    }
+  })
+})

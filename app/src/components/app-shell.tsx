@@ -19,6 +19,8 @@ export interface RouteChrome {
   tab?: TabId
   /** Gear icon on the right of the top bar (Home and Profile designs). */
   showSettings?: boolean
+  /** Brand strapline under the wordmark (design 1a "Home · my trips"). */
+  tagline?: boolean
 }
 
 function Wordmark({ className }: { className?: string }) {
@@ -30,7 +32,15 @@ function Wordmark({ className }: { className?: string }) {
   )
 }
 
-function TopBar({ back, showSettings }: { back?: boolean; showSettings?: boolean }) {
+function TopBar({
+  back,
+  showSettings,
+  tagline,
+}: {
+  back?: boolean
+  showSettings?: boolean
+  tagline?: boolean
+}) {
   const { t } = useI18n()
   return (
     <header className="sticky top-0 z-20 flex min-h-14 items-center gap-2 border-b border-line bg-card px-2">
@@ -50,7 +60,16 @@ function TopBar({ back, showSettings }: { back?: boolean; showSettings?: boolean
           <ChevronLeft aria-hidden className="size-6" />
         </Link>
       ) : null}
-      <Wordmark className={cn('px-2', back && 'mx-auto')} />
+      {/* Design 1a: the strapline sits under the wordmark, inside the header
+          block, so the bar grows rather than pushing the screen down. */}
+      {tagline ? (
+        <span className="flex min-w-0 flex-col px-2">
+          <Wordmark />
+          <span className="truncate text-caption text-muted">{t('brand.tagline')}</span>
+        </span>
+      ) : (
+        <Wordmark className={cn('px-2', back && 'mx-auto')} />
+      )}
       <span className="flex-1" />
       {showSettings && !back ? (
         <Link
@@ -152,7 +171,13 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className={cn('flex min-h-dvh flex-col', inColumn && 'app-column')}>
-      {mode !== 'setup' ? <TopBar back={mode === 'plain'} showSettings={chrome.showSettings} /> : null}
+      {mode !== 'setup' ? (
+        <TopBar
+          back={mode === 'plain'}
+          showSettings={chrome.showSettings}
+          tagline={chrome.tagline}
+        />
+      ) : null}
       <OfflineBanner />
       <main className={cn('flex-1 px-4 pt-4', mode === 'setup' && 'pt-10', 'pb-8')}>{children}</main>
       {mode === 'tabs' ? <span className="h-24" aria-hidden /> : null}

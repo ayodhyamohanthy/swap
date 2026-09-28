@@ -1,5 +1,5 @@
 import { Link, createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
-import { FileText, Gift, Lock, Plus } from 'lucide-react'
+import { ChevronRight, FileText, Gift, Lock, Plus } from 'lucide-react'
 import { useState, useEffect, type FormEvent } from 'react'
 import { AppFooter, type RouteChrome } from '@/components/app-shell'
 import { InstallPrompt } from '@/components/install-prompt'
@@ -18,7 +18,13 @@ import { useCreditPaise, useTrips } from '@/lib/use-store'
    accepted (AGENTS.md 8). */
 
 export const Route = createFileRoute('/')({
-  staticData: { chrome: 'tabs', tab: 'home', showSettings: true } satisfies RouteChrome,
+  staticData: {
+    chrome: 'tabs',
+    tab: 'home',
+    showSettings: true,
+    /* Design 1a puts the strapline under the wordmark on Home. */
+    tagline: true,
+  } satisfies RouteChrome,
   beforeLoad: () => {
     /* First open only: language, then the one-time note. Skipped while the
        shell is prerendered (no localStorage on the server). */
@@ -61,80 +67,98 @@ function HomeScreen() {
     navigate({ to: '/trips/add', search: { pnr: digits } })
   }
 
+  /* TWO HOMES, not one screen with extra content (design 25a vs 1a).
+
+     25a "First open" is the pitch: headline, PNR field, SMS paste, the ₹50
+     card. 1a "Home · my trips" is the list — and nothing else. Rendering the
+     empty-state composition above the list (which is what this screen did)
+     pushed "Your trips" below the fold on a 360 px phone, so a returning
+     traveller had to scroll past a form they no longer needs to reach a train
+     they are travelling on. The FAB is the way back to PNR entry (design 1a). */
+  const hasTrips = trips.length > 0
+
   return (
     <div>
-      <h1 className="text-title text-ink">{t('first.title')}</h1>
-      <p className="mt-1 text-body text-muted">{t('first.coreValue')}</p>
+      {hasTrips ? (
+        <>
+          {creditPaise > 0 ? (
+            <Card className="mb-4 flex items-center gap-3 border-accent/40 bg-accent-soft">
+              <Gift aria-hidden className="size-6 shrink-0 text-accent" />
+              <span className="flex-1">
+                <b className="block font-head text-section text-ink">{t('home.welcomeBack')}</b>
+                <span className="block text-caption text-ink">
+                  {t('home.creditLine', { amount: Math.round(creditPaise / 100) })}
+                </span>
+                <span className="block text-caption text-muted">{t('home.creditNever')}</span>
+              </span>
+            </Card>
+          ) : null}
 
-      {creditPaise > 0 ? (
-        <Card className="mt-4 flex items-center gap-3 border-accent/40 bg-accent-soft">
-          <Gift aria-hidden className="size-6 shrink-0 text-accent" />
-          <span className="flex-1">
-            <b className="block font-head text-section text-ink">{t('home.welcomeBack')}</b>
-            <span className="block text-caption text-ink">
-              {t('home.creditLine', { amount: Math.round(creditPaise / 100) })}
-            </span>
-            <span className="block text-caption text-muted">{t('home.creditNever')}</span>
-          </span>
-        </Card>
-      ) : null}
+          <section>
+            <CardTitle className="mb-2">{t('home.trips')}</CardTitle>
+            {trips.map((trip) => (
+              <TripCard key={trip.id} trip={trip} />
+            ))}
+          </section>
 
-      <form className="mt-4" onSubmit={submitQuickPnr} noValidate>
-        <Field label={t('first.pnrLabel')} htmlFor="home-pnr" error={error}>
-          <Input
-            id="home-pnr"
-            inputMode="numeric"
-            autoComplete="off"
-            maxLength={10}
-            value={pnr}
-            placeholder={t('first.pnrPlaceholder')}
-            onChange={(event) => {
-              setPnr(event.target.value.replace(/\D/g, '').slice(0, 10))
-              setError(null)
-            }}
-          />
-        </Field>
-        <Button type="submit">{t('first.find')}</Button>
-      </form>
+          <InstallPrompt />
+          <AppFooter />
+        </>
+      ) : (
+        <>
+          <h1 className="text-title text-ink">{t('first.title')}</h1>
+          <p className="mt-1 text-body text-muted">{t('first.coreValue')}</p>
 
-      <p className="mt-3 flex items-center justify-center gap-2">
-        <Link
-          to="/trips/add"
-          search={{ paste: 'sms' }}
-          className="inline-flex min-h-12 items-center gap-2 font-semibold text-primary"
-        >
-          <FileText aria-hidden className="size-5" />
-          {t('first.paste')}
-        </Link>
-      </p>
-      <p className="flex items-center justify-center gap-1.5 text-caption text-muted">
-        <Lock aria-hidden className="size-4" />
-        {t('first.noSignin')}
-      </p>
+          <form className="mt-4" onSubmit={submitQuickPnr} noValidate>
+            <Field label={t('first.pnrLabel')} htmlFor="home-pnr" error={error}>
+              <Input
+                id="home-pnr"
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={10}
+                value={pnr}
+                placeholder={t('first.pnrPlaceholder')}
+                onChange={(event) => {
+                  setPnr(event.target.value.replace(/\D/g, '').slice(0, 10))
+                  setError(null)
+                }}
+              />
+            </Field>
+            <Button type="submit">{t('first.find')}</Button>
+          </form>
 
-      <Link
-        to="/trips/add"
-        className="mt-4 flex min-h-16 items-center gap-3 rounded-card border border-accent/40 bg-accent-soft p-3"
-      >
-        <Gift aria-hidden className="size-6 shrink-0 text-accent" />
-        <b className="flex-1 font-head text-body text-ink">{t('first.hint')}</b>
-      </Link>
+          <p className="mt-3 flex items-center justify-center gap-2">
+            <Link
+              to="/trips/add"
+              search={{ paste: 'sms' }}
+              className="inline-flex min-h-12 items-center gap-2 font-semibold text-primary"
+            >
+              <FileText aria-hidden className="size-5" />
+              {t('first.paste')}
+            </Link>
+          </p>
+          <p className="flex items-center justify-center gap-1.5 text-caption text-muted">
+            <Lock aria-hidden className="size-4" />
+            {t('first.noSignin')}
+          </p>
 
-      {trips.length > 0 ? (
-        <section className="mt-6">
-          <CardTitle className="mb-2">{t('home.trips')}</CardTitle>
-          {trips.map((trip) => (
-            <TripCard key={trip.id} trip={trip} />
-          ))}
-        </section>
-      ) : null}
+          <Link
+            to="/trips/add"
+            className="mt-4 flex min-h-16 items-center gap-3 rounded-card border border-accent/40 bg-accent-soft p-3"
+          >
+            <Gift aria-hidden className="size-6 shrink-0 text-accent" />
+            <b className="flex-1 font-head text-body text-ink">{t('first.hint')}</b>
+            {/* Design 25a: the ₹50 card is a link, and says so. */}
+            <ChevronRight aria-hidden className="size-5 shrink-0 text-muted" />
+          </Link>
 
-      <InstallPrompt />
-
-      <AppFooter />
+          <InstallPrompt />
+          <AppFooter />
+        </>
+      )}
 
       {/* Floating action button from design 1a — only once a trip exists. */}
-      {trips.length > 0 ? (
+      {hasTrips ? (
         <Link
           to="/trips/add"
           className="fixed bottom-20 right-4 z-30 flex flex-col items-center gap-1 md:right-[calc(50%_-_17rem_+_1rem)]"

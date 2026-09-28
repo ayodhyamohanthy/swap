@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { TrainFront } from 'lucide-react'
+import { ChevronRight, TrainFront } from 'lucide-react'
 import { Pill } from '@/components/ui/pill'
 import { useI18n } from '@/lib/i18n'
 import type { Trip } from '@/lib/store'
@@ -41,6 +41,8 @@ export function TripCard({ trip }: { trip: Trip }) {
         <small className="block text-caption text-muted">{date(trip.journey_date)}</small>
         <span className="mt-1 inline-flex">{badge}</span>
       </span>
+      {/* Design 1a: the card is a link, so it says so. */}
+      <ChevronRight aria-hidden className="size-5 shrink-0 text-muted" />
     </Link>
   )
 }

@@ -7,7 +7,8 @@
     "description": "Tell us what berth you want. We find people on your train who want to swap. You pay ₹99 only when someone says yes."
   },
   "brand": {
-    "wordmark": "SeatSwap"
+    "wordmark": "SeatSwap",
+    "tagline": "A more comfortable journey together"
   },
   "nav": {
     "home": "Home",
