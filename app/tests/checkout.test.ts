@@ -1,7 +1,8 @@
 /* Checkout: rule-2 gating, credit toggle, spend-only-on-capture (docs/03, 06). */
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { beginCheckout, confirmCaptured, markFailed } from '@/lib/checkout'
+import { beginCheckout, confirmCaptured, lockCoveredRequest, markFailed, payableStatus } from '@/lib/checkout'
+import { createGroup, markGroupPaid, resetGroups } from '@/lib/groups'
 import { PRICE_PAISE } from '@/lib/money'
 import {
   acceptOffer,
@@ -12,7 +13,7 @@ import {
   sendRequest,
   withdrawRequest,
 } from '@/lib/requests'
-import { addTrip, credit, creditPaise, resetStore, setOpenToSwap } from '@/lib/store'
+import { addTrip, credit, creditPaise, listPayments, resetStore, setOpenToSwap } from '@/lib/store'
 
 async function acceptedJourney() {
   const mine = await addTrip({
@@ -165,5 +166,83 @@ describe('capture and failure', () => {
     expect(failed.status).toBe('failed')
     expect(creditPaise()).toBe(5000)
     expect(getRequest(request.id)?.status).toBe('accepted_awaiting_payment')
+  })
+})
+
+describe('payableStatus is the one definition of rule 2', () => {
+  it('classifies every request status', () => {
+    expect(payableStatus('accepted_awaiting_payment')).toBe('payable')
+    for (const status of ['locked', 'confirmed', 'disputed'] as const) {
+      expect(payableStatus(status), status).toBe('already_paid')
+    }
+    for (const status of ['draft', 'searching', 'voided', 'expired', 'withdrawn'] as const) {
+      expect(payableStatus(status), status).toBe('not_yet')
+    }
+    expect(payableStatus(undefined)).toBe('not_yet')
+  })
+})
+
+describe('a swap can never be charged twice (rules 2, 6)', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    resetStore()
+    resetRequests()
+    resetGroups()
+  })
+
+  it('refuses a second charge for a swap the ₹199 group trip already covered', async () => {
+    /* A covered lock settles with NO payment row of its own (docs/04 C), so the
+       only thing between it and a second ₹99 was `payableStatus`'s
+       `already_paid` branch — which its only caller computed and dropped. */
+    const mine = await addTrip({
+      pnr: '4512789630',
+      train_no: '12951',
+      journey_date: '2026-11-12',
+      class: '3A',
+      from_code: 'MMCT',
+      to_code: 'NDLS',
+      passengers: [{ coach: 'B3', berth_no: '27', berth_type: 'LB' }],
+    })
+    const theirs = await addTrip({
+      pnr: '4512789648',
+      train_no: '12951',
+      journey_date: '2026-11-12',
+      class: '3A',
+      from_code: 'MMCT',
+      to_code: 'NDLS',
+      passengers: [{ coach: 'B4', berth_no: '41', berth_type: 'UB' }],
+    })
+    setOpenToSwap(theirs.id, true)
+
+    /* The group must exist before the request so the request inherits it. */
+    const group = createGroup('Sharma family', [mine.id])
+    const request = createRequest({ trip_id: mine.id, choices: ['UB'] })
+    expect(request.group_id).toBe(group.id)
+    sendRequest(request.id)
+    acceptOffer(offersFor(request.id)[0].id)
+    markGroupPaid(group.id)
+
+    expect(lockCoveredRequest(request.id).status).toBe('locked')
+    /* The covered lock minted nothing — that is what made it reachable. */
+    expect(listPayments().filter((row) => row.request_id === request.id)).toHaveLength(0)
+
+    expect(() => beginCheckout(request.id, 'razorpay')).toThrow('already_paid')
+    /* And it still minted nothing after the attempt. */
+    expect(listPayments().filter((row) => row.request_id === request.id)).toHaveLength(0)
+  })
+
+  it('still reuses a real paid row instead of throwing', async () => {
+    /* The guard above must not over-correct: a settled swap that DOES have a
+       payment row stays idempotent, so the pay screens keep showing "already
+       paid" rather than an error. */
+    const { request } = await acceptedJourney()
+    beginCheckout(request.id, 'razorpay')
+    confirmCaptured(request.id, 'pay_live')
+    expect(getRequest(request.id)?.status).toBe('locked')
+
+    const again = beginCheckout(request.id, 'razorpay')
+    expect(again.settled).toBe(true)
+    expect(again.status).toBe('paid')
+    expect(listPayments().filter((row) => row.request_id === request.id)).toHaveLength(1)
   })
 })

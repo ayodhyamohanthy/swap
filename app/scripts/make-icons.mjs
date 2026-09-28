@@ -90,9 +90,10 @@ function drawMark(size, opts = {}) {
   const px = blank(size)
   const S = size / 512 // geometry authored at 512, scaled per size
 
-  /* A normal icon fills the square; a maskable icon keeps the mark inside
-     the 80% safe zone (an Android launcher may crop it to a circle). */
-  const radius = opts.maskable ? Math.round(size / 2) : Math.round(96 * S)
+  /* A normal icon is a rounded tile; a maskable icon is FULL-BLEED opaque
+     (the launcher applies its own crop, so transparency would show black),
+     with the mark kept inside the 80% safe zone. */
+  const radius = opts.maskable ? 0 : Math.round(96 * S)
   roundRect(px, size, 0, 0, size, size, radius, PRIMARY)
 
   const inset = opts.maskable ? 0.28 : 0.2
@@ -122,11 +123,11 @@ function drawMark(size, opts = {}) {
   return px
 }
 
-/** Apple touch icon: opaque, corners rounded by iOS itself. */
+/** Apple touch icon: full-bleed opaque — iOS applies its own corner mask. */
 function drawApple(size) {
   const px = blank(size)
   const S = size / 512
-  roundRect(px, size, 0, 0, size, size, Math.round(size / 2), PRIMARY)
+  roundRect(px, size, 0, 0, size, size, 0, PRIMARY)
   const left = size * 0.18
   const right = size * 0.82
   const top = size * 0.37

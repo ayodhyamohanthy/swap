@@ -20,7 +20,8 @@
       "Shell(git:*)",
       "Shell(cd /Users/ayodhyarammohanthy/Documents/GitHub/swap && grep -n -i \"second\\|multiple\\|faster\\|both accept\\|two accept\" docs/03-STATE-MACHINES.md | head -12 && echo \"---\" && sed -n \"$(grep -n -i 'offer' docs/03-STATE-MACHINES.md | head -1 | cut -d: -f1),+18p\" docs/03-STATE-MACHINES.md)",
       "Shell(npx vitest run tests/requests.test.ts -t second acceptance 2 >& 1)",
-      "Shell(npx vitest run tests/flow-branches.test.ts tests/requests.test.ts 2 >& 1)"
+      "Shell(npx vitest run tests/flow-branches.test.ts tests/requests.test.ts 2 >& 1)",
+      "Shell(find:*)"
     ],
     "deny": [],
     "defaultMode": "default"

@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch'
 import { useI18n } from '@/lib/i18n'
 import { useToast } from '@/components/ui/toast'
 import { acceptedOffer, getRequest, groupLockedCount, type RequestStatus } from '@/lib/requests'
-import { lockCoveredRequest, CheckoutError } from '@/lib/checkout'
+import { lockCoveredRequest, payableStatus, CheckoutError } from '@/lib/checkout'
 import { buildQuote, priceFor } from '@/lib/payments'
 import { FEE_PAISE, GROUP_MAX_SWAPS, THANK_YOU_PAISE, formatRupees } from '@/lib/money'
 import { useCreditPaise, usePaymentFor } from '@/lib/use-store'
@@ -24,12 +24,16 @@ function PayLayout() {
   return <Outlet />
 }
 
-/** Where a request stands against rule 2 (pay only after an acceptance). */
+/** Where a request stands against rule 2 (pay only after an acceptance).
+    The rule itself lives in `payableStatus`; this only renames its states for
+    the screens, plus 'missing' for an id with no request at all. Two copies of
+    rule 2 had already drifted: the lib computed `already_paid` and dropped it,
+    so a settled swap could be charged a second time. One definition, one place. */
 export function payGate(status: RequestStatus | undefined): 'payable' | 'paid' | 'not-yet' | 'missing' {
   if (!status) return 'missing'
-  if (status === 'accepted_awaiting_payment') return 'payable'
-  if (status === 'locked' || status === 'confirmed' || status === 'disputed') return 'paid'
-  return 'not-yet'
+  const state = payableStatus(status)
+  if (state === 'payable') return 'payable'
+  return state === 'already_paid' ? 'paid' : 'not-yet'
 }
 
 export function PayScreen() {

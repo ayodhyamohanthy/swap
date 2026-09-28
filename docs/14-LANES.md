@@ -8,7 +8,7 @@
 | L1 | PWA shell + design system + Cloudflare deploy | Cline | active: 2026-09-28T16:05Z | icons + screenshots + manifest + deploy |
 | L2 | Trips + PNR | OpenCode/Muse Spark | done. Trips/add/berth/WL/RAC/CAN/quota screens verified vs designs; multi-passenger SMS fill + P-label coach fix |
 | L3 | Requests + matching | WorkBuddy/Claude | done. Daily caps wired, acceptor Settings filters now applied on the incoming path, connecting-only journeys no longer match |
-| L4 | Payments (Razorpay/PayPal/credit) | — | free | needs test keys |
+| L4 | Payments (Razorpay/PayPal/credit) | WorkBuddy/Claude | active: 2026-09-28T11:25Z | keyless audit: pay.*, lib/payments.ts, lib/checkout.ts, lib/money.ts |
 | L5 | Swaps + chat + safety | OpenCode/Muse Spark | active: 2026-09-28T16:55Z | swaps detail/confirm/chat/outbox audit |
 | L6 | Groups + onboard | — | free | |
 | L7 | Admin | — | free | |

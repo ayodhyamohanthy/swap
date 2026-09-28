@@ -109,6 +109,14 @@ export interface ConfirmationRow {
   created_at: string
 }
 
+/** Star ratings GIVEN to other travellers' trips (1–5 each). Matches the
+    server `profiles.rating` average; local matching reads it back doubled
+    (docs/08 scores acceptor rating 0–10). Rating never moves money. */
+export interface RatingSum {
+  sum: number
+  count: number
+}
+
 export interface LocalSettings {
   user_id: string | null
   language: string
@@ -132,6 +140,7 @@ export interface AppState {
   wallet: WalletTx[]
   payments: PaymentRow[]
   confirmations: ConfirmationRow[]
+  ratings: Record<string, RatingSum>
   seen: Record<string, boolean>
   settings: LocalSettings
 }
@@ -175,6 +184,7 @@ const KEYS = {
   wallet: 'seatswap.wallet.v1',
   payments: 'seatswap.payments.v1',
   confirmations: 'seatswap.confirmations.v1',
+  ratings: 'seatswap.ratings.v1',
   seen: 'seatswap.seen.v1',
   settings: 'seatswap.settings.v1',
 } as const
@@ -212,6 +222,7 @@ function emptyState(): AppState {
     wallet: [],
     payments: [],
     confirmations: [],
+    ratings: {},
     seen: {},
     settings: defaultSettings(),
   }
@@ -247,6 +258,7 @@ function loadState(): AppState {
     wallet: readJSON<WalletTx[]>(KEYS.wallet, base.wallet),
     payments: readJSON<PaymentRow[]>(KEYS.payments, base.payments),
     confirmations: readJSON<ConfirmationRow[]>(KEYS.confirmations, base.confirmations),
+    ratings: readJSON<Record<string, RatingSum>>(KEYS.ratings, base.ratings),
     seen: readJSON<Record<string, boolean>>(KEYS.seen, base.seen),
     settings: { ...base.settings, ...readJSON<Partial<LocalSettings>>(KEYS.settings, {}) },
   }
@@ -269,6 +281,7 @@ function commit(next: AppState) {
       store.setItem(KEYS.wallet, JSON.stringify(next.wallet))
       store.setItem(KEYS.payments, JSON.stringify(next.payments))
       store.setItem(KEYS.confirmations, JSON.stringify(next.confirmations))
+      store.setItem(KEYS.ratings, JSON.stringify(next.ratings))
       store.setItem(KEYS.seen, JSON.stringify(next.seen))
       store.setItem(KEYS.settings, JSON.stringify(next.settings))
     } catch {
@@ -756,6 +769,33 @@ export function recordConfirmation(
   logActivity('confirmation', { side, outcome }, { type: 'swap_request', id: requestId })
   trackEvent('confirmation', { outcome })
   return row
+}
+
+/* ------------------------------------------------------------------ *
+ * Ratings — stars given to the other traveller's trip (screen 46).
+ * Plain sums + counts, averaged on read. Rating never moves money and is
+ * never shown publicly with a name attached — it only nudges future match
+ * scores (docs/08). Every rating writes an activity_log row.
+ * ------------------------------------------------------------------ */
+
+/** Average stars (1–5) given to a trip, or null when nobody rated it yet. */
+export function tripRating(tripId: string | undefined): number | null {
+  if (!tripId) return null
+  const entry = snapshot.ratings[tripId]
+  if (!entry || entry.count <= 0) return null
+  return entry.sum / entry.count
+}
+
+/** Record stars for a trip. Each call adds one rating (no per-rater dedupe
+    locally — the server profiles table owns that in step 3). Out-of-range
+    values throw instead of silently clamping. */
+export function rateTrip(tripId: string, stars: number): RatingSum {
+  if (!Number.isInteger(stars) || stars < 1 || stars > 5) throw new Error('rating_range')
+  const prev = snapshot.ratings[tripId] ?? { sum: 0, count: 0 }
+  const next = { sum: prev.sum + stars, count: prev.count + 1 }
+  commit({ ...snapshot, ratings: { ...snapshot.ratings, [tripId]: next } })
+  logActivity('rating_given', { stars }, { type: 'booking', id: tripId })
+  return next
 }
 
 /**

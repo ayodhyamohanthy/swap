@@ -129,6 +129,15 @@ export function beginCheckout(
   if (existing && (existing.status === 'paid' || existing.status === 'pending')) {
     return ticket(existing, request.status === 'locked' || existing.status === 'paid')
   }
+  /* Nothing left to charge for, and no payment row to reconcile against: the
+     swap settled without a payment of its own — a lock covered by a paid ₹199
+     group trip (docs/04 C). This branch used to fall straight through to
+     `startPayment`, minting a second ₹99 for a swap the group had already paid
+     for. Reachable because `/pay/$requestId/method` gates nothing on its own
+     and the parent route's guard lives in `PayScreen`, not in its `<Outlet/>`.
+     `payableStatus` already computed `already_paid`; its only caller dropped
+     it, so the rule was documented but never enforced. */
+  if (state === 'already_paid') throw new CheckoutError('already_paid')
 
   const quote = buildQuote(creditToUse(useCredit, creditOverridePaise), isGroup)
   if (quote.due === 0) {

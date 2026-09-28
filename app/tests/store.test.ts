@@ -2,6 +2,8 @@
    Runs local-first in memory/localStorage. */
 import { beforeEach, describe, expect, it } from "vitest"
 
+import type { CandidateSpec, RequesterSpec } from "@/lib/matching"
+
 import {
   StoreError,
   activityLog,
@@ -197,5 +199,73 @@ describe("local trips store", () => {
     updateSettings({ easy_mode: true, language: "hi" })
     expect(settings().easy_mode).toBe(true)
     expect(settings().language).toBe("hi")
+  })
+})
+
+describe("trip ratings feed future matches, never money", () => {
+  beforeEach(() => {
+    resetStore()
+  })
+
+  it("stores stars per trip and averages them", async () => {
+    const { rateTrip, tripRating } = await import("@/lib/store")
+    expect(tripRating("t9")).toBeNull()
+    expect(rateTrip("t9", 5)).toEqual({ sum: 5, count: 1 })
+    expect(rateTrip("t9", 3)).toEqual({ sum: 8, count: 2 })
+    expect(tripRating("t9")).toBe(4)
+  })
+
+  it("rejects out-of-range stars instead of clamping", async () => {
+    const { rateTrip } = await import("@/lib/store")
+    for (const bad of [0, 6, 2.5, Number.NaN]) {
+      expect(() => rateTrip("t9", bad)).toThrow("rating_range")
+    }
+  })
+
+  it("logs every rating and never touches the wallet", async () => {
+    const { rateTrip } = await import("@/lib/store")
+    rateTrip("t9", 5)
+    expect(activityLog()[0]).toMatchObject({ action: "rating_given" })
+    expect(creditPaise()).toBe(0)
+  })
+
+  it("lifts a rated trip in match scores", async () => {
+    const { rankMatches } = await import("@/lib/matching")
+    const requester: RequesterSpec = {
+      train_no: "12951",
+      journey_date: "2026-11-12",
+      class: "3A",
+      from_code: "MMCT",
+      to_code: "NDLS",
+      choices: ["UB"],
+      same_coach: false,
+      keep_together: false,
+      coach: "B3",
+      quota: "GN",
+    }
+    const base: Omit<CandidateSpec, "id" | "rating"> = {
+      user_id: "u",
+      train_no: "12951",
+      journey_date: "2026-11-12",
+      class: "3A",
+      from_code: "MMCT",
+      to_code: "NDLS",
+      coach: "B4",
+      berth_no: "41",
+      berth_type: "UB",
+      status: "CNF",
+      quota: "GN",
+      open_to_swap: true,
+      paused: false,
+      women_only: false,
+      families_only: false,
+      same_coach_only: false,
+    }
+    const rows = rankMatches(requester, [
+      { ...base, id: "plain", rating: 0 },
+      { ...base, id: "rated", rating: 10 },
+    ])
+    expect(rows.map((row) => row.id)).toEqual(["rated", "plain"])
+    expect(rows[0].score).toBeGreaterThan(rows[1].score)
   })
 })

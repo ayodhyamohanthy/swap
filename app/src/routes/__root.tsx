@@ -29,7 +29,7 @@ export const Route = createRootRoute({
       { rel: 'stylesheet', href: appCss },
       { rel: 'manifest', href: '/manifest.webmanifest' },
       { rel: 'icon', type: 'image/png', href: '/icons/icon-192.png' },
-      { rel: 'apple-touch-icon', href: '/icons/icon-192.png' },
+      { rel: 'apple-touch-icon', href: '/icons/apple-touch-icon.png' },
     ],
     scripts: [{ children: BOOT_SCRIPT }],
   }),

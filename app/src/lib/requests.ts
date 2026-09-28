@@ -16,7 +16,7 @@ import { needsCreditReminder } from './jobs'
 import { trackEvent } from './analytics'
 import { GROUP_MAX_SWAPS } from './money'
 import { getGroup, groupForTrip } from './groups'
-import { logActivity, listTrips, getTrip, getSnapshot, isSeen, markSeen, paymentFor, settings, type Trip } from './store'
+import { logActivity, listTrips, getTrip, getSnapshot, isSeen, markSeen, paymentFor, settings, tripRating, type Trip } from './store'
 
 export type RequestStatus =
   | 'draft'
@@ -238,6 +238,9 @@ export function sendCapped(): boolean {
 function candidateFor(trip: Trip): CandidateSpec | null {
   const passenger = trip.passengers[0]
   if (!passenger || passenger.status !== 'CNF') return null
+  /* Ratings given on this device nudge future matches (docs/08 scores
+     acceptor rating 0–10; local averages are 1–5 like profiles.rating). */
+  const avg = tripRating(trip.id)
   return {
     id: trip.id,
     user_id: trip.user_id ?? 'local',
@@ -252,7 +255,7 @@ function candidateFor(trip: Trip): CandidateSpec | null {
     status: passenger.status,
     quota: passenger.quota,
     open_to_swap: trip.open_to_swap,
-    rating: 0,
+    rating: avg === null ? 0 : Math.min(10, Math.max(0, avg * 2)),
     paused: false,
     /* Neutral on purpose. These are the *other* traveller's acceptor filters
        (docs/04 B2) and this device has no idea what they are — the local pool
