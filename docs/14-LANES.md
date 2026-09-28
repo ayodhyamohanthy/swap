@@ -11,7 +11,7 @@
 | L4 | Payments (Razorpay/PayPal/credit) | WorkBuddy/Claude | done. Rule 2 now enforced on the local path: a group-covered swap can no longer be charged a second ₹99 |
 | L5 | Swaps + chat + safety | OpenCode/Muse Spark | done. Confirm/cancel persist, earned routing, meet records, ratings persist+score+gated, chat report parties, real-row receipts, guard Hindi/leet hardening, integration vs L3/L4/L6 green |
 | L6 | Groups + onboard | WorkBuddy/Claude | done. `groupTogetherCount` now reports the biggest same-train/date/coach cluster instead of whichever trip was linked first; GROUP_MAX_SWAPS audited — consistent at all five sites |
-| L7 | Admin | WorkBuddy/Claude | done. Three passes. (1) Overview (design 23): added Accepted / Money in / Credit given and fixed two numbers that were wrong — "Swaps done" counted per-side `confirmation` rows instead of `swap_confirmed`, and "Busiest trains" counted any train-tagged row under a "Swaps done" column; Money in is gross − credit, so credit is never counted as revenue. (2) Activity log (design 15): categorised chips. (3) Activity log: human action labels ("Added PNR", not `pnr_added`), raw action kept as a tooltip. Two guards read `src/` for every `logActivity()` call and fail if an action has no chip or no label in either language; both were mutation-checked |
+| L7 | Admin | WorkBuddy/Claude | done. Four passes. (1) Overview (design 23): added Accepted / Money in / Credit given and fixed two numbers that were wrong — "Swaps done" counted per-side `confirmation` rows instead of `swap_confirmed`, and "Busiest trains" counted any train-tagged row under a "Swaps done" column; Money in is gross − credit, so credit is never counted as revenue. (2) Activity log (design 15): categorised chips. (3) Activity log: human action labels ("Added PNR", not `pnr_added`), raw action kept as a tooltip. (4) Activity log: Details column, rendered from a 26-field **allow-list** rather than a dump of `meta`, so caller-controlled values (`settings_changed.patch`, free-text `reason`) cannot reach an operator and no future meta key becomes a leak by default. Four guards read `src/` for every `logActivity()` call and fail if an action has no chip, no label in either language, no bounded detail, or a label too long for a row; all four were mutation-checked |
 | L8 | DB + schema | WorkBuddy/Claude | done. Pinned the enum + payments-target contracts with 17 new schema tests (all nine enums already matched); reviewed `get_matches()` and found it is the only path matching can ever take — plus two defects in the unapplied spec |
 | L9 | Infra + credits | WorkBuddy/Claude | done. Pinned the vitest pool in `app/vitest.config.ts` so the documented green gate works again — `npm run test` runs the whole suite with no flags (31 files, ~3m30s). The test *count* moves as lanes add tests; what matters is "Test Files 31 passed", since a wrong pool silently drops files while reporting success |
 | L10 | i18n (single writer) | WorkBuddy/Claude | done. (1) Overview tile copy for the L7 metric fix: `s_accepted`, `s_swaps_done`, `s_money_in`, `s_credit_given`, `moneyInUnknown`, `colTrain`/`colTrainName`/`colSwapsDone` (en+hi); removed `s_confirmed`, whose label described the old per-side count. (2) Activity category chips: `catAll`, `catLabel`, `catTrips`, `catRequests`, `catSignins`, `catAccount`, `catOther` — Payments/Swaps/Reports chips reuse the sidebar's own keys so the two cannot drift. (3) `admin.act.*`: 49 action labels in both languages, keyed by action name so the naming convention is the mapping |
@@ -107,6 +107,30 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
   dashboard grouping by event name silently mixes them. Left alone — it is
   L5's route and changing an analytics contract is a product call, not a
   drive-by.
+- 2026-09-28 L7 → L2 + whoever owns `routes/profile.settings.tsx`: **log meta
+  carries two caller-controlled values**, found while building design 15's
+  Details column.
+  1. `settings_changed` logs its `patch` object **verbatim**
+     (`routes/profile.settings.tsx`: `logActivity('settings_changed', patch)`).
+     Whatever keys a future setting has land in the audit log unexamined — so
+     the day a setting holds an email or a phone, it is in `activity_log`
+     without anyone deciding that. Worth logging an explicit allow-list of
+     changed keys instead of the raw patch.
+  2. `report_filed.reason` and `admin_action.reason` are free text by type
+     (`ReportInput.reason?: string`; the two admin consoles pass
+     `reason.trim()` from an operator-typed Input). Today the only
+     `report_filed` caller passes the literal `'User reported from chat'`, so
+     nothing leaks yet — but the *type* allows a transcript, and a transcript
+     can contain a phone number or a UPI id, which is exactly what
+     `lib/chat-guard.ts` exists to hide.
+  Neither is a bug today and neither is mine to fix — `activity_log` is the
+  system of record, so widening it is an L2 decision. L7's Details column reads
+  an **allow-list** rather than `meta`, so it cannot surface either one; the
+  tests stuff a fake PNR, email, phone and name into unlisted keys and assert
+  none of them reaches the row.
+  Separately: **`routes/profile.*` is in no lane's ownership map** (docs/13 §1).
+  Same gap as `app/vitest.config.ts`, filed under L9. Two unowned files is a
+  pattern, not a coincidence.
 
 ## Backlog (unclaimed, ready to pull)
 
@@ -138,6 +162,19 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
    *issued* today, distinct from `creditInCirculationPaise`, the outstanding
    balance). `usersToCsv` / `AdminUserRow` gained design 16's Trips / Swaps /
    Credit columns, in paise.
+   **Design 15, 2026-09-28 (L7, pass 4):** the **Details column** now exists
+   (`activityDetails()`), rendered from a 26-entry allow-list instead of the
+   raw `meta` object. Two of the ~50 `logActivity()` call sites carry
+   caller-controlled values — `settings_changed` stores whatever `patch` object
+   it was handed, and `report_filed` / `admin_action` store free-text
+   `reason` — so a wholesale `meta` render would have put both in front of an
+   operator, and would have silently started showing any field a future call
+   site adds. The mask on `last4` is a *safety property*, not a formatter: even
+   if a call site logged a full 10-digit PNR under that key, only four
+   characters can reach the row. Deliberately language-neutral (bare values,
+   `·` separators) — a secondary column does not justify ~10 English glue keys
+   in all 22 languages; money is the one exception and goes through
+   `formatRupees`.
    **Still open, deliberately:**
    - `admin.users.tsx` renders one row (the signed-in account or
      `local-device`) with no search box and none of the All / Active today /
@@ -150,9 +187,14 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
      ("first on their train" = ?), so building it now would mean inventing the
      definition — the exact failure mode the three fixes above were about.
    - Design 15's categorised activity filter (All / Requests / Payments /
-     Swaps / Reports / Sign-ins) is still the flat action dropdown. Real and
-     testable — `filterActivity` would take a category — but it is a separate
-     surface from the overview, so it stays a fresh backlog item.
+     Swaps / Reports / Sign-ins) **shipped** in pass 2 as chips; the flat
+     action dropdown is gone. What remains from design 15 is the **table
+     layout** (Time / User / Action / Train / Details — currently a list of
+     label + details + `date · role`) and the right-hand **User timeline**
+     panel. Left alone deliberately: both are chrome over data that already
+     renders, whereas the Details *contents* were derivable and therefore
+     worth building and testing. Search, export, and the category chips all
+     exist.
    - Designs 17/18/24 (swaps, payments+reports, credits tables and their
      right-hand detail panels) were not touched at all.
 5. L9: Azure burn-down dry-runs (`app/azure/`), PostHog/Sentry key plumbing (env only).
