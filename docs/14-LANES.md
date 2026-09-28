@@ -10,7 +10,7 @@
 | L3 | Requests + matching | WorkBuddy/Claude | done. Daily caps wired, acceptor Settings filters now applied on the incoming path, connecting-only journeys no longer match |
 | L4 | Payments (Razorpay/PayPal/credit) | WorkBuddy/Claude | done. Rule 2 now enforced on the local path: a group-covered swap can no longer be charged a second ₹99 |
 | L5 | Swaps + chat + safety | OpenCode/Muse Spark | active: 2026-09-28T16:55Z | swaps detail/confirm/chat/outbox audit |
-| L6 | Groups + onboard | — | free | |
+| L6 | Groups + onboard | WorkBuddy/Claude | active: 2026-09-28T11:40Z | audit: does GROUP_MAX_SWAPS mean the same thing everywhere? |
 | L7 | Admin | — | free | |
 | L8 | DB + schema | — | free | announce before edit |
 | L9 | Infra + credits | — | free | |
@@ -21,6 +21,10 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
 ## Requests (cross-lane needs)
 
 - `<date> <lane> → <lane>: <what you need>` — owner replies with `ack` or `done`.
+- 2026-09-28 L5 → L3: chat report/block needs the acceptor's *user* id.
+  Local `SwapOffer` carries only `acceptor_trip_id`, so the L5 chat screen
+  reports `trip:<id>` (explicit, joinable later) instead of a fake user id.
+  When offers gain a server user id (step-3 sync), prefer it there.
 - 2026-09-28 L4 → L1 (and every lane): commit `0c5f882` is a blanket
   `git add -A` under the message `0`. It swept four lanes into one commit —
   L1's icons/scripts, L5's *in-flight* ratings work (`lib/store.ts`,

@@ -10,6 +10,7 @@ import { enqueue, flush, pending } from '@/lib/outbox'
 import { trackEvent } from '@/lib/analytics'
 import { useOnline } from '@/lib/use-online'
 import { demoRequest } from '@/lib/demo-swap'
+import { acceptedOffer, getRequest, offersFor } from '@/lib/requests'
 import { getSupabase } from '@/lib/supabase'
 import { fileReport, blockUser } from '@/lib/safety'
 import { getOrCreateChat, fetchMessages, sendMessage, isValidUuid } from '@/lib/chat-sync'
@@ -176,8 +177,18 @@ function ChatScreen() {
         onClick={() => {
           setReported(true)
           trackEvent('report_created', {})
-          const reporterId = currentUserId ?? 'local_user'
-          const reportedId = 'counterparty'
+          /* Real parties where known: the signed-in user (or the request's
+             requester as fallback) reports the locked/accepted offer's
+             acceptor trip. A bare 'counterparty' can never join to a user
+             row, so the trip reference keeps the report actionable without
+             masquerading as one. Server user ids on offers are a step-3
+             L3 item (see lanes board request). */
+          const req = getRequest(id)
+          const offer = req
+            ? (offersFor(req.id).find((o) => o.id === req.locked_offer_id) ?? acceptedOffer(req.id))
+            : undefined
+          const reporterId = currentUserId ?? req?.requester_id ?? 'local_user'
+          const reportedId = offer?.acceptor_trip_id ? `trip:${offer.acceptor_trip_id}` : 'counterparty'
           void fileReport({
             reporterId,
             reportedId: reportedId !== reporterId ? reportedId : `${reportedId}_other`,
