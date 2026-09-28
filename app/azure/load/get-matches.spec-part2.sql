@@ -26,11 +26,28 @@
 --   b) "newest-first" was promised but match_cards exposes no created_at, so
 --      the view cannot support it. The order is stable by booking_id, which is
 --      all the client needs: it re-ranks every page in rankMatches() anyway.
--- Still open for whoever applies this: one booking with several passengers
--- yields several match_cards rows, so a LIMIT can split a booking's passengers
--- across two pages. Harmless (the client regroups by booking_id) but wasteful.
--- The 50-row clamp also contradicts the "never more than 20 rows on a phone"
--- promise in azure/load/rpc-contract-note.ts — pick one.
+-- RESOLVED (2026-09-28, L8) — the two questions left open above:
+--
+--   a) Booking split across pages. Keep row-based pagination: the split is
+--      harmless, but NOT for the reason an earlier note gave ("the client
+--      regroups by booking_id" — that only helps if the client holds every
+--      page, which a first render does not). The real reason is that
+--      match_cards exposes no per-booking seat count, so the client cannot
+--      derive anything from how many rows of a booking it happens to have.
+--      That is a constraint on any future fix, not a licence: if seat counts
+--      are ever added for the keep-together score, they must be added as a
+--      PER-ROW column (every row of a booking carrying the booking's full
+--      count), never counted client-side from rows received. Per-row keeps
+--      splitting harmless by construction; client-side counting would turn a
+--      page boundary into a silently under-counted candidate.
+--
+--   b) The 50-row clamp vs "never more than 20 rows on a phone". Both stay, and
+--      they are different things. 50 is the server's abuse ceiling — what the
+--      function guarantees no caller can exceed. 20 is the phone client's own
+--      page size, a payload choice the server has no business encoding: it
+--      cannot know the device, and a desktop caller may legitimately want
+--      more. rpc-contract-note.ts is reworded to say exactly that instead of
+--      presenting the two numbers as a contradiction.
 CREATE OR REPLACE FUNCTION public.get_matches(
   p_train text, p_date date, p_class travel_class,
   p_after uuid DEFAULT NULL, p_limit int DEFAULT 20

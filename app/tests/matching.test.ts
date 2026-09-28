@@ -2,6 +2,10 @@
    Score = rank (50/35/20) + same coach 10 + keep-together 10 + rating 0-10.
    Candidates must share train/date/class + overlap + CNF + open + inside
    limits + filters respected + berth in choices; quota berths only qualify. */
+/* node: modules come via getBuiltinModule — a static `import 'node:fs'` is
+   mangled by Vite's browser-compat externalization under the jsdom pool. */
+const { readFileSync, readdirSync, statSync } = process.getBuiltinModule('node:fs') as typeof import('node:fs')
+const { join } = process.getBuiltinModule('node:path') as typeof import('node:path')
 
 import { describe, expect, it } from 'vitest'
 
@@ -83,6 +87,54 @@ describe('rankMatches scoring order', () => {
     ])
     expect(ranked.find((r) => r.id === 'high')?.score).toBe(60)
     expect(ranked.find((r) => r.id === 'low')?.score).toBe(50)
+  })
+})
+
+/* A tripwire, not a wish. docs/08 line 19 specifies "keep-together fit 10" in
+   the score and `rankMatches` does award it from `CandidateSpec.together_seats`
+   — but nothing in src/ ever sets that field, so the bonus fires only on the
+   fixture two tests above. The local pool mapper (`candidateFor` in
+   lib/requests.ts) omits it, and the production view `match_cards`
+   (supabase/schema.part7.sql) exposes no per-booking seat count to supply it
+   from, so this is not merely a local-stub gap.
+   These assertions deliberately pin the GAP. They should fail the day someone
+   wires `together_seats` for real, which is the moment the keep-together
+   feature stops being decorative and the schema question below has to be
+   answered. */
+describe('the keep-together score is currently unreachable', () => {
+  const SRC = join(import.meta.dirname, '..', 'src')
+
+  function sourceFiles(dir: string): string[] {
+    const out: string[] = []
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry)
+      if (statSync(full).isDirectory()) out.push(...sourceFiles(full))
+      else if (/\.tsx?$/.test(entry)) out.push(full)
+    }
+    return out
+  }
+
+  it('nothing in src/ assigns together_seats', () => {
+    /* `together_seats?: number` (the declaration) and `cand.together_seats ?? 1`
+       (the read) both fail to match `name:` — only an object literal would. */
+    const offenders = sourceFiles(SRC)
+      .filter((file) => /together_seats\s*:/.test(readFileSync(file, 'utf8')))
+      .map((file) => file.slice(SRC.length + 1))
+    expect(offenders).toEqual([])
+  })
+
+  it('match_cards exposes no column that could supply it', () => {
+    const schema = readFileSync(
+      join(import.meta.dirname, '..', 'supabase', 'schema.part7.sql'),
+      'utf8',
+    )
+    const view = schema.slice(schema.indexOf('CREATE OR REPLACE VIEW public.match_cards'))
+    const body = view.slice(0, view.indexOf('REVOKE ALL'))
+    expect(body).toContain('p.id AS passenger_id')
+    /* No seat count, so a page that splits a booking cannot be made to
+       under-count — and equally, the bonus cannot be computed. Adding such a
+       column is the fix; add it PER ROW, not as a client-side row count. */
+    expect(body).not.toMatch(/together_seats|seats_held|passenger_count/)
   })
 })
 
