@@ -12,11 +12,13 @@ import {
   confirmCaptured,
   gatewayLive,
   markFailed,
+  payGateFor,
   CheckoutError,
 } from '@/lib/checkout'
 import { isGroupRequestId } from '@/lib/groups'
 import { useCreditPaise, usePaymentFor } from '@/lib/use-store'
 import { capturePaypalOrder, createPaypalOrder } from '@/server/webhooks'
+import { PayBlocked } from './pay.$requestId'
 
 /* Screen 25 "Pay with PayPal" (docs/05, docs/06 PayPal, design 28a): the one
    international-traveller path. This screen does two jobs on a single route —
@@ -97,6 +99,11 @@ function PaypalScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, requestId])
 
+  /* Rule 2. Placed after the capture effect on purpose: the return leg from
+     PayPal still has to settle an order it already authorised, and only the
+     rendered "Pay with PayPal" button is withdrawn once the swap is paid. */
+  const gate = payGateFor(requestId)
+
   async function go() {
     if (busy) return
     setBusy(true)
@@ -156,6 +163,8 @@ function PaypalScreen() {
       setBusy(false)
     }
   }
+
+  if (gate !== 'payable') return <PayBlocked requestId={requestId} gate={gate} />
 
   return (
     <div>

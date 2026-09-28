@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
 import { useI18n } from '@/lib/i18n'
 import { usePaymentFor } from '@/lib/use-store'
+import { payGateFor } from '@/lib/checkout'
+import { PayBlocked } from './pay.$requestId'
 
 /* Screen 24 "Waiting for UPI" (design 27b): the requester approved in their
    UPI app; this screen holds while the gateway confirms. No second payment
@@ -22,6 +24,9 @@ function UpiScreen() {
   const { t } = useI18n()
   const payment = usePaymentFor(requestId)
   const due = payment ? payment.amount_paise - payment.credit_used_paise : 0
+  /* Rule 2: nothing is waiting for a UPI approval on a swap already settled. */
+  const gate = payGateFor(requestId)
+  if (gate !== 'payable') return <PayBlocked requestId={requestId} gate={gate} />
   return (
     <div>
       <div className="mt-2 flex justify-center">

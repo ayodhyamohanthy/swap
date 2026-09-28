@@ -7,9 +7,8 @@ import { acceptedOffer, getRequest, revealedBerths } from '@/lib/requests'
 import { splitReceipt } from '@/lib/payments'
 import { formatRupees } from '@/lib/money'
 import { isGroupRequestId } from '@/lib/groups'
-import { gatewayLive } from '@/lib/checkout'
+import { gatewayLive, payGateFor } from '@/lib/checkout'
 import { usePaymentFor } from '@/lib/use-store'
-import { payGate } from './pay.$requestId'
 
 /* Payment successful (docs/04 A11, design 27c): the receipt is built from the
    payment row that actually exists, then the berth numbers are revealed and
@@ -31,6 +30,9 @@ function DoneScreen() {
   const { t } = useI18n()
   const payment = usePaymentFor(requestId)
   const request = getRequest(requestId)
+  /* Where to send someone who landed here with no paid payment row. Reads the
+     request, not the group id, so a group trip keeps its Check-status route. */
+  const settled = request ? payGateFor(request.id) === 'paid' : false
 
   if (!payment || payment.status !== 'paid') {
     /* Rule 2: no money, no lock, no success screen. */
@@ -42,9 +44,9 @@ function DoneScreen() {
         </Card>
         <Button className="mt-4" asChild>
           <Link
-            to={payGate(request?.status) === 'paid' ? '/swaps/$id' : '/pay/$requestId/status'}
-            params={payGate(request?.status) === 'paid' ? { id: requestId } : { requestId }}
-            {...(payGate(request?.status) === 'paid' ? {} : { search: { state: 'pending' as const } })}
+            to={settled ? '/swaps/$id' : '/pay/$requestId/status'}
+            params={settled ? { id: requestId } : { requestId }}
+            {...(settled ? {} : { search: { state: 'pending' as const } })}
           >
             {t('pay.checkStatus')}
           </Link>

@@ -4,9 +4,10 @@ import { AppFooter, type RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { useI18n } from '@/lib/i18n'
-import { confirmCaptured, gatewayLive, markFailed, CheckoutError } from '@/lib/checkout'
+import { confirmCaptured, gatewayLive, markFailed, payGateFor, CheckoutError } from '@/lib/checkout'
 import { trackEvent } from '@/lib/analytics'
 import { usePaymentFor } from '@/lib/use-store'
+import { PayBlocked } from './pay.$requestId'
 
 /* Payment status (docs/04 A10, docs/09, designs 28b/28c): the payment row says
    what happened — pending never claims money moved, failed says it did not.
@@ -60,6 +61,13 @@ function StatusScreen() {
     }
     setBusy(false)
   }
+
+  /* Rule 2: once the swap is paid and locked there is no payment left to wait
+     on, so this screen hands over to the swap instead of offering "Pay another
+     way". A failed payment leaves the request payable, so that path is
+     untouched and still reaches the retry buttons below. */
+  const gate = payGateFor(requestId)
+  if (gate !== 'payable') return <PayBlocked requestId={requestId} gate={gate} />
 
   if (failed) {
     return (

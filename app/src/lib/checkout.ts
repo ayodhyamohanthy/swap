@@ -54,6 +54,27 @@ export function payableStatus(status: RequestStatus | undefined): 'payable' | 'a
   return 'not_yet'
 }
 
+/** Rule 2 for a whole pay URL, not just a status: `/pay/:id` is reachable for
+    a group trip id as well as a swap request id, and the two have different
+    notions of "already paid" (`group.paid` vs a `locked`/`confirmed` request).
+    Both readings lived inline in `PayScreen`, which is why the child screens
+    under its `<Outlet/>` had no gate at all. One function, so every screen on
+    the route asks the same question. */
+export function payGateFor(targetId: string): 'payable' | 'paid' | 'not-yet' | 'missing' {
+  if (isGroupRequestId(targetId)) {
+    const group = getGroup(targetId)
+    /* An unknown group id falls through to the request reading below, which
+       reports `missing` — never `payable`, which would offer to charge ₹199
+       for a trip that does not exist. */
+    if (group) return group.paid ? 'paid' : 'payable'
+  }
+  const request = getRequest(targetId)
+  if (!request) return 'missing'
+  const state = payableStatus(request.status)
+  if (state === 'payable') return 'payable'
+  return state === 'already_paid' ? 'paid' : 'not-yet'
+}
+
 /**
  * Group checkout (docs/01, docs/04 C): one ₹199 payment marks the whole trip
  * paid. Idempotent like startPayment: an already-paid group never charges

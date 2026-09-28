@@ -8,11 +8,12 @@ import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/lib/i18n'
 import { formatUsdTenths, PRICE_PAISE, usdTenthsFor } from '@/lib/money'
 import { loadRazorpay } from '@/lib/pay-sdk'
-import { beginCheckout, CheckoutError } from '@/lib/checkout'
+import { beginCheckout, payGateFor, CheckoutError } from '@/lib/checkout'
 import { acceptedOffer } from '@/lib/requests'
 import { buildQuote } from '@/lib/payments'
 import { formatRupees } from '@/lib/money'
 import { isGroupRequestId } from '@/lib/groups'
+import { PayBlocked } from './pay.$requestId'
 import { useCreditPaise } from '@/lib/use-store'
 
 /* Choose how to pay (docs/04 A10, design 27a): Razorpay first with UPI apps on
@@ -87,6 +88,11 @@ function MethodScreen() {
       setBusy(false)
     }
   }
+
+  /* Rule 2, on the child screen rather than only in the lib: a settled swap
+     must not render a working list of payment methods. */
+  const gate = payGateFor(requestId)
+  if (gate !== 'payable') return <PayBlocked requestId={requestId} gate={gate} />
 
   if (quote.provider === 'credit') {
     /* Fully covered: no gateway call at all (docs/06). */
