@@ -16,7 +16,7 @@ import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { requestStatusLabel, useI18n, type MessageKey } from '@/lib/i18n'
 import { type ConfirmOutcome } from '@/lib/outcomes'
 import { answerSwap } from '@/lib/settle'
-import { getRequest, type RequestStatus, type SwapRequest } from '@/lib/requests'
+import { getRequest, offersFor, type RequestStatus, type SwapRequest } from '@/lib/requests'
 import { listTrips } from '@/lib/store'
 
 /* Bare /swaps/$id landing (screens 29/30/47/48/49): every outcome state has a
@@ -89,6 +89,31 @@ function SwapLandingScreen() {
      settled swap still lands somewhere real. */
   if (view === 'problem' && request.status === 'locked') {
     return <ProblemScreen id={id} request={request} />
+  }
+  /* Screen 29 / design 20a: this request lost its acceptor to another
+     request's payment (L3's cross-request supersede). The pair is exact —
+     within-request superseding only ever happens to a request that itself
+     locked, so a `searching` request carrying a superseded offer can only be
+     the loser of a lock elsewhere. {name} is the design's "Rohan paid first",
+     but no other-requester name exists in the data (rule 13 caps what could
+     be shown; the profiles join is L7's request to L8), so the canonical
+     placeholder `common.traveller` fills it rather than inventing a person. */
+  if (request.status === 'searching' && offersFor(id).some((offer) => offer.status === 'superseded')) {
+    return (
+      <div>
+        <h1 className="mt-2 text-center text-title text-ink">{t('outcome.fasterTitle')}</h1>
+        <p className="mt-1 text-center text-body text-muted">
+          {t('outcome.fasterBody', { name: t('common.traveller') })}
+        </p>
+        <Card className="mt-4">
+          <CardBody className="font-semibold text-ink">{t('outcome.stillOpen')}</CardBody>
+        </Card>
+        <Button className="mt-4" asChild>
+          <Link to="/swaps">{t('outcome.seeRequests')}</Link>
+        </Button>
+        <AppFooter />
+      </div>
+    )
   }
   const requesterSide = listTrips().some((trip) => trip.id === request.trip_id)
   /* Screens 48/49 ARE this route (docs/05), so they are the landing itself —

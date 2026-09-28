@@ -82,6 +82,30 @@ describe('chat: identity after payment, stamped bubbles (rule 13, design 4b)', (
   })
 })
 
+describe('screen 29 / design 20a: the lock loser lands somewhere real', () => {
+  const src = read('swaps.$id.index.tsx')
+
+  it('keys the "Someone else was faster" landing on searching + superseded', () => {
+    /* The exact state L3's cross-request supersede produces: the request is
+       back to `searching` and its offer to the locked acceptor is dead.
+       Drop either half of the condition and the loser falls through to the
+       generic status card — the dead end this screen exists to close. */
+    expect(src).toMatch(
+      /request\.status === 'searching' && offersFor\(id\)\.some\(\(offer\) => offer\.status === 'superseded'\)/,
+    )
+  })
+
+  it('renders the three design 20a copy lines and routes to /swaps', () => {
+    expect(src).toContain("t('outcome.fasterTitle')")
+    expect(src).toContain("t('outcome.fasterBody'")
+    expect(src).toContain("t('outcome.stillOpen')")
+    expect(src).toContain('<Link to="/swaps">{t(\'outcome.seeRequests\')}</Link>')
+    /* qa-placeholders: no invented person fills {name} — the placeholder is
+       the catalog's own `common.traveller`. */
+    expect(src).toContain("{ name: t('common.traveller') }")
+  })
+})
+
 describe('rating: design 13c draws two real buttons', () => {
   const src = read('swaps.$id.rate.tsx')
 
