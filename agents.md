@@ -74,3 +74,10 @@ SeatSwap is a mobile-first PWA that helps passengers on the same Indian train, s
 - Every table: RLS on, explicit GRANTs.
 - All copy in i18n files (`/locales/{lang}.json`). English + Hindi first; structure ready for all 22 scheduled languages.
 - Semantic Tailwind tokens only (no raw hex in components).
+
+## Base44 dev environment
+- Run: `docker compose -f docker-compose.base44.yml up -d` → Vite dev server of `app/` (npm workspace `seatswap-app`) on host port 3000. Deps install at container start into named volumes (root + `app/node_modules`).
+- Boots keyless: `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` missing → local-first store (see `app/src/lib/supabase.ts`). Razorpay/PayPal/VAPID keys are also optional. Real values come from `/run/base44/app.env`.
+- Root `server/` + root `index.html`/`js/` are an older zero-dep prototype, not the running app.
+- Service worker is never registered in dev, so no stale-cache issues in the preview.
+- Verify: `curl localhost:3000/` returns the "SeatSwap — swap your berth…" title; tests via `docker compose -f docker-compose.base44.yml exec web npm test`.

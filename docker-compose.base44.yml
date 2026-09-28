@@ -1,0 +1,28 @@
+services:
+  web:
+    image: node:22
+    working_dir: /repo
+    command: sh -c "npm install && npm run dev --workspace seatswap-app -- --host 0.0.0.0 --port 5173"
+    ports:
+      - "3000:5173"
+    volumes:
+      - ./:/repo
+      - node_modules:/repo/node_modules
+      - app_node_modules:/repo/app/node_modules
+    environment:
+      - __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS
+      - CHOKIDAR_USEPOLLING=true
+    env_file:
+      - path: /run/base44/app.env
+        required: false
+    restart: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null --max-time 5 http://localhost:5173/ || exit 1"]
+      interval: 15s
+      timeout: 6s
+      retries: 5
+      start_period: 180s
+
+volumes:
+  node_modules:
+  app_node_modules:

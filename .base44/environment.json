@@ -1,0 +1,9 @@
+{
+  "previewPort": 3000,
+  "healthPath": "/",
+  "startCommand": "docker compose -f docker-compose.base44.yml up -d",
+  "secrets": [
+    { "name": "VITE_SUPABASE_URL", "description": "Supabase project URL (Project Settings → API). Optional; app runs local-first without it.", "requiredAtBoot": false },
+    { "name": "VITE_SUPABASE_ANON_KEY", "description": "Supabase anon public key (Project Settings → API). Optional.", "requiredAtBoot": false }
+  ]
+}
