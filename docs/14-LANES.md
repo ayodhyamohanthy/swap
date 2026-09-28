@@ -320,7 +320,37 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
      worth building and testing. Search, export, and the category chips all
      exist.
    - Designs 17/18/24 (swaps, payments+reports, credits tables and their
-     right-hand detail panels) were not touched at all.
+     right-hand detail panels) — **scoped 2026-09-29 (L9), not built.**
+     Design 24 is effectively done: pass 8 built its three tiles and
+     `admin.credits.tsx` (201 lines) also carries an adjust modal the design
+     does not have. What remains is 17 and 18, and **both are about half
+     blocked on the same missing-peer-rows issue** — 17's Requester/Acceptor
+     columns and 18's User column want names (`Riya P`, `Arjun S`) that no row
+     carries. That is four or five features now queued behind one thing, which
+     is itself the argument for resolving it. The unblocked halves are real:
+     - **17 (swaps) vs `admin.swaps.tsx` (158 lines):** the two action buttons
+       already exist (`admin.markDone`, `admin.moveCredit`), but not the six
+       status chips (All / Waiting / Accepted / Paid / Done / To credit), the
+       Train and Amount columns, or the right-hand **Swap detail panel with its
+       timeline**. The timeline is derivable — it is the same `activity_log`
+       rows L7 already reads (`request_sent` / `offer_accepted` / `payment_paid`
+       / `confirmation`, each carrying a timestamp) — so it needs no peer rows;
+       only the *labels* do. Two design details worth keeping: it prints **₹49**
+       on swap #1038 and **₹0** on the waiting swap, i.e. Amount is money
+       actually collected, `amount − credit_used`, the same definition as
+       `moneyInTodayPaise`; and it prints `—` where no acceptor exists yet.
+     - **18 (payments + reports) vs `admin.payments.tsx` (77 lines) and
+       `admin.reports.tsx` (100 lines):** the payments screen has no tiles and
+       no table at all — Time / Swap / Amount / Method / Status are all absent
+       (the design's Method values: `UPI`, `UPI + credit`, `Card`). Reports has
+       a close action but not the design's Review / Close table. Three of the
+       four tiles are numbers this lane already computes
+       (`moneyInTodayPaise`, `creditGivenTodayPaise`, `creditUsedTodayPaise`);
+       **the fourth, "Moved to credit" (₹297), is genuinely new and needs a
+       definition** — rule 6's ₹99 fallback and the acceptor's ₹50 thank-you
+       credit are both `credit_added` rows, so the tile cannot simply sum them
+       without counting one of them twice. That is the interesting decision
+       here, and it is a money call rather than a layout one.
 5. L9: Azure burn-down dry-runs (`app/azure/`), PostHog/Sentry key plumbing (env only).
 6. L8: **`get_matches()` is the only path by which matching can ever work** —
    reviewed 2026-09-28, still not applied. part 7 drops every `*_match_read`
