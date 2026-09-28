@@ -11,10 +11,10 @@
 | L4 | Payments (Razorpay/PayPal/credit) | WorkBuddy/Claude | done. Rule 2 now enforced on the local path: a group-covered swap can no longer be charged a second ₹99 |
 | L5 | Swaps + chat + safety | OpenCode/Muse Spark | done. Confirm/cancel persist, earned routing, meet records, ratings persist+score+gated, chat report parties, real-row receipts, guard Hindi/leet hardening, integration vs L3/L4/L6 green |
 | L6 | Groups + onboard | WorkBuddy/Claude | done. `groupTogetherCount` now reports the biggest same-train/date/coach cluster instead of whichever trip was linked first; GROUP_MAX_SWAPS audited — consistent at all five sites |
-| L7 | Admin | WorkBuddy/Claude | done. Four passes. (1) Overview (design 23): added Accepted / Money in / Credit given and fixed two numbers that were wrong — "Swaps done" counted per-side `confirmation` rows instead of `swap_confirmed`, and "Busiest trains" counted any train-tagged row under a "Swaps done" column; Money in is gross − credit, so credit is never counted as revenue. (2) Activity log (design 15): categorised chips. (3) Activity log: human action labels ("Added PNR", not `pnr_added`), raw action kept as a tooltip. (4) Activity log: Details column, rendered from a 26-field **allow-list** rather than a dump of `meta`, so caller-controlled values (`settings_changed.patch`, free-text `reason`) cannot reach an operator and no future meta key becomes a leak by default. Four guards read `src/` for every `logActivity()` call and fail if an action has no chip, no label in either language, no bounded detail, or a label too long for a row; all four were mutation-checked |
+| L7 | Admin | WorkBuddy/Claude | done. Five passes. (1) Overview (design 23): added Accepted / Money in / Credit given and fixed two numbers that were wrong — "Swaps done" counted per-side `confirmation` rows instead of `swap_confirmed`, and "Busiest trains" counted any train-tagged row under a "Swaps done" column; Money in is gross − credit, so credit is never counted as revenue. (2) Activity log (design 15): categorised chips. (3) Activity log: human action labels ("Added PNR", not `pnr_added`), raw action kept as a tooltip. (4) Activity log: Details column, rendered from a 26-field **allow-list** rather than a dump of `meta`, so caller-controlled values (`settings_changed.patch`, free-text `reason`) cannot reach an operator and no future meta key becomes a leak by default. Four guards read `src/` for every `logActivity()` call and fail if an action has no chip, no label in either language, no bounded detail, or a label too long for a row; all four were mutation-checked. (5) Overview: design 23's "Swaps this week" chart. The last point is today and equals `swapsDoneToday` by construction — a test asserts it, because a chart and a tile on the same screen disagreeing about one swap is the defect this lane keeps finding. Days that have not happened are `null`, not `0`, so the line stops at today instead of falling to the floor every Monday |
 | L8 | DB + schema | WorkBuddy/Claude | done. Pinned the enum + payments-target contracts with 17 new schema tests (all nine enums already matched); reviewed `get_matches()` and found it is the only path matching can ever take — plus two defects in the unapplied spec |
 | L9 | Infra + credits | WorkBuddy/Claude | done. Pinned the vitest pool in `app/vitest.config.ts` so the documented green gate works again — `npm run test` runs the whole suite with no flags (31 files, ~3m30s). The test *count* moves as lanes add tests; what matters is "Test Files 31 passed", since a wrong pool silently drops files while reporting success |
-| L10 | i18n (single writer) | WorkBuddy/Claude | done. (1) Overview tile copy for the L7 metric fix: `s_accepted`, `s_swaps_done`, `s_money_in`, `s_credit_given`, `moneyInUnknown`, `colTrain`/`colTrainName`/`colSwapsDone` (en+hi); removed `s_confirmed`, whose label described the old per-side count. (2) Activity category chips: `catAll`, `catLabel`, `catTrips`, `catRequests`, `catSignins`, `catAccount`, `catOther` — Payments/Swaps/Reports chips reuse the sidebar's own keys so the two cannot drift. (3) `admin.act.*`: 49 action labels in both languages, keyed by action name so the naming convention is the mapping |
+| L10 | i18n (single writer) | WorkBuddy/Claude | done. (4) Design 23's chart: `admin.chartSwaps` (en+hi), plus `localeFor()` — the `lang` → BCP-47 mapping now lives in one place, so shipping a third language is a one-line change instead of a hunt for every `lang === 'hi'` — and `formatWeekday()`, which derives weekday labels from `Intl` rather than a `weekdays` block in all 22 catalogues. `formatTripDate()` was refactored onto `localeFor()`. Previously: (1) Overview tile copy for the L7 metric fix: `s_accepted`, `s_swaps_done`, `s_money_in`, `s_credit_given`, `moneyInUnknown`, `colTrain`/`colTrainName`/`colSwapsDone` (en+hi); removed `s_confirmed`, whose label described the old per-side count. (2) Activity category chips: `catAll`, `catLabel`, `catTrips`, `catRequests`, `catSignins`, `catAccount`, `catOther` — Payments/Swaps/Reports chips reuse the sidebar's own keys so the two cannot drift. (3) `admin.act.*`: 49 action labels in both languages, keyed by action name so the naming convention is the mapping |
 
 Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
 
@@ -254,13 +254,40 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
    label is just **"Paid"**. A group payment is ₹199, so a hardcoded ₹99 in the
    label would be wrong on every group payment. The amount belongs in the
    Details column, not in the verb.
+   **Details column done, 2026-09-28.** Rows now read label → details →
+   `date · role`. `activityDetails()` renders from a 26-entry allow-list, never
+   the raw `meta` (see item 4 for why that distinction is load-bearing).
    **Still open on this screen:** the design's table layout (Time / User /
-   Action / Train / Details — currently a list showing the label and the date)
-   and the right-hand "User timeline" panel. The search box, the export button,
-   the action dropdown and the chips already exist.
-8. L7: design 23's "Swaps this week" chart and "First on their train today"
-   donut. The chart is a straight 7-day `swap_confirmed` series (cheap, and the
-   data now exists). The donut is **not** buildable yet: "first on their train"
-   is undefined anywhere in docs/01-13, and guessing the definition is how a
-   dashboard tile ends up measuring something nobody asked for. Needs a
-   definition first, from the human or from docs/01.
+   Action / Train / Details — currently a list) and the right-hand "User
+   timeline" panel. Both are chrome over data that already renders, which is
+   why they stayed behind the Details *contents*. The search box, the export
+   button, the action dropdown and the chips already exist.
+8. L7: design 23's "Swaps this week" chart — **done, 2026-09-28.** — and the
+   "First on their train today" donut, which is still **not** buildable:
+   "first on their train" is undefined anywhere in docs/01-13, and guessing the
+   definition is how a dashboard tile ends up measuring something nobody asked
+   for. Needs a definition first, from the human or from docs/01.
+   The chart (`swapsThisWeek()`) needed two decisions the design does not
+   settle, both recorded in the code:
+   - **Which seven days.** The design's axis is Mon→Sun and its title is "this
+     week", so it is the **calendar week**, not a rolling 7-day window. The two
+     coincide only on a Sunday, so the mockup cannot distinguish them; the
+     wording can, and AGENTS.md makes the images the reference for wording.
+   - **Future days are `null`, not `0`.** A zero means "the day happened and no
+     swap was confirmed"; a day that has not arrived has not happened at all.
+     Drawing them as zero drops the line to the floor and leaves it there every
+     Monday and Tuesday, which reads as a collapse in swaps rather than as a
+     week that has barely started. On a Monday the chart is therefore a single
+     dot — thin, but true.
+   The load-bearing property is that the last non-null point **is** today and
+   counts `swap_confirmed` through the same `localDayKey` the tiles use, so it
+   equals `swapsDoneToday` by construction. That was the whole reason to build
+   this now: a chart and a tile on the same screen disagreeing about the same
+   swap is the defect class this lane keeps finding. A test asserts the two are
+   equal, and two mutations were run to prove the tests bite — future days set
+   to `0` (caught by 3 tests) and counting `confirmation` instead of
+   `swap_confirmed` (caught by 4, including the test named for it).
+   Weekday labels come from `Intl` via a new `formatWeekday()`, not from a
+   `weekdays` block in all 22 catalogues — the names already ship with the
+   platform. `formatTripDate()` now shares the same `localeFor()` helper, which
+   removes the second place that knew the `lang` → BCP-47 mapping.
