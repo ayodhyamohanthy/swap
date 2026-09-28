@@ -87,14 +87,25 @@ LANE <Lx>. Fix layout/wording only inside your lane. AGENTS.md rules beat
 the images. Banned words never appear. Report mismatches you cannot fix.
 ```
 
-## 4. Spend rule (hard)
+## 4. Spend rule (hard) + autonomy
 
 Only use products with student/startup credits, free tiers, or free
 access: Cloudflare ($10k), Supabase (free → Startup), Zoho wallet,
 PostHog/Sentry startup credits, Mixpanel/Statsig backups, GitHub Pack.
 **Never** introduce a paid dependency, SMS/OTP, or a paid OTP provider
-(AGENTS.md 15). Needs a new tool? Propose it in `docs/14-LANES.md` with its
-free/credit terms from `docs/12-INFRA-CREDITS.md` first.
+(AGENTS.md 15).
+
+**Standing approval (from the human, 2026-09-28):** when a change is free,
+clearly better and meets the goals, decide it yourself — no permission
+needed. Pick the better free/student-credit tool, refactor, add tests, pull
+Backlog items, swap libraries inside your lane. Record the reason in the
+commit message and, for a tool swap, in `docs/12-INFRA-CREDITS.md` §7.
+
+Only escalate for: real money, paid products, non-free dependencies,
+changes to `agents.md` non-negotiables, or another *active* lane's files
+(`request:` line, then stop). CI (`.github/workflows/green.yml`) enforces
+the gates on every push, so "continue" can never silently break `main`.
+
 
 ## 5. Definition of done for a lane
 

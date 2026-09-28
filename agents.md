@@ -4,6 +4,17 @@
 
 Do this yourself. Ask nothing. The human will not pick your lane — you do.
 
+**Standing auto-approval.** You may decide on your own — no permission
+needed — when a choice is free, better, and meets the goals: pick/claim any
+`free` lane, swap to a better free or student-credit tool (record it in
+`docs/12-INFRA-CREDITS.md` §7), refactor and add tests inside your lane,
+regenerate generated files, pull the top Backlog item, delete dead code you
+authored. Note the decision in your commit message.
+
+Still ask (only these): spending real money, adopting a paid product, a
+dependency that is not free for us, changing a non-negotiable rule in this
+file, or editing a file owned by another *active* lane (use a `request:` line).
+
 1. `git pull --rebase`, `git status --short`, hot-file check
    `find app/src app/tests app/locales -newermt '-15 min' -type f`.
 2. Read `docs/14-LANES.md`. Pick the **first lane that is `free`** (or the

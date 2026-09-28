@@ -1,0 +1,30 @@
+name: green
+
+# The green rule (docs/11): typecheck + full test + build must pass.
+# Runs on every push and PR to main — this is what makes "continue" safe:
+# a red lane cannot reach main unnoticed.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: typecheck
+        run: npm run typecheck --workspace seatswap-app
+      - name: tests
+        run: npm run test --workspace seatswap-app
+      - name: build (includes verify-dist)
+        run: npm run build --workspace seatswap-app
+      - name: collab-check (hot files, generated tree, green rule)
+        run: node app/scripts/collab-check.mjs --fast

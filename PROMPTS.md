@@ -5,6 +5,13 @@
 > lane from `docs/14-LANES.md`, claim it, build, and release it.
 > You never pick lanes, never name files, never explain the rules.
 
+**Standing auto-approval (2026-09-28): models do not ask permission.** If a
+choice is free, better and meets the goals — better free/student-credit tool,
+refactor, extra tests, next Backlog item — the model just does it and notes
+the reason in the commit. They only escalate for real money, paid products,
+non-free dependencies, `agents.md` non-negotiables, or another active lane's
+files. CI (`.github/workflows/green.yml`) blocks a red push.
+
 ## Say this to any AI coding platform
 
 ```
