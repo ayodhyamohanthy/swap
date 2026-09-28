@@ -11,10 +11,10 @@
 | L4 | Payments (Razorpay/PayPal/credit) | WorkBuddy/Claude | done. Rule 2 now enforced on the local path: a group-covered swap can no longer be charged a second ₹99 |
 | L5 | Swaps + chat + safety | OpenCode/Muse Spark | done. Confirm/cancel persist, earned routing, meet records, ratings persist+score+gated, chat report parties, real-row receipts, guard Hindi/leet hardening, integration vs L3/L4/L6 green |
 | L6 | Groups + onboard | WorkBuddy/Claude | done. `groupTogetherCount` now reports the biggest same-train/date/coach cluster instead of whichever trip was linked first; GROUP_MAX_SWAPS audited — consistent at all five sites |
-| L7 | Admin | WorkBuddy/Claude | done. Two passes. (1) Overview (design 23): added Accepted / Money in / Credit given and fixed two numbers that were wrong — "Swaps done" counted per-side `confirmation` rows instead of `swap_confirmed`, and "Busiest trains" counted any train-tagged row under a "Swaps done" column; Money in is gross − credit, so credit is never counted as revenue. (2) Activity log (design 15): categorised chips, with a test that reads `src/` for every `logActivity()` call and fails if an action falls outside every chip |
+| L7 | Admin | WorkBuddy/Claude | done. Three passes. (1) Overview (design 23): added Accepted / Money in / Credit given and fixed two numbers that were wrong — "Swaps done" counted per-side `confirmation` rows instead of `swap_confirmed`, and "Busiest trains" counted any train-tagged row under a "Swaps done" column; Money in is gross − credit, so credit is never counted as revenue. (2) Activity log (design 15): categorised chips. (3) Activity log: human action labels ("Added PNR", not `pnr_added`), raw action kept as a tooltip. Two guards read `src/` for every `logActivity()` call and fail if an action has no chip or no label in either language; both were mutation-checked |
 | L8 | DB + schema | WorkBuddy/Claude | done. Pinned the enum + payments-target contracts with 17 new schema tests (all nine enums already matched); reviewed `get_matches()` and found it is the only path matching can ever take — plus two defects in the unapplied spec |
 | L9 | Infra + credits | WorkBuddy/Claude | done. Pinned the vitest pool in `app/vitest.config.ts` so the documented green gate works again — `npm run test` runs the whole suite with no flags (31 files, ~3m30s). The test *count* moves as lanes add tests; what matters is "Test Files 31 passed", since a wrong pool silently drops files while reporting success |
-| L10 | i18n (single writer) | WorkBuddy/Claude | done. (1) Overview tile copy for the L7 metric fix: `s_accepted`, `s_swaps_done`, `s_money_in`, `s_credit_given`, `moneyInUnknown`, `colTrain`/`colTrainName`/`colSwapsDone` (en+hi); removed `s_confirmed`, whose label described the old per-side count. (2) Activity category chips: `catAll`, `catLabel`, `catTrips`, `catRequests`, `catSignins`, `catAccount`, `catOther`. Payments/Swaps/Reports chips reuse the sidebar's own keys so the two cannot drift |
+| L10 | i18n (single writer) | WorkBuddy/Claude | done. (1) Overview tile copy for the L7 metric fix: `s_accepted`, `s_swaps_done`, `s_money_in`, `s_credit_given`, `moneyInUnknown`, `colTrain`/`colTrainName`/`colSwapsDone` (en+hi); removed `s_confirmed`, whose label described the old per-side count. (2) Activity category chips: `catAll`, `catLabel`, `catTrips`, `catRequests`, `catSignins`, `catAccount`, `catOther` — Payments/Swaps/Reports chips reuse the sidebar's own keys so the two cannot drift. (3) `admin.act.*`: 49 action labels in both languages, keyed by action name so the naming convention is the mapping |
 
 Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
 
@@ -199,14 +199,23 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
    right of a comparison**, because `status === 'paid' ? 'payment_paid' : …`
    otherwise reports `paid` as an action — and the tempting fix, adding `paid`
    to the map, would be mapping a *value* as if it were an *event*.
-   **Still open on this screen, and the bigger half:** rows render the raw
-   action identifier (`pnr_added`) where design 15 shows human labels ("Added
-   PNR", "Paid ₹99", "Sent request", "Credit +₹50"). That needs ~45
-   action→label keys in both locales, which is a copy pass, not a code pass —
-   better done as one deliberate L10 job than dribbled in. Also missing: the
-   design's table layout (Time / User / Action / Train / Details) and the
-   right-hand "User timeline" panel. The search box, the export button and the
-   action dropdown already exist.
+   **Human labels done, 2026-09-28.** Rows and the action dropdown now show
+   `admin.act.<action>` ("Added PNR", "Sent request", "Accepted") instead of the
+   raw identifier, with the identifier kept as a `title` tooltip so a row is
+   still greppable against the code. 49 labels in both languages, keyed by
+   action name — the naming convention *is* the mapping, so there is no second
+   list to keep in step, and the same source walk that guards the chips now
+   fails if an action has no label in either language. Mutation-checked
+   (deleting `en.admin.act.pnr_added` fails it, naming `en` only — it checks
+   each language independently).
+   One deliberate deviation: the design's row reads **"Paid ₹99"**, but the
+   label is just **"Paid"**. A group payment is ₹199, so a hardcoded ₹99 in the
+   label would be wrong on every group payment. The amount belongs in the
+   Details column, not in the verb.
+   **Still open on this screen:** the design's table layout (Time / User /
+   Action / Train / Details — currently a list showing the label and the date)
+   and the right-hand "User timeline" panel. The search box, the export button,
+   the action dropdown and the chips already exist.
 8. L7: design 23's "Swaps this week" chart and "First on their train today"
    donut. The chart is a straight 7-day `swap_confirmed` series (cheap, and the
    data now exists). The donut is **not** buildable yet: "first on their train"
