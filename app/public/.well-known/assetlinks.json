@@ -1,0 +1,1 @@
+[{"id": "rel-pwa-01", "relation": ["delegate_permission/common.handle_all_urls"], "target": {"namespace": "android_app", "package_name": "website.toyoufromme.twa", "sha256_cert_fingerprints": ["REPLACE_WITH_PLAY_CONSOLE_SHA256"]}}]

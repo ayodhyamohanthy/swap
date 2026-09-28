@@ -1,4 +1,8 @@
 # Netlify-style rewrite: every path serves the SPA shell, live data stays live.
+# Cloudflare-first: Workers Static Assets serves dist/client directly (see
+# wrangler.toml) — this file is only for Netlify/Surge-style previews.
+/_headers /_headers 200
 /_serverFn/* /_serverFn/:splat 200
 /api/* /api/:splat 200
+/.well-known/assetlinks.json /.well-known/assetlinks.json 200
 /* /index.html 200

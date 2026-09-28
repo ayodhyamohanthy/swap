@@ -11,6 +11,9 @@
  * `build.ssr === true` and skips the worker. Generating it after `vite build`
  * also means the prerendered SPA shell (dist/client/index.html) is already on
  * disk and lands in the precache manifest with a real revision hash.
+ *
+ * Keyless build: no VAPID / Supabase / gateway key is needed to build. The
+ * worker never embeds secrets — push delivery and webhooks are server-side.
  */
 
 export const swFilename = 'sw.js'
@@ -21,6 +24,12 @@ export const cacheNames = {
   assets: 'seatswap-assets',
   fonts: 'seatswap-fonts',
 }
+
+/* Offline-first routes (docs/05 + docs/08): Trips + every Swap summary must
+   open offline. Request/share/onboard/updates/train pages are shell-first:
+   the precached shell renders instantly, live data fills in when online. */
+export const OFFLINE_ROUTES =
+  'trips|swaps|profile|welcome|signin|pay|chat|request|share|onboard|updates|train|s'
 
 export const workboxOptions = {
   /* Hashed build output + icons + manifest are precached. Fonts are NOT
@@ -42,7 +51,9 @@ export const workboxOptions = {
     {
       /* Pages: NetworkFirst keeps content fresh, the precached shell answers
          when the phone is offline or the network is slow (docs/08). */
-      urlPattern: /^https?:\/\/[^/]+\/(?:[?#]|$|(?:trips|swaps|profile|welcome|signin|pay|chat)(?:[/?#]|$))/,
+      urlPattern: new RegExp(
+        `^https?://[^/]+/(?:[?#]|$|(?:${OFFLINE_ROUTES})(?:[/?#]|$))`,
+      ),
       handler: 'NetworkFirst',
       options: {
         cacheName: cacheNames.pages,

@@ -1,0 +1,27 @@
+# SeatSwap — keyless Cloudflare deploy (no secrets needed to ship the PWA).
+# The PWA builds + serves with ZERO keys: Supabase / Razorpay / PayPal /
+# VAPID / PostHog / Sentry are all optional at build time (local-first
+# fallbacks) and become live when env/secrets land. See docs/12 §8.
+name = "seatswap"
+compatibility_date = "2026-09-01"
+
+[assets]
+directory = "./dist/client"
+not_found_handling = "single-page-application"
+
+# Custom domain lives in DNS (CNAME toyoufromme.website at repo root).
+# routes = [{ pattern = "toyoufromme.website/*", zone_name = "toyoufromme.website" }]
+
+[vars]
+# Public, safe to ship: no secret here.
+# VITE_SUPABASE_URL = "https://xyzcompany.supabase.co"
+# VITE_SUPABASE_ANON_KEY = "eyJ..."
+# VITE_VAPID_PUBLIC_KEY = "B..."
+
+# Secrets (wrangler secret put — never in this file):
+# RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET / RAZORPAY_WEBHOOK_SECRET
+# PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET / PAYPAL_WEBHOOK_ID
+# VAPID_PRIVATE_KEY, POSTHOG_KEY, SENTRY_DSN
+
+# Cron for app/src/server/jobs.ts (enable when secrets land):
+# [[triggers.crons]] crons = ["*/15 * * * *"]

@@ -1,0 +1,18 @@
+# Cloudflare Workers Static Assets headers for the keyless PWA build.
+# sw.js must revalidate (otherwise phones keep a stale worker); hashed
+# assets + icons are immutable for a year; HTML shells must not be cached
+# by the CDN (the worker's NetworkFirst handles offline instead).
+/sw.js
+  Cache-Control: no-cache
+  Content-Type: application/javascript; charset=utf-8
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+/icons/*
+  Cache-Control: public, max-age=31536000, immutable
+/manifest.webmanifest
+  Cache-Control: public, max-age=3600
+  Content-Type: application/manifest+json
+/index.html
+  Cache-Control: no-cache
+/404.html
+  Cache-Control: no-cache
