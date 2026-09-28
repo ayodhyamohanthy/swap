@@ -4,15 +4,17 @@
       the prerendered SPA shell (dist/client/index.html) is already on disk.
    2. 404.html: GitHub Pages serves it for unknown paths, so deep links like
       /trips/abc boot the SPA shell.
-   3. .nojekyll: stop Pages from filtering files that start with an underscore. */
-import { copyFileSync, existsSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+   3. .nojekyll: stop Pages from filtering files that start with an underscore.
+   4. dist/cf: the Cloudflare upload, staged without `_redirects` (see below). */
+import { copyFileSync, cpSync, existsSync, rmSync, writeFileSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { swFilename, workboxOptions } from '../pwa.workbox.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const dist = join(root, 'dist', 'client')
+const cfDist = join(root, 'dist', 'cf')
 const shell = join(dist, 'index.html')
 const swDest = join(dist, swFilename)
 
@@ -42,3 +44,25 @@ if (existsSync(swDest)) {
 copyFileSync(shell, join(dist, '404.html'))
 writeFileSync(join(dist, '.nojekyll'), '')
 console.log('[postbuild] wrote dist/client/404.html and dist/client/.nojekyll')
+
+/* 4. Cloudflare asset staging -------------------------------------------
+   Workers Static Assets reads `_redirects` itself, and it rejects the
+   Netlify/Surge catch-all `/* /index.html 200` as an infinite loop
+   (error 100324: it normalises the destination to `/`, which matches its own
+   splat). The first `wrangler deploy` failed on exactly that, and there is no
+   wrangler escape hatch — `[assets] exclude` is not a supported key (wrangler
+   4.143 answers "Unexpected fields found in assets field"). So the Cloudflare
+   upload gets its own copy of the build without the file. Cloudflare needs no
+   catch-all: `not_found_handling = "single-page-application"` in wrangler.toml
+   IS its SPA fallback, and `_headers` (which Cloudflare also reads) is kept.
+   The Netlify/Surge `_redirects` stays in dist/client, where verify-dist
+   requires it. */
+rmSync(cfDist, { recursive: true, force: true })
+cpSync(dist, cfDist, {
+  recursive: true,
+  /* Never copy the staging dir into itself, and drop `_redirects` on the way. */
+  filter: (src) => src !== cfDist && basename(src) !== '_redirects',
+})
+console.log(
+  `[postbuild] staged ${cfDist.replace(root + '/', '')} for Cloudflare (no _redirects — the deploy rejects it)`,
+)

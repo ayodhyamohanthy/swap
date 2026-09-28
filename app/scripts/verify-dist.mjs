@@ -50,6 +50,16 @@ check(notFound === html, '404.html must be a copy of the app shell (deep links o
 check(existsSync(join(dist, '.nojekyll')), 'dist/client/.nojekyll is missing (GitHub Pages)')
 check(existsSync(join(dist, '_redirects')), 'dist/client/_redirects is missing (Netlify/Surge rewrites)')
 
+/* The Cloudflare upload is a staged copy WITHOUT `_redirects` — the platform
+   rejects that file's Netlify catch-all as an infinite loop (see postbuild).
+   A missing or wrong staging dir is an invisible failure until the next deploy
+   is refused, so the deploy directory is checked here too. */
+const cfDist = join(root, 'dist', 'cf')
+check(existsSync(join(cfDist, 'index.html')), 'dist/cf/index.html is missing (run npm run build)')
+check(!existsSync(join(cfDist, '_redirects')), 'dist/cf must NOT contain _redirects (Cloudflare rejects it)')
+check(existsSync(join(cfDist, swFilename)), `dist/cf/${swFilename} is missing (offline needs the worker)`)
+check(existsSync(join(cfDist, '_headers')), 'dist/cf/_headers is missing (Cloudflare reads it)')
+
 /* 2. Manifest --------------------------------------------------------- */
 const manifest = JSON.parse(read('manifest.webmanifest') || '{}')
 check(manifest.name === 'SeatSwap', 'manifest name must be SeatSwap')
