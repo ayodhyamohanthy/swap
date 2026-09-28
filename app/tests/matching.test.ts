@@ -90,18 +90,15 @@ describe('rankMatches scoring order', () => {
   })
 })
 
-/* A tripwire, not a wish. docs/08 line 19 specifies "keep-together fit 10" in
-   the score and `rankMatches` does award it from `CandidateSpec.together_seats`
-   — but nothing in src/ ever sets that field, so the bonus fires only on the
-   fixture two tests above. The local pool mapper (`candidateFor` in
-   lib/requests.ts) omits it, and the production view `match_cards`
-   (supabase/schema.part7.sql) exposes no per-booking seat count to supply it
-   from, so this is not merely a local-stub gap.
-   These assertions deliberately pin the GAP. They should fail the day someone
-   wires `together_seats` for real, which is the moment the keep-together
-   feature stops being decorative and the schema question below has to be
-   answered. */
-describe('the keep-together score is currently unreachable', () => {
+/* Was a tripwire pinning the gap; now pins the fix. docs/08 line 19
+   specifies "keep-together fit 10" and `rankMatches` awards it from
+   `CandidateSpec.together_seats`. Since 2026-09-28 the local pool mapper
+   (`candidateFor` in lib/requests.ts) sets it to the candidate trip's count
+   of CNF, berth-holding passengers — a count of swappable seats, not a
+   promise of adjacency. The production view `match_cards`
+   (supabase/schema.part7.sql) still exposes no per-booking seat count, so
+   the server side remains unwired (second test below). */
+describe('the keep-together score is wired exactly once', () => {
   const SRC = join(import.meta.dirname, '..', 'src')
 
   function sourceFiles(dir: string): string[] {
@@ -114,13 +111,15 @@ describe('the keep-together score is currently unreachable', () => {
     return out
   }
 
-  it('nothing in src/ assigns together_seats', () => {
-    /* `together_seats?: number` (the declaration) and `cand.together_seats ?? 1`
-       (the read) both fail to match `name:` — only an object literal would. */
+  it('exactly one site assigns together_seats: candidateFor in lib/requests.ts', () => {
+    /* `together_seats?: number` (the declaration) and `cand.together_seats
+       ?? 1` (the read) both fail to match `name:` — only an object literal
+       would. If this fails with a second file, the bonus has two sources of
+       truth: merge them. */
     const offenders = sourceFiles(SRC)
       .filter((file) => /together_seats\s*:/.test(readFileSync(file, 'utf8')))
       .map((file) => file.slice(SRC.length + 1))
-    expect(offenders).toEqual([])
+    expect(offenders).toEqual(['lib/requests.ts'])
   })
 
   it('match_cards exposes no column that could supply it', () => {

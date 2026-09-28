@@ -238,6 +238,11 @@ export function sendCapped(): boolean {
 function candidateFor(trip: Trip): CandidateSpec | null {
   const passenger = trip.passengers[0]
   if (!passenger || passenger.status !== 'CNF') return null
+  /* Keep-together fit (docs/08): how many confirmed berths this candidate can
+     move as a unit — CNF passengers minus children without berths. This is a
+     count of swappable seats, not a promise they are adjacent; the bonus only
+     ever nudges ranking, never guarantees seating together. */
+  const togetherSeats = trip.passengers.filter((row) => row.status === 'CNF' && !row.is_child_no_berth).length
   /* Ratings given on this device nudge future matches (docs/08 scores
      acceptor rating 0–10; local averages are 1–5 like profiles.rating). */
   const avg = tripRating(trip.id)
@@ -256,6 +261,7 @@ function candidateFor(trip: Trip): CandidateSpec | null {
     quota: passenger.quota,
     open_to_swap: trip.open_to_swap,
     rating: avg === null ? 0 : Math.min(10, Math.max(0, avg * 2)),
+    together_seats: togetherSeats,
     paused: false,
     /* Neutral on purpose. These are the *other* traveller's acceptor filters
        (docs/04 B2) and this device has no idea what they are — the local pool
@@ -284,6 +290,12 @@ function requesterFor(trip: Trip, request: SwapRequest): RequesterSpec {
     keep_together: request.keep_together,
     coach: passenger?.coach ?? null,
     quota: passenger?.quota ?? 'GN',
+    /* Keep-together fit needs both sides: how many confirmed berths the
+       requester's own party holds (children without berths don't count). */
+    group_size: Math.max(
+      1,
+      trip.passengers.filter((row) => row.status === 'CNF' && !row.is_child_no_berth).length,
+    ),
     /* docs/03: max 10 outgoing requests per traveller per day. */
     sent_today: sentToday(),
   }

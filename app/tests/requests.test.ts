@@ -5,7 +5,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { createInvite, inviteLink, resetInvites, resolveInvite } from '@/lib/invites'
-import { MAX_OUTGOING_PER_DAY } from '@/lib/matching'
+import { MAX_OUTGOING_PER_DAY, type CandidateSpec } from '@/lib/matching'
 import {
   acceptOffer,
   createRequest,
@@ -25,7 +25,7 @@ import {
   setRequestPaused,
   withdrawRequest,
 } from '@/lib/requests'
-import { activityLog, addTrip, creditPaise, resetStore, setOpenToSwap, updateSettings } from '@/lib/store'
+import { activityLog, addTrip, creditPaise, resetStore, setOpenToSwap, updateSettings, type Trip } from '@/lib/store'
 
 const DAY = '2026-11-12'
 
@@ -534,5 +534,71 @@ describe('updates read-state (docs/05 #20)', () => {
     const request = createRequest({ trip_id: mine.id, choices: ['UB'] })
     sendRequest(request.id)
     expect(updates().map((r) => r.id)).toEqual(updates().map((r) => r.id))
+  })
+})
+
+describe('keep-together fit counts real CNF berths (docs/08)', () => {
+  beforeEach(() => {
+    resetStore()
+    resetRequests()
+  })
+
+  async function tripWith(pnr: string, berths: Array<{ coach: string; berth_no: string }>, open = false) {
+    const trip = await addTrip({
+      pnr,
+      train_no: '12951',
+      journey_date: DAY,
+      class: '3A',
+      from_code: 'MMCT',
+      to_code: 'NDLS',
+      passengers: berths.map((b) => ({ ...b, berth_type: 'UB' as const })),
+    })
+    if (open) setOpenToSwap(trip.id, true)
+    return trip
+  }
+
+  function candidateIds(requestId: string): string[] {
+    return matchesFor(requestId)
+      .filter((row): row is { candidate: CandidateSpec; trip: Trip } => 'candidate' in row)
+      .map((row) => row.candidate.id)
+  }
+
+  it('ranks the trip that fits the whole group first', async () => {
+    const mine = await tripWith('4512789630', [
+      { coach: 'B3', berth_no: '27' },
+      { coach: 'B3', berth_no: '28' },
+      { coach: 'B3', berth_no: '29' },
+    ])
+    const pair = await tripWith(
+      '4512789648',
+      [
+        { coach: 'B4', berth_no: '41' },
+        { coach: 'B4', berth_no: '42' },
+      ],
+      true,
+    )
+    const quad = await tripWith(
+      '4512789655',
+      [
+        { coach: 'B5', berth_no: '51' },
+        { coach: 'B5', berth_no: '52' },
+        { coach: 'B5', berth_no: '53' },
+        { coach: 'B5', berth_no: '54' },
+      ],
+      true,
+    )
+    /* A party of 3 keeping together: the pair (2 seats) misses the bonus,
+       the quad (4 seats) takes it — so the quad ranks first. */
+    const request = createRequest({ trip_id: mine.id, choices: ['UB'], same_coach: false, keep_together: true })
+    expect(candidateIds(request.id)[0]).toBe(quad.id)
+    expect(candidateIds(request.id)).toContain(pair.id)
+  })
+
+  it('still lists smaller trips — the bonus scores, it never filters', async () => {
+    const mine = await tripWith('4512789630', [{ coach: 'B3', berth_no: '27' }])
+    const solo = await tripWith('4512789663', [{ coach: 'B6', berth_no: '61' }], true)
+    const request = createRequest({ trip_id: mine.id, choices: ['UB'], same_coach: false, keep_together: true })
+    /* Solo requester, solo candidate: bonus fires (1 >= 1), candidate listed. */
+    expect(candidateIds(request.id)).toEqual([solo.id])
   })
 })
