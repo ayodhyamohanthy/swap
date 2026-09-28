@@ -19,7 +19,7 @@ import { listTrips } from '@/lib/store'
    ("3 of 4 together"), ₹199 once for up to 3 swaps (docs/01, docs/04 C). */
 
 export const Route = createFileRoute('/groups/$id/plan')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'home' } satisfies RouteChrome,
   component: GroupPlanScreen,
 })
 
@@ -53,9 +53,25 @@ function GroupPlanScreen() {
      used. Wordless on purpose — no new copy needed in any language. */
   const used = group.paid ? Math.min(groupLockedCount(group.id), GROUP_MAX_SWAPS) : 0
 
+  /* Design 19b subtitles the plan with the journey ("12752 Rajdhani ·
+     Fri 12 Jun"). Only printed when every linked ticket is on that one train
+     and date: a family split across two trains has no single journey to name,
+     and a headline describing only the first trip would be a guess. */
+  const first = trips[0]
+  const oneJourney =
+    first !== undefined &&
+    trips.every(
+      (trip) => trip.train_no === first.train_no && trip.journey_date === first.journey_date,
+    )
+
   return (
     <div>
       <h1 className="text-title text-ink">{t('groups.planTitle')}</h1>
+      {first && oneJourney ? (
+        <p className="mt-1 text-body text-ink">
+          {`${first.train_no} ${first.train_name}`.trim()} · {date(first.journey_date)}
+        </p>
+      ) : null}
       <p className="mt-1 text-body text-muted">{t('groups.planBody')}</p>
 
       <Card className="mt-4 border-primary/30 bg-wash">

@@ -11,10 +11,13 @@ import { getTrip, listTrips } from '@/lib/store'
 
 /* Screen 34 "On the train now board" (design 7a): live coach board until the
    user's stop; only travellers marked open to swap appear, and only with
-   coach + berth type — never a name, PNR or berth number (rule 13). */
+   coach + berth type — never a name, PNR or berth number (rule 13).
+
+   docs/05 gives it the Home tab and design 7a draws the tab bar, so it is a
+   normal tab screen even though the usual way in is a coach link (33). */
 
 export const Route = createFileRoute('/onboard/$tripId')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'home' } satisfies RouteChrome,
   component: OnboardScreen,
 })
 
