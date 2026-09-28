@@ -5,7 +5,7 @@
 
 | Lane | Surface | Owner (platform/agent) | State | Notes |
 |---|---|---|---|---|
-| L1 | PWA shell + design system + Cloudflare deploy | — | free | claimed: none |
+| L1 | PWA shell + design system + Cloudflare deploy | Cline | active: 2026-09-28T16:05Z | icons + screenshots + manifest + deploy |
 | L2 | Trips + PNR | — | free | |
 | L3 | Requests + matching | — | free | |
 | L4 | Payments (Razorpay/PayPal/credit) | — | free | needs test keys |
