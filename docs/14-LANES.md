@@ -11,10 +11,10 @@
 | L4 | Payments (Razorpay/PayPal/credit) | WorkBuddy/Claude | done. Rule 2 now enforced on the local path: a group-covered swap can no longer be charged a second ₹99 |
 | L5 | Swaps + chat + safety | OpenCode/Muse Spark | done. Confirm/cancel persist, earned routing, meet records, ratings persist+score+gated, chat report parties, real-row receipts, guard Hindi/leet hardening, integration vs L3/L4/L6 green |
 | L6 | Groups + onboard | WorkBuddy/Claude | done. `groupTogetherCount` now reports the biggest same-train/date/coach cluster instead of whichever trip was linked first; GROUP_MAX_SWAPS audited — consistent at all five sites |
-| L7 | Admin | WorkBuddy/Claude | done. A refused server action is no longer reported as a demo success (and no longer writes an audit row for something that never happened); "Credit added." only when the server added it; Overview "today" is the operator's local day, not UTC |
+| L7 | Admin | WorkBuddy/Claude | done. Overview (design 23) now has Accepted, Money in and Credit given, and two numbers that were simply wrong are fixed: "Swaps done" counted per-side `confirmation` rows instead of `swap_confirmed`, and "Busiest trains" counted any train-tagged row under a "Swaps done" column. Money in is gross − credit, so credit is never counted as revenue. `usersToCsv` gained design 16's Trips/Swaps/Credit |
 | L8 | DB + schema | WorkBuddy/Claude | done. Pinned the enum + payments-target contracts with 17 new schema tests (all nine enums already matched); reviewed `get_matches()` and found it is the only path matching can ever take — plus two defects in the unapplied spec |
 | L9 | Infra + credits | WorkBuddy/Claude | done. Pinned the vitest pool in `app/vitest.config.ts` so the documented green gate works again — `npm run test` runs the whole suite with no flags (31 files, ~3m30s). The test *count* moves as lanes add tests; what matters is "Test Files 31 passed", since a wrong pool silently drops files while reporting success |
-| L10 | i18n (single writer) | WorkBuddy/Claude | done. Added `matches.cappedToday` (en+hi) for L3's send cap |
+| L10 | i18n (single writer) | WorkBuddy/Claude | done. Overview tile copy for the L7 metric fix: `s_accepted`, `s_swaps_done`, `s_money_in`, `s_credit_given`, `moneyInUnknown`, `colTrain`/`colTrainName`/`colSwapsDone` (en+hi). Removed `s_confirmed`, whose label described the old per-side count |
 
 Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
 
@@ -88,27 +88,73 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
   the mapping against; recorded in `tests/schema.test.ts` next to the
   `payments_target` assertions.
 
+- 2026-09-28 L7 → L2 (owns `lib/store.ts`): **touched it, 3 lines.** `payment_paid`
+  logged `{ provider, amount_paise }` — the GROSS price — and dropped
+  `credit_used_paise`, so the audit row claimed ₹99 collected on a payment
+  where credit covered part of it and the gateway captured less. docs/08 makes
+  the activity log the system of record, so any later money metric reading it
+  overstates collections. The row (and the `payment_paid` analytics event) now
+  carry `credit_used_paise`. Additive only — no behaviour change, no signature
+  change. L2 was `done`, so this did not collide; flagging it because the file
+  is L2's.
+- 2026-09-28 L7 → L4 (payments): the analytics event `payment_paid` now carries
+  `credit_used_paise` alongside `amount_paise`, for the same reason as above —
+  a PostHog money panel summing `amount_paise` would count credit as revenue.
+  Separate, unrelated drift noticed while in there: `routes/swaps.$id.done.tsx`
+  fires a **second** `trackEvent('payment_paid', { state })` with a completely
+  different payload shape from `store.setPaymentStatus`'s
+  `{ amount_paise, credit_used_paise }`. One event name, two shapes, so any
+  dashboard grouping by event name silently mixes them. Left alone — it is
+  L5's route and changing an analytics contract is a product call, not a
+  drive-by.
+
 ## Backlog (unclaimed, ready to pull)
 
 1. L1: real app icons (current `icon-192/512` are placeholder PNGs), `screenshots/` for install UI, manifest `id/shortcuts/screenshots`.
 2. L1: Cloudflare deploy run — `npx wrangler deploy` (keyless; secrets later).
 3. L2–L7: design parity pass vs `designs/01-29.jpg` (`docs/05` mapping).
-4. L7: admin **design parity** vs `designs/15-18,23,24`. The CSV exports are
-   structurally sound — escaping, masked last4 only, trailing newline, all
-   tested — but they do not carry what the design tables show.
-   `usersToCsv` exports `id, first_name, last_initial, created_at, blocked,
-   reported` where design 16 shows Name / Joined / **Trips** / **Swaps** /
-   **Credit** / Status, so Trips, Swaps and Credit are missing from the export
-   *and* from `AdminUserRow`. `admin.users.tsx` also renders exactly one row
-   (the signed-in account, or `local-device`) with no search box and none of
-   the All / Active today / Reported / Blocked chips design 16 shows.
-   Overview (design 23) has six tiles — PNRs added, Requests sent,
-   **Accepted**, Swaps done, **Money in**, Credit given — where `buildOverview`
-   returns four counts plus a wallet balance: **Accepted** (offers accepted)
-   and **Money in** (rupees received, not a count) are missing entirely, and
-   "Credit in circulation" is the outstanding balance, a different metric from
-   the design's "Credit given". Needs new copy in both locales → open L10 as
-   single writer first.
+4. L7: admin **design parity** vs `designs/15-18,23,24` — **partly done,
+   2026-09-28 (L7 + L10).** Design 23's numbers now exist and mean what the
+   design says. Three of them were wrong, not merely missing:
+   - **Money in** was absent. Added as `moneyInTodayPaise`, defined the way
+     `checkout.ticket()` already defines it: `max(0, amount_paise −
+     credit_used_paise)`. Summing `amount_paise` would have counted credit as
+     revenue — ₹99 charged with ₹50 of credit collected is ₹49 in the bank.
+     A paid row whose credit portion cannot be read is excluded and counted in
+     `moneyInUnknownToday` rather than assumed to be a full collection.
+   - **Swaps done** counted the `confirmation` action. That row is written once
+     **per side** (docs/02 keys `confirmations` on `(request_id,user_id)`) and
+     `recordConfirmation` allows re-answering, so one swap could log three rows
+     and a half-answered swap logged one. Now counts `swap_confirmed`, which
+     `settleRequest` writes once on the locked→confirmed edge. `lib/requests.ts`
+     already said so in a comment at the `settleRequest` call site — the metric
+     just never matched it.
+   - **Busiest trains** counted every row carrying a `train_no`, which includes
+     `pnr_added` and the chart toggle — "busiest by any activity" under a column
+     headed "Swaps done". Now counts confirmed swaps only, attributed
+     `swap_confirmed → swap_requests.trip_id → trips.train_no`, and carries the
+     design's **Train name** column.
+   Added `acceptedToday` (`offer_accepted`) and `creditGivenTodayPaise` (credit
+   *issued* today, distinct from `creditInCirculationPaise`, the outstanding
+   balance). `usersToCsv` / `AdminUserRow` gained design 16's Trips / Swaps /
+   Credit columns, in paise.
+   **Still open, deliberately:**
+   - `admin.users.tsx` renders one row (the signed-in account or
+     `local-device`) with no search box and none of the All / Active today /
+     Reported / Blocked chips. This is **not** a layout gap to close by
+     writing chrome: with no backend there is one local user, so a search box
+     and four status chips would filter a single row. It becomes real work when
+     peer rows exist (`azure/load/get-matches.*`, backlog 6), not before.
+   - Design 23's "Swaps this week" line chart and the "First on their train
+     today" donut are absent. The donut needs a metric nobody has defined yet
+     ("first on their train" = ?), so building it now would mean inventing the
+     definition — the exact failure mode the three fixes above were about.
+   - Design 15's categorised activity filter (All / Requests / Payments /
+     Swaps / Reports / Sign-ins) is still the flat action dropdown. Real and
+     testable — `filterActivity` would take a category — but it is a separate
+     surface from the overview, so it stays a fresh backlog item.
+   - Designs 17/18/24 (swaps, payments+reports, credits tables and their
+     right-hand detail panels) were not touched at all.
 5. L9: Azure burn-down dry-runs (`app/azure/`), PostHog/Sentry key plumbing (env only).
 6. L8: **`get_matches()` is the only path by which matching can ever work** —
    reviewed 2026-09-28, still not applied. part 7 drops every `*_match_read`
@@ -134,3 +180,19 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
    `tests/schema.test.ts` only compares the init migration to `schema.sql` and
    never enumerates the directory, so no `schema.sql` edit is needed. The old
    header claim that the schema test blocked this was wrong.
+7. L7: design 15's **categorised** activity filter. The screen shows one flat
+   action dropdown (`activityActions()` returns every distinct action name);
+   the design shows All / Requests / Payments / Swaps / Reports / Sign-ins.
+   Split out of backlog 4 on 2026-09-28 rather than bundled, because it is a
+   different surface: it needs an action→category map in `lib/admin.ts` and a
+   `category` field on `ActivityFilter`, both of which are pure and testable,
+   plus the chip row. Note the map has to cover the actions the log really
+   writes — `swap_confirmed` and `acceptor_backed_out` are not in docs/08's
+   list, so building the categories from that list alone would silently drop
+   rows from every category.
+8. L7: design 23's "Swaps this week" chart and "First on their train today"
+   donut. The chart is a straight 7-day `swap_confirmed` series (cheap, and the
+   data now exists). The donut is **not** buildable yet: "first on their train"
+   is undefined anywhere in docs/01-13, and guessing the definition is how a
+   dashboard tile ends up measuring something nobody asked for. Needs a
+   definition first, from the human or from docs/01.
