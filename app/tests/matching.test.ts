@@ -99,6 +99,22 @@ describe('rankMatches hard filters', () => {
     expect(ranked).toEqual([])
   })
 
+  it('does not count a connecting journey as an overlap', () => {
+    /* I alight at NDLS exactly where the other traveller boards: we share a
+       platform, never a leg. Offering a swap here is the false positive that
+       matters most — they leave as I arrive. */
+    expect(segmentsOverlap({ from_code: 'MMCT', to_code: 'NDLS' }, { from_code: 'NDLS', to_code: 'MAS' })).toBe(false)
+    /* Same rule the other way round: they alight at BRC where I board. */
+    expect(segmentsOverlap({ from_code: 'BRC', to_code: 'NDLS' }, { from_code: 'MMCT', to_code: 'BRC' })).toBe(false)
+    /* Sharing a boarding point or an alighting point IS a shared leg. */
+    expect(segmentsOverlap({ from_code: 'MMCT', to_code: 'NDLS' }, { from_code: 'MMCT', to_code: 'BRC' })).toBe(true)
+    expect(segmentsOverlap({ from_code: 'BRC', to_code: 'NDLS' }, { from_code: 'MMCT', to_code: 'NDLS' })).toBe(true)
+  })
+
+  it('drops a connecting-only traveller from the matches', () => {
+    expect(rankMatches(baseRequest, [candidate({ from_code: 'NDLS', to_code: 'MAS' })])).toEqual([])
+  })
+
   it('needs CNF status and an open trip', () => {
     expect(rankMatches(baseRequest, [candidate({ status: 'WL' })])).toEqual([])
     expect(rankMatches(baseRequest, [candidate({ status: 'RAC' })])).toEqual([])

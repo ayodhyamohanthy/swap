@@ -5,6 +5,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { createInvite, inviteLink, resetInvites, resolveInvite } from '@/lib/invites'
+import { MAX_OUTGOING_PER_DAY } from '@/lib/matching'
 import {
   acceptOffer,
   createRequest,
@@ -14,14 +15,17 @@ import {
   lockRequest,
   matchesFor,
   offersFor,
+  receivedToday,
   resetRequests,
   respondToIncoming,
   revealedBerths,
+  sendCapped,
   sendRequest,
+  sentToday,
   setRequestPaused,
   withdrawRequest,
 } from '@/lib/requests'
-import { activityLog, addTrip, creditPaise, resetStore, setOpenToSwap } from '@/lib/store'
+import { activityLog, addTrip, creditPaise, resetStore, setOpenToSwap, updateSettings } from '@/lib/store'
 
 const DAY = '2026-11-12'
 
@@ -329,6 +333,85 @@ describe('acceptor side never pays (rules 3, 5)', () => {
 
     respondToIncoming(theirs.id, 'backed_out')
     expect(activityLog()[0].action).toBe('acceptor_backed_out')
+  })
+})
+
+describe('outgoing daily cap (docs/03 abuse limits)', () => {
+  beforeEach(() => {
+    resetStore()
+    resetRequests()
+  })
+
+  it('stops sending once 10 requests have gone out today', async () => {
+    const { mine } = await seed()
+    const requests = Array.from({ length: MAX_OUTGOING_PER_DAY + 1 }, () =>
+      createRequest({ trip_id: mine.id, choices: ['UB'] }),
+    )
+    for (const request of requests.slice(0, MAX_OUTGOING_PER_DAY)) sendRequest(request.id)
+
+    expect(sentToday()).toBe(MAX_OUTGOING_PER_DAY)
+    expect(sendCapped()).toBe(true)
+
+    const last = requests[MAX_OUTGOING_PER_DAY]
+    const refused = sendRequest(last.id)
+    /* The refused attempt leaves the request untouched — in particular it is
+       NOT stamped as sent, so it cannot inflate the count that refused it. */
+    expect(refused?.sent_at).toBeNull()
+    expect(refused?.status).toBe('draft')
+    expect(sentToday()).toBe(MAX_OUTGOING_PER_DAY)
+    expect(activityLog()[0].action).toBe('request_capped')
+  })
+
+  it('counts only today\'s offers towards a trip\'s inbound total', async () => {
+    const { mine, theirs } = await seed()
+    const request = createRequest({ trip_id: mine.id, choices: ['UB'] })
+    expect(receivedToday(theirs.id)).toBe(0)
+    sendRequest(request.id)
+    expect(receivedToday(theirs.id)).toBe(1)
+    /* A trip nobody offered to is untouched. */
+    expect(receivedToday(mine.id)).toBe(0)
+  })
+})
+
+describe('the acceptor Settings toggles actually filter (docs/04 B2)', () => {
+  beforeEach(() => {
+    resetStore()
+    resetRequests()
+  })
+
+  it('hides new requests while paused, but keeps one already answered', async () => {
+    const { theirs } = await seed()
+    expect(incomingFor(theirs.id)).toBeDefined()
+
+    updateSettings({ paused: true })
+    expect(incomingFor(theirs.id)).toBeUndefined()
+
+    /* "You will not get new requests while paused" — a request already
+       answered must not vanish from under the traveller. */
+    updateSettings({ paused: false })
+    respondToIncoming(theirs.id, 'accepted')
+    updateSettings({ paused: true })
+    expect(incomingFor(theirs.id)?.state).toBe('accepted')
+  })
+
+  it('applies women-only, families-only and same-coach to the requester', async () => {
+    const { theirs } = await seed()
+    const before = incomingFor(theirs.id)
+    /* The stand-in requester is a woman travelling with family, so those two
+       filters leave her visible — and `requester_is_woman` is exactly the flag
+       the matcher reads. The rejecting branch is covered in matching.test.ts. */
+    expect(before?.requester_is_woman).toBe(true)
+    expect(before?.requester_is_family).toBe(true)
+    updateSettings({ women_only: true })
+    expect(incomingFor(theirs.id)).toBeDefined()
+    updateSettings({ women_only: false, families_only: true })
+    expect(incomingFor(theirs.id)).toBeDefined()
+
+    /* She is not in my coach, so this one bites. */
+    updateSettings({ families_only: false, same_coach_only: true })
+    expect(incomingFor(theirs.id)).toBeUndefined()
+    updateSettings({ same_coach_only: false })
+    expect(incomingFor(theirs.id)).toBeDefined()
   })
 })
 

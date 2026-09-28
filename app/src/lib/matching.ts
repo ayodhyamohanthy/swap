@@ -81,17 +81,38 @@ function normTrain(train: string | null | undefined): string {
   return String(train ?? '').replace(/\D/g, '').replace(/^0+/, '')
 }
 
-/** Journey segments overlap when they share at least one leg code. */
+/**
+ * Journey segments overlap when the two travellers ride a leg together.
+ *
+ * Two codes are enough to prove an overlap when they share a *boarding* point
+ * or an *alighting* point: both are then on the train between that code and
+ * their own other end. A single shared code is NOT enough when one journey
+ * ends exactly where the other begins (my `to` = your `from`, or the reverse)
+ * — they share a platform, never a leg. Offering a swap to someone who gets
+ * off as you get on is the false positive this guards (docs/04 A6 asks for an
+ * "overlapping journey", not a connecting one).
+ *
+ * Known limit: with no station-order table we cannot see two interior
+ * segments that overlap without sharing a code (BRC→ST inside MMCT→NDLS), so
+ * those stay unmatched rather than guessed.
+ */
 export function segmentsOverlap(
   req: { from_code: string; to_code: string },
   cand: { from_code: string; to_code: string },
 ): boolean {
-  const a = new Set([normCode(req.from_code), normCode(req.to_code)].filter(Boolean))
-  const b = new Set([normCode(cand.from_code), normCode(cand.to_code)].filter(Boolean))
-  if (a.size === 0 || b.size === 0) return true
-  for (const code of a) if (b.has(code)) return true
-  // Fallback: same ordered pair reversed still shares the section.
-  return false
+  const reqFrom = normCode(req.from_code)
+  const reqTo = normCode(req.to_code)
+  const candFrom = normCode(cand.from_code)
+  const candTo = normCode(cand.to_code)
+  const mine = new Set([reqFrom, reqTo].filter(Boolean))
+  const theirs = new Set([candFrom, candTo].filter(Boolean))
+  if (mine.size === 0 || theirs.size === 0) return true
+  const shared = [...mine].filter((code) => theirs.has(code))
+  if (shared.length === 0) return false
+  const touchOnly =
+    shared.length === 1 &&
+    ((reqFrom === shared[0] && candTo === shared[0]) || (reqTo === shared[0] && candFrom === shared[0]))
+  return !touchOnly
 }
 
 function clampRating(rating: unknown): number {
@@ -99,7 +120,8 @@ function clampRating(rating: unknown): number {
   return Math.min(10, Math.max(0, n))
 }
 
-function coachOf(value: string | null | undefined): string {
+/** Coach codes compare case- and space-insensitively ("b3" == "B3"). */
+export function normalizeCoach(value: string | null | undefined): string {
   return normCode(value)
 }
 
@@ -124,8 +146,8 @@ export function rankMatches(request: RequesterSpec, candidates: CandidateSpec[])
     if ((cand.received_today ?? 0) >= inboundCap) continue
     if (cand.women_only && !request.requester_is_woman) continue
     if (cand.families_only && !request.requester_is_family) continue
-    if (request.same_coach && coachOf(cand.coach) !== coachOf(request.coach)) continue
-    if (cand.same_coach_only && coachOf(cand.coach) !== coachOf(request.coach)) continue
+    if (request.same_coach && normalizeCoach(cand.coach) !== normalizeCoach(request.coach)) continue
+    if (cand.same_coach_only && normalizeCoach(cand.coach) !== normalizeCoach(request.coach)) continue
     // Restricted quotas (SS/LD/HP) only go to travellers who qualify.
     if ((RESTRICTED_QUOTAS as readonly string[]).includes(cand.quota) && cand.quota !== request.quota) continue
 
@@ -133,7 +155,7 @@ export function rankMatches(request: RequesterSpec, candidates: CandidateSpec[])
     if (rank < 0) continue
 
     let score = RANK_POINTS[rank] ?? 0
-    if (coachOf(cand.coach) && coachOf(cand.coach) === coachOf(request.coach)) score += SAME_COACH_POINTS
+    if (normalizeCoach(cand.coach) && normalizeCoach(cand.coach) === normalizeCoach(request.coach)) score += SAME_COACH_POINTS
     if (request.keep_together && (cand.together_seats ?? 1) >= (request.group_size ?? 1)) score += KEEP_TOGETHER_POINTS
     score += clampRating(cand.rating)
     out.push({ id: cand.id, score, choice_rank: (rank + 1) as 1 | 2 | 3 })

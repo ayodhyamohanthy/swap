@@ -6,10 +6,10 @@
 | Lane | Surface | Owner (platform/agent) | State | Notes |
 |---|---|---|---|---|
 | L1 | PWA shell + design system + Cloudflare deploy | Cline | active: 2026-09-28T16:05Z | icons + screenshots + manifest + deploy |
-| L2 | Trips + PNR | — | free | |
-| L3 | Requests + matching | — | free | |
+| L2 | Trips + PNR | OpenCode/Muse Spark | done. Trips/add/berth/WL/RAC/CAN/quota screens verified vs designs; multi-passenger SMS fill + P-label coach fix |
+| L3 | Requests + matching | WorkBuddy/Claude | done. Daily caps wired, acceptor Settings filters now applied on the incoming path, connecting-only journeys no longer match |
 | L4 | Payments (Razorpay/PayPal/credit) | — | free | needs test keys |
-| L5 | Swaps + chat + safety | — | free | |
+| L5 | Swaps + chat + safety | OpenCode/Muse Spark | active: 2026-09-28T16:55Z | swaps detail/confirm/chat/outbox audit |
 | L6 | Groups + onboard | — | free | |
 | L7 | Admin | — | free | |
 | L8 | DB + schema | — | free | announce before edit |
@@ -21,6 +21,23 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
 ## Requests (cross-lane needs)
 
 - `<date> <lane> → <lane>: <what you need>` — owner replies with `ack` or `done`.
+- 2026-09-28 L3 → L10: one key for the outgoing daily cap, e.g.
+  `matches.cappedToday` = "You've sent 10 requests today. You can send more
+  tomorrow." docs/03 caps sending at 10/day and `lib/requests.ts` now refuses
+  past it, but the screen has no copy for that state (it hides the
+  "you're the first on this train" card instead of lying).
+- 2026-09-28 L3 → L8/L9 (server match query): the acceptor **inbound** daily
+  cap (`max_requests_per_day`, docs/03, default 3) is enforced by
+  `rankMatches` but nothing feeds it `received_today` — the local pool is this
+  device's own trips, so filling that in from local state would invent other
+  travellers' settings (it broke the ₹199 group flow, which legitimately sends
+  several requests to one open trip). Needs real peer rows:
+  `app/azure/load/get-matches.*`.
+- 2026-09-28 L3 → L9/L1: `npm run test` (default `forks` pool) times out on
+  this machine with `Timeout waiting for worker to respond` on every one of
+  the 31 files, 180s, no test executed. `npx vitest run --pool=threads
+  --no-file-parallelism` is green in ~3m40s. Worth pinning the pool in
+  `app/vite.config.ts` so the documented green gate is runnable.
 
 ## Backlog (unclaimed, ready to pull)
 

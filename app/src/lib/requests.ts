@@ -11,12 +11,12 @@
    - Nothing here ever issues credit (rules 3-6 live in outcomes/payments). */
 
 import type { BerthType } from './pnr'
-import { rankMatches, type CandidateSpec, type RequesterSpec } from './matching'
+import { MAX_OUTGOING_PER_DAY, normalizeCoach, rankMatches, type CandidateSpec, type RequesterSpec } from './matching'
 import { needsCreditReminder } from './jobs'
 import { trackEvent } from './analytics'
 import { GROUP_MAX_SWAPS } from './money'
 import { getGroup, groupForTrip } from './groups'
-import { logActivity, listTrips, getTrip, getSnapshot, isSeen, markSeen, paymentFor, type Trip } from './store'
+import { logActivity, listTrips, getTrip, getSnapshot, isSeen, markSeen, paymentFor, settings, type Trip } from './store'
 
 export type RequestStatus =
   | 'draft'
@@ -84,6 +84,10 @@ export interface IncomingRequest {
   id: string
   trip_id: string
   requester_name: string
+  /** Attributes the acceptor's own filters are checked against (docs/04 B2). */
+  requester_is_woman: boolean
+  requester_is_family: boolean
+  requester_coach: string | null
   give_berth: BerthType
   get_berth: BerthType
   reason_key: ReasonKey | null
@@ -185,6 +189,49 @@ function newId(prefix: string): string {
 }
 
 /* ------------------------------------------------------------------ *
+ * Daily limits (docs/03 abuse limits)                                 *
+ * ------------------------------------------------------------------ */
+
+/** The traveller's local calendar day, as YYYY-MM-DD. */
+function dayKey(at: Date): string {
+  const month = String(at.getMonth() + 1).padStart(2, '0')
+  const day = String(at.getDate()).padStart(2, '0')
+  return `${at.getFullYear()}-${month}-${day}`
+}
+
+function isToday(iso: string | null, key: string): boolean {
+  if (!iso) return false
+  const at = new Date(iso)
+  return Number.isFinite(at.getTime()) && dayKey(at) === key
+}
+
+/**
+ * Requests this device has already sent today. docs/03 caps outgoing requests
+ * at 10 per traveller per day; `rankMatches` enforces the cap, so this is the
+ * number it has to be fed — without it the limit silently never fires.
+ */
+export function sentToday(): number {
+  const key = dayKey(new Date())
+  return ensureLoaded().requests.filter((request) => isToday(request.sent_at, key)).length
+}
+
+/** Offers this trip has already received today. The acceptor cap itself
+    (docs/03, default 3) belongs on the server match query — `rankMatches`
+    enforces it correctly once real peer rows exist, and the local pool cannot
+    answer it without inventing other travellers' settings. */
+export function receivedToday(tripId: string): number {
+  const key = dayKey(new Date())
+  return ensureLoaded().offers.filter(
+    (offer) => offer.acceptor_trip_id === tripId && isToday(offer.created_at, key),
+  ).length
+}
+
+/** True when today's outgoing budget is spent, so sending is closed. */
+export function sendCapped(): boolean {
+  return sentToday() >= MAX_OUTGOING_PER_DAY
+}
+
+/* ------------------------------------------------------------------ *
  * Candidate mapping — local open trips act as the match pool          *
  * ------------------------------------------------------------------ */
 
@@ -207,6 +254,14 @@ function candidateFor(trip: Trip): CandidateSpec | null {
     open_to_swap: trip.open_to_swap,
     rating: 0,
     paused: false,
+    /* Neutral on purpose. These are the *other* traveller's acceptor filters
+       (docs/04 B2) and this device has no idea what they are — the local pool
+       only stands in for other travellers. Filling them from `settings()`
+       would fabricate a stranger's preferences out of the user's own and
+       silently shrink the pool (it broke the ₹199 group flow, which legitimately
+       sends several requests to one open trip). The local user's own filters
+       are applied in `incomingFor()` below, where the user really is the
+       acceptor. */
     women_only: false,
     families_only: false,
     same_coach_only: false,
@@ -226,6 +281,8 @@ function requesterFor(trip: Trip, request: SwapRequest): RequesterSpec {
     keep_together: request.keep_together,
     coach: passenger?.coach ?? null,
     quota: passenger?.quota ?? 'GN',
+    /* docs/03: max 10 outgoing requests per traveller per day. */
+    sent_today: sentToday(),
   }
 }
 
@@ -312,12 +369,22 @@ export function matchesFor(
 }
 
 /** Free send: creates `sent` offers to the ranked matches (rule 2).
-    Supply `onlyIds` when the user ticked a subset on the matches screen. */
+    Supply `onlyIds` when the user ticked a subset on the matches screen.
+    Refuses outright once today's 10-request budget is spent (docs/03), before
+    stamping `sent_at` — a refused attempt must not inflate the count it was
+    refused by. */
 export function sendRequest(requestId: string, onlyIds?: string[]): SwapRequest | undefined {
   const request = getRequest(requestId)
   if (!request) return undefined
   const trip = getTrip(request.trip_id)
   if (!trip) return undefined
+
+  if (sendCapped()) {
+    /* activity_log only: the analytics event list is fixed by docs/08, and a
+       refused send is an abuse-limit outcome, not a funnel step. */
+    logActivity('request_capped', { limit: MAX_OUTGOING_PER_DAY }, { type: 'swap_request', id: requestId })
+    return request
+  }
 
   const candidates = localPool().filter((candidate) => candidate.id !== trip.id && candidate.open_to_swap)
   const wanted = onlyIds ? new Set(onlyIds) : null
@@ -602,21 +669,51 @@ export function offersWithStatus(status: OfferStatus): SwapOffer[] {
  */
 const DEMO_INCOMING_NAME = 'Priya'
 
+/** Fixture attributes for the stand-in requester, so the acceptor filters have
+    something real to test against. The coach is deliberately NOT the local
+    trip's, which is what makes "Same coach only" visibly do something. */
+const DEMO_INCOMING = {
+  is_woman: true,
+  is_family: true,
+  coach: 'B1',
+} as const
+
 export function incomingFor(tripId: string): IncomingRequest | undefined {
   const state = ensureLoaded()
   const trip = getTrip(tripId)
   if (!trip || !trip.open_to_swap) return undefined
   const passenger = trip.passengers[0]
   if (!passenger || passenger.status !== 'CNF') return undefined
+
+  /* The acceptor's own filters (docs/04 B2), applied here because this is the
+     one place the traveller really IS the acceptor. Until this existed, all
+     five toggles on the Settings screen were written and never read — a safety
+     filter that filtered nothing. They gate NEW requests only: a request
+     already answered stays on screen even if the filter is switched on
+     afterwards ("You will not get new requests while paused" — settings.pauseBody). */
+  const response = state.incoming[tripId] ?? 'none'
+  if (response === 'none') {
+    const prefs = settings()
+    if (prefs.paused) return undefined
+    if (prefs.women_only && !DEMO_INCOMING.is_woman) return undefined
+    if (prefs.families_only && !DEMO_INCOMING.is_family) return undefined
+    if (prefs.same_coach_only && normalizeCoach(DEMO_INCOMING.coach) !== normalizeCoach(passenger.coach)) {
+      return undefined
+    }
+  }
+
   return {
     id: `in_${tripId}`,
     trip_id: tripId,
     requester_name: DEMO_INCOMING_NAME,
+    requester_is_woman: DEMO_INCOMING.is_woman,
+    requester_is_family: DEMO_INCOMING.is_family,
+    requester_coach: DEMO_INCOMING.coach,
     give_berth: passenger.berth_type,
     /* What the requester hands over — demo pool picks the opposite. */
     get_berth: passenger.berth_type === 'UB' ? 'LB' : 'UB',
     reason_key: 'request.reasons.family',
-    state: state.incoming[tripId] ?? 'none',
+    state: response,
   }
 }
 

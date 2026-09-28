@@ -7,7 +7,7 @@ import { Card, CardTitle } from '@/components/ui/card'
 import { Pill } from '@/components/ui/pill'
 import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/lib/i18n'
-import { matchesFor, sendRequest } from '@/lib/requests'
+import { matchesFor, sendCapped, sendRequest } from '@/lib/requests'
 import { getTrip, isSeen } from '@/lib/store'
 import type { Trip } from '@/lib/store'
 import type { CandidateSpec } from '@/lib/matching'
@@ -46,6 +46,9 @@ function MatchesScreen() {
 
   const trip = getTrip(request.trip_id)
   const rows = matchesFor(request.id)
+  /* docs/03: 10 sends a day. When the budget is spent the pool comes back
+     empty, so the "you're the first on this train" card would be a lie. */
+  const capped = sendCapped()
   const pending = rows.filter(
     (row): row is { candidate: CandidateSpec; trip: Trip } => 'candidate' in row,
   )
@@ -81,7 +84,7 @@ function MatchesScreen() {
       <h1 className="text-title text-ink">{t('matches.title')}</h1>
       <p className="mt-1 text-body text-muted">{t('matches.sub')}</p>
 
-      {rows.length === 0 ? (
+      {rows.length === 0 && !capped ? (
         <Card className="mt-4 border-accent/40 bg-accent-soft">
           <CardTitle>{t('matches.firstTitle', { train: trainLabel })}</CardTitle>
           <p className="mt-1 text-body text-ink">{t('matches.firstBody')}</p>
