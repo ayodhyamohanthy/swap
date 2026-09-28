@@ -19,6 +19,7 @@ import {
   activityLabelKey,
   activityToCsv,
   buildOverview,
+  creditSummary,
   creditsToCsv,
   filterActivity,
   firstOnTrainToday,
@@ -125,12 +126,21 @@ describe('admin CSV exporters never leak a full PNR', () => {
   })
 })
 
+/** A live (unexpired) credit row, for the balance tiles. */
+function liveCredit(amountPaise: number, id = 'w_live') {
+  return {
+    id,
+    amount_paise: amountPaise,
+    expires_at: new Date(Date.now() + 86_400_000 * 300).toISOString(),
+  }
+}
+
 /** buildOverview over the local store's own rows (design 23). */
 function overview(overrides: Partial<AdminOverviewInput> = {}, nowMs = Date.now()) {
   return buildOverview(
     {
       activity: activityLog(),
-      walletTotalPaise: 0,
+      wallet: [],
       payments: getSnapshot().payments,
       requests: [],
       trips: [],
@@ -150,7 +160,7 @@ describe('buildOverview', () => {
     logActivity('request_sent', { train_no: '12951' })
 
     /* logActivity stamps real wall-clock time, so "today" is the real today. */
-    const stats = overview({ walletTotalPaise: 5000 })
+    const stats = overview({ wallet: [liveCredit(5000)] })
     expect(stats.pnrsToday).toBe(3)
     expect(stats.requestsToday).toBe(1)
     expect(stats.creditInCirculationPaise).toBe(5000)
@@ -262,9 +272,22 @@ describe('buildOverview credit given (rule 4)', () => {
     logActivity('credit_added', { to: 'u_req', amount_paise: 9900, kind: 'swap_to_credit' })
     logActivity('credit_used', { amount_paise: 4900 })
 
-    const stats = overview({ walletTotalPaise: 10000 })
+    const stats = overview({ wallet: [liveCredit(10000)] })
     expect(stats.creditGivenTodayPaise).toBe(14900)
     expect(stats.creditInCirculationPaise).toBe(10000)
+  })
+
+  /* The defect this pins: "Credit in circulation" is documented as credit still
+     unspent AND UNEXPIRED, but the caller passed a bare sum of every row, so
+     expired credit was reported as still circulating. */
+  it('leaves expired credit out of circulation', () => {
+    const expired = {
+      id: 'w_old',
+      amount_paise: 9900,
+      expires_at: new Date(Date.now() - 86_400_000).toISOString(),
+    }
+    const stats = overview({ wallet: [expired, liveCredit(5000)] })
+    expect(stats.creditInCirculationPaise).toBe(5000)
   })
 })
 
@@ -912,5 +935,68 @@ describe('activityDetails reads an allow-list, never the whole meta (rule 13)', 
     )
     expect(text.length).toBeLessThanOrEqual(60)
     expect(text.endsWith('…')).toBe(true)
+  })
+})
+
+/* Design 24's credit tiles. The ledger is SIGNED (docs/02: "balance =
+   sum(amount) where not expired"), so every one of these turns on a sign. */
+describe('creditSummary (design 24)', () => {
+  const NOW = Date.parse('2026-09-28T12:00:00+05:30')
+  const inDays = (days: number): string => new Date(NOW + days * 86_400_000).toISOString()
+  const tx = (id: string, amount_paise: number, expires_at: string | null) => ({
+    id,
+    amount_paise,
+    expires_at,
+  })
+
+  it('separates credit given from credit used by sign', () => {
+    const summary = creditSummary([tx('a', 5000, inDays(300)), tx('b', -9900, null)], NOW)
+    expect(summary.givenPaise).toBe(5000)
+    expect(summary.usedPaise).toBe(9900)
+  })
+
+  it('reduces the balance when credit is spent', () => {
+    const summary = creditSummary([tx('a', 5000, inDays(300)), tx('b', -5000, null)], NOW)
+    expect(summary.balancePaise).toBe(0)
+  })
+
+  it('counts an expired earn as given, but not as balance', () => {
+    const summary = creditSummary([tx('a', 5000, inDays(-1))], NOW)
+    expect(summary.givenPaise).toBe(5000)
+    expect(summary.balancePaise).toBe(0)
+  })
+
+  it('given - used - balance is exactly the credit that expired away', () => {
+    const summary = creditSummary(
+      [tx('a', 9900, inDays(-2)), tx('b', 5000, inDays(300)), tx('c', -2000, null)],
+      NOW,
+    )
+    expect(summary.givenPaise - summary.usedPaise - summary.balancePaise).toBe(9900)
+  })
+
+  it('floors the balance at zero rather than showing a negative', () => {
+    /* An earn expires while the spend it funded does not — spends carry no
+       expiry, so this is reachable. The unfloored sum would be -5000. */
+    const summary = creditSummary([tx('a', 5000, inDays(-1)), tx('b', -5000, null)], NOW)
+    expect(summary.balancePaise).toBe(0)
+  })
+
+  it('treats an unparseable expiry as live, matching isCreditLive', () => {
+    const summary = creditSummary([tx('a', 5000, 'not-a-date')], NOW)
+    expect(summary.balancePaise).toBe(5000)
+  })
+
+  it('counts a negative staff adjustment as used, not as given', () => {
+    const summary = creditSummary(
+      [tx('a', 5000, inDays(300)), tx('b', -1000, inDays(300))],
+      NOW,
+    )
+    expect(summary.givenPaise).toBe(5000)
+    expect(summary.usedPaise).toBe(1000)
+    expect(summary.balancePaise).toBe(4000)
+  })
+
+  it('is all zeros for an empty ledger', () => {
+    expect(creditSummary([], NOW)).toEqual({ givenPaise: 0, usedPaise: 0, balancePaise: 0 })
   })
 })

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { Field, Input } from '@/components/ui/input'
 import { Pill } from '@/components/ui/pill'
-import { adminNoticeKey, creditsToCsv, downloadCsv, runAdminAction, type AdminCreditRow } from '@/lib/admin'
+import { adminNoticeKey, creditSummary, creditsToCsv, downloadCsv, runAdminAction, type AdminCreditRow } from '@/lib/admin'
 import { useI18n } from '@/lib/i18n'
 import { formatRupees } from '@/lib/money'
 import { useAppState } from '@/lib/use-store'
@@ -52,7 +52,15 @@ function AdminCredits() {
     created_at: tx.created_at.slice(0, 10),
   }))
 
-  const total = wallet.reduce((sum, row) => sum + row.amount_paise, 0)
+  /* Design 24's four tiles, minus the one the ledger cannot answer honestly —
+     "Expiring this month" needs a consumption order the ledger does not record.
+     See creditSummary's note in lib/admin.ts. */
+  const credit = creditSummary(wallet, Date.now())
+  const tiles: Array<[string, string]> = [
+    [t('admin.creditGiven'), formatRupees(credit.givenPaise)],
+    [t('admin.creditUsed'), formatRupees(credit.usedPaise)],
+    [t('admin.creditBalance'), formatRupees(credit.balancePaise)],
+  ]
 
   async function adjust() {
     if (busy) return
@@ -91,13 +99,20 @@ function AdminCredits() {
     <div>
       <h1 className="text-title text-ink">{t('admin.credits')}</h1>
 
-      <Card className="mt-4 border-primary/30 bg-wash">
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {tiles.map(([label, value]) => (
+          <Card key={label}>
+            <p className="text-caption text-muted">{label}</p>
+            <p className="mt-1 font-head text-title font-bold text-primary">{value}</p>
+          </Card>
+        ))}
+      </div>
+
+      <Card className="mt-3 border-primary/30 bg-wash">
         <span className="flex items-center gap-2">
           <Coins aria-hidden className="size-5 text-accent" />
-          <b className="font-head text-section text-ink">{t('admin.s_credit')}</b>
+          <CardBody className="text-ink">{t('admin.creditNever')}</CardBody>
         </span>
-        <p className="mt-1 font-head text-title font-bold text-primary">{formatRupees(total)}</p>
-        <CardBody className="text-ink">{t('admin.creditNever')}</CardBody>
       </Card>
 
       <Button

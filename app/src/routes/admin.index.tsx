@@ -149,7 +149,10 @@ function AdminOverview() {
   const { requests } = useRequestsState()
   const stats = buildOverview({
     activity,
-    walletTotalPaise: wallet.reduce((n, row) => n + row.amount_paise, 0),
+    /* The ledger itself, not a total: `buildOverview` derives the balance
+       through `creditSummary`, so this screen and the Credits page cannot
+       disagree about what is in circulation. */
+    wallet,
     payments,
     requests,
     trips,

@@ -6,6 +6,7 @@
 
 import { logActivity, type ActivityRow, type PaymentRow, type Trip } from './store'
 import { formatRupees } from './money'
+import { spendableCreditPaise, type CreditLedgerRow } from './payments'
 import { trackEvent } from './analytics'
 import { isSupabaseConfigured } from './supabase'
 import type { MessageKey } from './i18n'
@@ -245,7 +246,16 @@ export async function runAdminAction(
 
 export interface AdminOverviewInput {
   activity: ActivityRow[]
-  walletTotalPaise: number
+  /**
+   * The signed wallet ledger itself, NOT a pre-summed total. It used to be
+   * `walletTotalPaise: number`, and the one caller passed a bare
+   * `wallet.reduce(sum amount_paise)` — which includes rows whose `expires_at`
+   * has passed, so "Credit in circulation" (documented as unspent AND
+   * unexpired) reported expired credit as still circulating. Taking the ledger
+   * means the caller cannot get the sum wrong; `creditSummary` is the single
+   * definition, and it is shared with the Credits page.
+   */
+  wallet: CreditLedgerRow[]
   /** Payments, so "Money in" can subtract credit. `amount_paise` is GROSS. */
   payments: PaymentRow[]
   /** Requests + trips, so a confirmed swap can be attributed to a train. */
@@ -458,6 +468,50 @@ export function swapsThisWeek(activity: ActivityRow[], nowMs: number): SwapDayPo
   return points
 }
 
+/**
+ * Design 24's credit tiles, read from the SIGNED wallet ledger (docs/02:
+ * "balance = sum(amount) where not expired").
+ *
+ * THREE numbers, not the design's four. The missing one, "Expiring this month",
+ * needs an allocation policy the ledger cannot answer: a `used` row records the
+ * TOTAL spent (`planConsumeCredit` returns a single `usedTotal`), not which earn
+ * each spend consumed. Reconstructing it means assuming a consumption order —
+ * and the order this app actually spends in, earliest expiry first, implies the
+ * surviving balance sits on the LATEST-expiring earns. That is the opposite of
+ * what a reader would assume from a tile called "expiring this month", so the
+ * number would name one thing and measure another. That is the exact defect
+ * this file keeps having to fix (see `swapsDoneToday`, `moneyInTodayPaise`), so
+ * it is filed rather than invented — docs/14-LANES.md, backlog 4.
+ *
+ * `givenPaise` and `usedPaise` are ALL-TIME: an expiry does not un-give credit.
+ * `given - used - balance` is therefore exactly the credit that has expired
+ * away, and a test asserts that identity rather than leaving it implied.
+ */
+export interface CreditSummary {
+  /** Every positive ledger row, ever — credit issued. */
+  givenPaise: number
+  /** The magnitude of every negative row — credit spent or corrected away. */
+  usedPaise: number
+  /** What is left to spend right now, floored at zero. */
+  balancePaise: number
+}
+
+export function creditSummary(wallet: CreditLedgerRow[], nowMs: number): CreditSummary {
+  let givenPaise = 0
+  let usedPaise = 0
+  for (const row of wallet) {
+    if (row.amount_paise > 0) givenPaise += row.amount_paise
+    else usedPaise += -row.amount_paise
+  }
+  /* The balance rule is deliberately NOT re-derived here. `spendableCreditPaise`
+     is the canonical one, and it floors at zero on purpose: an unfloored sum
+     goes negative when an earn expires while the spend it funded does not
+     (spends carry no expiry), and a negative balance is not a number to put in
+     front of an operator. A second definition here is how `creditPaise` and
+     `spendableCreditPaise` would drift apart. */
+  return { givenPaise, usedPaise, balancePaise: spendableCreditPaise(wallet, nowMs) }
+}
+
 /** Today's tiles from local rows (design 23). Every number is derived; none
     is a placeholder. */
 export function buildOverview(input: AdminOverviewInput, nowMs = Date.now()): AdminOverview {
@@ -508,7 +562,7 @@ export function buildOverview(input: AdminOverviewInput, nowMs = Date.now()): Ad
     creditGivenTodayPaise: today
       .filter((row) => row.action === 'credit_added')
       .reduce((sum, row) => sum + (num(row.meta.amount_paise) ?? 0), 0),
-    creditInCirculationPaise: input.walletTotalPaise,
+    creditInCirculationPaise: creditSummary(input.wallet, nowMs).balancePaise,
     moneyInUnknownToday,
     busiestTrains,
     /* Deliberately over the WHOLE log, not just `today` — the week starts
