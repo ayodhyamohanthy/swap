@@ -72,8 +72,11 @@ describe('360 px layout (step 14: every flow on a 360 px Android phone)', () => 
     expect(isAdminRoute('/adminx')).toBe(false)
     expect(isAdminRoute('/')).toBe(false)
     const shell = read('src/components/app-shell.tsx')
-    expect(shell).toMatch(/inColumn && 'app-column'/)
+    expect(shell).toMatch(/inColumn \? 'app-column' : 'app-console'/)
     expect(shell).toMatch(/isAdminRoute\(location\.pathname\)/)
+    /* Opting out of the phone column must not mean unbounded: measured at
+       1280px the console filled the window edge to edge. */
+    expect(read('src/styles.css')).toMatch(/\.app-console \{[^}]*max-width/)
   })
 
   it('ships a device-width viewport with the install theme colour', () => {

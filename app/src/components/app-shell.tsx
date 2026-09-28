@@ -1,6 +1,7 @@
-import { Link, useMatches } from '@tanstack/react-router'
+import { Link, useLocation, useMatches } from '@tanstack/react-router'
 import { ArrowLeftRight, ChevronLeft, House, Settings, User } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { isAdminRoute } from '@/lib/admin'
 import { useI18n } from '@/lib/i18n'
 import { useOnline } from '@/lib/use-online'
 import { useUnreadUpdates } from '@/lib/use-store'
@@ -130,12 +131,21 @@ export function AppFooter() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const matches = useMatches()
+  const location = useLocation()
   const leaf = matches[matches.length - 1]
   const chrome = (leaf?.staticData ?? {}) as RouteChrome
   const mode = chrome.chrome ?? 'tabs'
 
+  /* The 34rem clamp is what keeps a phone design a phone design on a laptop:
+     without it every passenger screen goes full-bleed and a card stretches to
+     the window. The admin console is the one exception — designs/23 is a
+     ~1080px sidebar console, and inside a 544px column its sidebar and content
+     split it into two unusable halves. Route decides, not the viewport, because
+     a media query cannot tell a phone screen from a console. */
+  const inColumn = !isAdminRoute(location.pathname)
+
   return (
-    <div className="app-column flex min-h-dvh flex-col">
+    <div className={cn('flex min-h-dvh flex-col', inColumn ? 'app-column' : 'app-console')}>
       {mode !== 'setup' ? <TopBar back={mode === 'plain'} showSettings={chrome.showSettings} /> : null}
       <OfflineBanner />
       <main className={cn('flex-1 px-4 pt-4', mode === 'setup' && 'pt-10', 'pb-8')}>{children}</main>
