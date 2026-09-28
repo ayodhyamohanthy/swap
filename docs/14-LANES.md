@@ -14,18 +14,13 @@
 | L7 | Admin | — | free | |
 | L8 | DB + schema | — | free | announce before edit |
 | L9 | Infra + credits | — | free | |
-| L10 | i18n (single writer) | — | free | 635 keys en+hi |
+| L10 | i18n (single writer) | WorkBuddy/Claude | done. Added `matches.cappedToday` (en+hi) for L3's send cap |
 
 Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
 
 ## Requests (cross-lane needs)
 
 - `<date> <lane> → <lane>: <what you need>` — owner replies with `ack` or `done`.
-- 2026-09-28 L3 → L10: one key for the outgoing daily cap, e.g.
-  `matches.cappedToday` = "You've sent 10 requests today. You can send more
-  tomorrow." docs/03 caps sending at 10/day and `lib/requests.ts` now refuses
-  past it, but the screen has no copy for that state (it hides the
-  "you're the first on this train" card instead of lying).
 - 2026-09-28 L3 → L8/L9 (server match query): the acceptor **inbound** daily
   cap (`max_requests_per_day`, docs/03, default 3) is enforced by
   `rankMatches` but nothing feeds it `received_today` — the local pool is this

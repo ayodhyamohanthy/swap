@@ -501,7 +501,8 @@
     "berthMasked": "Berth ••",
     "sentState": "Sent",
     "viewRequest": "View my request",
-    "openSwaps": "Only people open to swap are listed."
+    "openSwaps": "Only people open to swap are listed.",
+    "cappedToday": "You've sent {n} requests today. You can send more tomorrow."
   },
   "manage": {
     "title": "Your request",

@@ -3,7 +3,7 @@ import { Check, Share2, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 import type { RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
-import { Card, CardTitle } from '@/components/ui/card'
+import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { Pill } from '@/components/ui/pill'
 import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/lib/i18n'
@@ -11,6 +11,7 @@ import { matchesFor, sendCapped, sendRequest } from '@/lib/requests'
 import { getTrip, isSeen } from '@/lib/store'
 import type { Trip } from '@/lib/store'
 import type { CandidateSpec } from '@/lib/matching'
+import { MAX_OUTGOING_PER_DAY } from '@/lib/matching'
 import { useSwapRequest } from '@/lib/use-store'
 
 /* Screen 11 "Matches · send free" (design 2a). Berths are always "Berth ••"
@@ -83,6 +84,14 @@ function MatchesScreen() {
     <div>
       <h1 className="text-title text-ink">{t('matches.title')}</h1>
       <p className="mt-1 text-body text-muted">{t('matches.sub')}</p>
+
+      {capped ? (
+        <Card className="mt-4 border-accent/40 bg-accent-soft">
+          <CardBody className="text-ink">
+            {t('matches.cappedToday', { n: MAX_OUTGOING_PER_DAY })}
+          </CardBody>
+        </Card>
+      ) : null}
 
       {rows.length === 0 && !capped ? (
         <Card className="mt-4 border-accent/40 bg-accent-soft">
