@@ -21,6 +21,7 @@
  * missing from the table is now a hard error rather than a silent "treat as
  * clean" — that silent default is how the table rotted in the first place.
  */
+import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -39,6 +40,21 @@ const EXPECT = {
   clean: false,
 }
 
+/* Returns the child's exit code, or null when relaunching is not possible or
+   has already been tried (so a flagged child that still cannot import falls
+   through to the honest refusal instead of forking forever). */
+function relaunchWithTypeStripping(argv) {
+  if (process.env.SEATSWAP_SAFETY_STRIP_TYPES === 'attempted') return null
+  if (!process.allowedNodeEnvironmentFlags.has('--experimental-strip-types')) return null
+  const child = spawnSync(
+    process.execPath,
+    ['--experimental-strip-types', fileURLToPath(import.meta.url), ...argv],
+    { stdio: 'inherit', env: { ...process.env, SEATSWAP_SAFETY_STRIP_TYPES: 'attempted' } },
+  )
+  if (child.error) return null
+  return child.status ?? 2
+}
+
 async function loadGuard(argv) {
   /* `--mirror` means "score the copy", not "score the copy only if I have to".
      Forcing it on a modern Node is what makes the mirror's own banner testable,
@@ -52,14 +68,24 @@ async function loadGuard(argv) {
       if (!wantMirror) return { guard: mod.guardMessage, copy: false, banner: null }
     }
   } catch {
-    /* Node without TS type stripping (< 22.6). Fall through to the decision. */
+    /* No TS type stripping in this process. Fall through to the decision. */
   }
   if (!wantMirror) {
+    /* Type stripping is not a simple version cutoff: Node 22.6 through 22.17
+       strips types only behind --experimental-strip-types, and it is unflagged
+       only from 22.18. So "re-run on a newer Node" was wrong advice on exactly
+       the versions that can do this — 22.14 refused here while the same binary
+       imports the guard fine with the flag. Re-exec ourselves once with it
+       rather than scoring the copy, because the whole point of this file is
+       that the number describes the shipped guard. */
+    const relaunched = relaunchWithTypeStripping(argv)
+    if (relaunched !== null) process.exit(relaunched)
     console.error(`[safety] cannot import ../src/lib/chat-guard.ts on ${process.version}.`)
     console.error('[safety] Refusing to score a regex copy by default — those numbers describe the copy,')
     console.error('[safety] not the shipped guard, and the previous version of this file reported them as')
-    console.error('[safety] if they were the real thing. Re-run on Node >= 22.6, or pass --mirror to')
-    console.error('[safety] score the copy deliberately and read the banner it prints.')
+    console.error('[safety] if they were the real thing. This Node cannot strip TypeScript even with')
+    console.error('[safety] --experimental-strip-types (needs >= 22.6); re-run on a newer Node, or pass')
+    console.error('[safety] --mirror to score the copy deliberately and read the banner it prints.')
     process.exit(2)
   }
   return mirrorGuard(importable ? 'chat-guard.ts imported fine, --mirror is deliberate' : 'chat-guard.ts could not be imported')
