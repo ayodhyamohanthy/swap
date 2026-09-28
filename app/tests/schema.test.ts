@@ -240,3 +240,60 @@ describe('part 7 hardening (privacy, money, transitions, safety)', () => {
     expect(SCHEMA).toMatch(/messages_safety_guard/i)
   })
 })
+
+/* Rule 2 / the core safety property, at the layer a passenger can actually
+   reach: `swap_requests` has no UPDATE policy, so every client write goes
+   through the SECURITY DEFINER RPC `apply_request_transition`, which is
+   GRANTed to `authenticated`. That means a passenger could lock (and then
+   confirm) their own swap for free unless locking itself demands evidence of
+   captured money. This was a real hole; these assertions keep it shut. */
+describe('a swap can only reach locked on captured money (rule 2)', () => {
+  it('has one captured-payment predicate, and it is not world-callable', () => {
+    const fn = SCHEMA.match(
+      /create\s+(or\s+replace\s+)?function\s+public\.has_captured_payment[\s\S]*?\$\$;/i,
+    )?.[0]
+    expect(fn, 'has_captured_payment() not found').toBeTruthy()
+    expect(fn).toMatch(/status\s*=\s*'paid'/i)
+    expect(SCHEMA).toMatch(
+      /revoke\s+all\s+on\s+function\s+public\.has_captured_payment[\s\S]{0,120}?from\s+public/i,
+    )
+    expect(SCHEMA).toMatch(
+      /grant\s+execute\s+on\s+function\s+public\.has_captured_payment[\s\S]{0,120}?to\s+authenticated/i,
+    )
+  })
+
+  it('also accepts a captured GROUP payment, which covers member swaps', () => {
+    const fn = SCHEMA.match(
+      /create\s+(or\s+replace\s+)?function\s+public\.has_captured_payment[\s\S]*?\$\$;/i,
+    )?.[0] ?? ''
+    expect(fn).toMatch(/pay\.group_id/i)
+    expect(fn).toMatch(/r\.group_id/i)
+  })
+
+  it('guards every path into locked: both RPC definitions and the trigger', () => {
+    /* Two RPC definitions (the second CREATE OR REPLACE wins) plus the
+       BEFORE UPDATE trigger. Missing any one reopens the hole. */
+    const guards = SCHEMA.match(/payment_required_for_lock/g) ?? []
+    expect(guards.length).toBeGreaterThanOrEqual(3)
+    expect(SCHEMA).toMatch(
+      /check_swap_request_transition\(\)[\s\S]{0,900}?has_captured_payment\(OLD\.id\)/i,
+    )
+  })
+
+  it('exempts only the trusted server writer, never a passenger', () => {
+    /* The exemption must be scoped to service_role and the call must be
+       ANDed, so an authenticated uid can never satisfy its way past it. */
+    expect(SCHEMA).toMatch(
+      /auth\.role\(\)\s*<>\s*'service_role'[\s\S]{0,200}?has_captured_payment\(p_req\)/i,
+    )
+  })
+
+  it('still lets the gateway webhook lock, because it marks paid first', () => {
+    /* The exemption exists for exactly this: the webhook updates the payment
+       to paid and only then moves the request, so the guard is satisfied. */
+    expect(SCHEMA).toMatch(/service_role/i)
+    const payments = SCHEMA.match(/create\s+table\s+(?:if\s+not\s+exists\s+)?public\.payments[\s\S]*?\);/i)?.[0] ?? ''
+    expect(payments).toMatch(/status\s+pay_status/i)
+    expect(payments).toMatch(/group_id/i)
+  })
+})

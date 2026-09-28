@@ -758,10 +758,31 @@ ALTER TABLE public.wallet_tx ADD CONSTRAINT wallet_tx_expiry_check CHECK (
 REVOKE DELETE ON TABLE public.swap_requests FROM authenticated;
 REVOKE DELETE ON TABLE public.swap_offers FROM authenticated;
 
+-- Rule 2 (docs/03): a swap locks because money landed, never because a
+-- client asked. True when a CAPTURED payment exists for this request, or when
+-- a captured group payment covers it (docs/01: the Rs 199 bundle locks up to
+-- 3 member swaps, and those member swaps have no payment row of their own).
+CREATE OR REPLACE FUNCTION public.has_captured_payment(p_req uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.payments pay
+    WHERE pay.status = 'paid'
+      AND ( pay.request_id = p_req
+            OR (pay.group_id IS NOT NULL
+                AND pay.group_id = (SELECT r.group_id FROM public.swap_requests r WHERE r.id = p_req)) )
+  );
+$$;
+REVOKE ALL ON FUNCTION public.has_captured_payment(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.has_captured_payment(uuid) TO authenticated, service_role;
+
 CREATE OR REPLACE FUNCTION public.check_swap_request_transition()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF OLD.status = NEW.status THEN RETURN NEW; END IF;
+  IF OLD.status = 'accepted_awaiting_payment' AND NEW.status = 'locked'
+    AND NOT public.has_captured_payment(OLD.id) THEN
+    RAISE EXCEPTION 'payment_required_for_lock';
+  END IF;
   IF NEW.status = 'expired'
     AND OLD.status IN ('draft', 'searching', 'accepted_awaiting_payment') THEN
     RETURN NEW;
@@ -880,6 +901,15 @@ BEGIN
       WHERE id = p_req;
     RETURN;
   END IF;
+  -- Without this a passenger calls the RPC with their own auth.uid(), lock a
+  -- swap they never paid for, then confirm it and mint the acceptor's Rs 50
+  -- from nothing. service_role writers (gateway webhooks, scheduled jobs) are
+  -- trusted here, matching the forbidden check above.
+  IF p_status = 'locked' AND v_old = 'accepted_awaiting_payment'
+    AND auth.role() <> 'service_role'
+    AND NOT public.has_captured_payment(p_req) THEN
+    RAISE EXCEPTION 'payment_required_for_lock';
+  END IF;
   IF p_status = 'expired'
     AND v_old IN ('draft', 'searching', 'accepted_awaiting_payment') THEN
     v_ok := true;
@@ -949,6 +979,15 @@ BEGIN
     UPDATE public.swap_requests SET locked_offer_id = COALESCE(p_locked_offer, locked_offer_id)
       WHERE id = p_req;
     RETURN;
+  END IF;
+  -- Without this a passenger calls the RPC with their own auth.uid(), lock a
+  -- swap they never paid for, then confirm it and mint the acceptor's Rs 50
+  -- from nothing. service_role writers (gateway webhooks, scheduled jobs) are
+  -- trusted here, matching the forbidden check above.
+  IF p_status = 'locked' AND v_old = 'accepted_awaiting_payment'
+    AND auth.role() <> 'service_role'
+    AND NOT public.has_captured_payment(p_req) THEN
+    RAISE EXCEPTION 'payment_required_for_lock';
   END IF;
   IF p_status = 'expired'
     AND v_old IN ('draft', 'searching', 'accepted_awaiting_payment') THEN
