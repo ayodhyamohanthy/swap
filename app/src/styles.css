@@ -86,6 +86,15 @@ strong {
   max-width: 34rem;
 }
 
+/* The admin console opts out of the phone column (designs/23 is a sidebar
+   console, not a phone screen) but "opted out" must not mean "unbounded": on a
+   1440px monitor a full-bleed table runs a line of text the eye cannot track
+   back. 72rem is the console's own comfortable width. */
+.app-console {
+  margin-inline: auto;
+  max-width: 72rem;
+}
+
 .tap {
   min-height: 3rem;
   min-width: 3rem;

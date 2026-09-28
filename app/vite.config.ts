@@ -20,6 +20,14 @@ import { workboxOptions } from './pwa.workbox.mjs'
      never registered in dev/preview/iframe and supports the ?sw=off kill switch. */
 export default defineConfig({
   server: { port: 5173 },
+  /* The prerender phase of `vite build` fetches its pages from a throwaway
+     `vite preview` server on 127.0.0.1. Inside containers `localhost` can
+     resolve to ::1 first, so the preview server binds IPv6-only loopback while
+     the fetch dials 127.0.0.1 — ECONNREFUSED, build dies at "Prerendered 0
+     pages". Pinning the host makes the server and the fetch agree everywhere.
+     `vite preview`'s default host is `localhost` (never LAN), so this changes
+     nothing outside the prerender. */
+  preview: { host: '127.0.0.1' },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
