@@ -221,16 +221,29 @@ for (const path of routes) {
   await page.setViewport({ width: 1180, height: 1000, deviceScaleFactor: 1 })
   const bucket = []
   page.on('console', (message) => {
-    if (message.type() === 'error') bucket.push(`console: ${message.text().slice(0, 200)}`)
+    if (message.type() !== 'error') return
+    /* Keep the resource URL next to the text. Chrome's body for a failed
+       resource is a bare "Failed to load resource: ... 404 ()" with NO URL in
+       it — the URL lives in the message's location. Filtering on the text alone
+       can therefore only match "404 ()", which matches EVERY 404 in the run,
+       not just the manifest's (L7 → L9, 2026-09-29). */
+    const location = message.location() || {}
+    bucket.push({
+      text: `console: ${message.text().slice(0, 200)}`,
+      url: String(location.url || ''),
+    })
   })
-  page.on('pageerror', (error) => bucket.push(`throw: ${String(error).slice(0, 200)}`))
+  page.on('pageerror', (error) => bucket.push({ text: `throw: ${String(error).slice(0, 200)}`, url: '' }))
   await page.evaluateOnNewDocument(seedDevice)
 
   let landed = path
   try {
     await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle2', timeout: 30000 })
   } catch (error) {
-    bucket.push(`goto: ${String(error).slice(0, 160)}`)
+    /* Same shape as the console/pageerror entries: the partition below reads
+       `.text` off every bucket member, so a bare string here would surface as
+       `undefined` in the report instead of the reason the load failed. */
+    bucket.push({ text: `goto: ${String(error).slice(0, 160)}`, url: '' })
   }
   await new Promise((resolve) => setTimeout(resolve, WAIT))
 
@@ -244,17 +257,29 @@ for (const path of routes) {
 
   /* The dev-only manifest 404 is not this app's error — the manifest is a build
      artefact. Counted and reported separately rather than dropped, so it cannot
-     silently grow into a real failure being ignored. */
-  const manifest = bucket.filter((m) => /manifest|404 \(\)/.test(m))
-  const real = bucket.filter((m) => !/manifest|404 \(\)/.test(m))
-  const hydration = real.filter((m) => /hydrat|#418|#423|#425|did not match/i.test(m))
+     silently grow into a real failure being ignored.
+
+     Matched on the manifest URL (or `manifest.webmanifest` in the text, which
+     the PWA plugin's own "Manifest fetch ... failed, code 404" line carries) —
+     NOT on /404 \(\)/, which matches EVERY 404 in the run: a missing asset was
+     filed as manifest noise and the run still exited 0 (L7 → L9, 2026-09-29). */
+  const isManifest = (entry) =>
+    /\/manifest\.webmanifest(?:\?|$)/.test(entry.url) || /manifest\.webmanifest/.test(entry.text)
+  const manifest = bucket.filter(isManifest)
+  /* Name the resource. Chrome's text for a failed load is byte-identical for
+     every 404 ("…status of 404 ()"), so a report carrying only that text says
+     nothing about WHICH asset broke — the one thing a reader can act on. A
+     `pageerror` has no resource URL, so it prints as it always did. */
+  const describe = (entry) => (entry.url ? `${entry.text} [${entry.url}]` : entry.text)
+  const realText = bucket.filter((entry) => !isManifest(entry)).map(describe)
+  const hydration = realText.filter((m) => /hydrat|#418|#423|#425|did not match/i.test(m))
 
   results.push({
     requested: path,
     ...probe,
     manifest: manifest.length,
     hydration,
-    errors: [...new Set(real)],
+    errors: [...new Set(realText)],
   })
   landed = probe.pathname
   await page.close()
@@ -265,11 +290,17 @@ await browser.close()
 const noisy = results.filter((row) => row.errors.length)
 const hydrating = results.filter((row) => row.hydration.length)
 const thin = results.filter((row) => row.textLen >= 0 && row.textLen < THIN_TEXT_LENGTH)
+/* What the manifest filter swallowed, in total. The per-route `manifest` count
+   existed but was never printed anywhere, so a filter that grew to eat real
+   failures would have been invisible — which is the failure mode the count was
+   introduced to prevent. */
+const manifestTotal = results.reduce((n, row) => n + row.manifest, 0)
 
 console.log(`routes direct-loaded: ${results.length}`)
 console.log(`routes with console errors: ${noisy.length}`)
 console.log(`routes with a hydration error: ${hydrating.length}`)
 console.log(`routes that rendered almost nothing: ${thin.length}`)
+console.log(`dev-only manifest 404s ignored (vite dev has no build-time manifest): ${manifestTotal}`)
 
 if (noisy.length > 0) {
   console.log('\n=== ERRORS (a real load of each route) ===')
@@ -287,7 +318,7 @@ if (thin.length > 0) {
 if (VERBOSE) {
   console.log('\n=== ALL ROUTES (thin -> thick) ===')
   for (const row of [...results].sort((a, b) => a.textLen - b.textLen)) {
-    console.log(`  ${String(row.textLen).padStart(5)}  ${row.requested.padEnd(30)} ${row.pathname.padEnd(30)} ${row.head.slice(0, 44)}`)
+    console.log(`  ${String(row.textLen).padStart(5)}  ${row.requested.padEnd(30)} ${row.pathname.padEnd(30)} ${row.head.slice(0, 44)}  manifest-noise=${row.manifest}`)
   }
 }
 
