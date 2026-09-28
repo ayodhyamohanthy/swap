@@ -1,4 +1,4 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { Link, Navigate, createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { AppFooter, type RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,12 @@ function RateScreen() {
   const { id } = Route.useParams()
   const { t } = useI18n()
   const request = getRequest(id)
+  /* Ratings feed future match scores, so they are only taken for swaps that
+     actually locked. Anything earlier forwards to the swap landing, which
+     knows where each status belongs — never a dead end. */
+  if (!request || (request.status !== 'locked' && request.status !== 'confirmed')) {
+    return <Navigate to="/swaps/$id" params={{ id }} />
+  }
   const locked = request ? acceptedOffer(request.id) : undefined
   const name = locked?.acceptor_name ?? demoRequest(id).acceptorName
   const [stars, setStars] = useState(5)
