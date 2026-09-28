@@ -9,7 +9,8 @@ import { formatRupees } from './money'
 import { spendableCreditPaise, type CreditLedgerRow } from './payments'
 import { trackEvent } from './analytics'
 import { isSupabaseConfigured } from './supabase'
-import type { MessageKey } from './i18n'
+import type { MessageKey, LangCode } from './i18n'
+import { localeFor } from './i18n'
 import {
   adminAdjustCredit,
   adminBlockUser,
@@ -705,8 +706,19 @@ export interface ActivityFilter {
   query: string
 }
 
-/** Filter by category and action; search matches user/PNR-last4/train (last4
-    only). */
+/**
+ * Filter by category and action; free text searches the actor id, the action
+ * name, the entity and everything inside `meta`.
+ *
+ * Note what "the actor id" is NOT: it is an opaque account id, never a name.
+ * `ActivityRow` has no name field at all — the same missing-peer-row blocker as
+ * `admin.users.tsx` and `get_matches()` — so a search for "Riya P" matches
+ * nothing, and `admin.searchPh` ("Search action, user or train") promises a
+ * capability this function cannot have. The train half is real: `train_no`
+ * lives inside `meta`, and the whole of `meta` is stringified into the haystack
+ * below. A `request:` line on the lane board asks L10 to reword that
+ * placeholder.
+ */
 export function filterActivity(rows: ActivityRow[], filter: ActivityFilter): ActivityRow[] {
   const q = filter.query.trim().toLowerCase()
   return rows.filter((row) => {
@@ -820,6 +832,19 @@ const DETAIL_FIELDS: ReadonlyArray<[string, (value: unknown) => string | null]> 
 const DETAIL_SEPARATOR = ' · '
 const DETAIL_MAX_LENGTH = 60
 
+export interface DetailOptions {
+  /** Cut the joined summary at this many characters. */
+  maxLength?: number
+  /**
+   * Field names to leave out of the summary.
+   *
+   * The activity screen passes `['train_no']`: design 15 gives the train its
+   * own column, and a number printed twice in the same row reads as two facts
+   * rather than one.
+   */
+  omit?: readonly string[]
+}
+
 /**
  * A short summary of what a row recorded (design 15's Details column).
  *
@@ -829,14 +854,122 @@ const DETAIL_MAX_LENGTH = 60
  * the rest of the console uses (train numbers, class codes, provider names).
  * Money is the one exception and goes through `formatRupees`.
  */
-export function activityDetails(row: ActivityRow, maxLength = DETAIL_MAX_LENGTH): string {
+export function activityDetails(row: ActivityRow, options: DetailOptions = {}): string {
+  const { maxLength = DETAIL_MAX_LENGTH, omit } = options
   const meta = row.meta as Record<string, unknown>
   const parts: string[] = []
   for (const [key, render] of DETAIL_FIELDS) {
+    if (omit?.includes(key)) continue
     const text = render(meta[key])
     if (text) parts.push(text)
   }
   const joined = parts.join(DETAIL_SEPARATOR)
   return joined.length > maxLength ? `${joined.slice(0, Math.max(1, maxLength - 1))}…` : joined
+}
+
+/**
+ * The train number on a row, for design 15's own Train column.
+ *
+ * Read through the same `detailToken` bound the Details column uses, so a
+ * `train_no` that is not a bounded string is `null` in both places rather than
+ * a number in one and a string in the other.
+ */
+export function activityTrain(row: ActivityRow): string | null {
+  return detailToken((row.meta as Record<string, unknown>).train_no)
+}
+
+/* ------------------------------------------------------------------ *
+ * Tone (design 15's row colour)                                       *
+ * ------------------------------------------------------------------ */
+
+export type ActivityTone = 'good' | 'warn' | 'bad' | 'neutral'
+
+/**
+ * What an action's colour means.
+ *
+ * Design 15 colours rows by *topic* — a blue paper-plane for a request, purple
+ * for a payment. This console has no blue and no purple: the theme is four
+ * semantic tokens (`primary` green, `accent` amber, `danger` red, `muted`
+ * grey), and inventing three more to decorate a table would break the
+ * "semantic Tailwind tokens only" rule for no informational gain.
+ *
+ * So the row carries two facts on two channels, each doing one job:
+ *
+ *   - the **icon** says which chip the row belongs to (`activityCategory`)
+ *   - the **tone** says whether anything went wrong
+ *
+ * That is the more useful reading for an audit trail anyway: an operator scans
+ * for red, not for "payments". The map is **sparse** — `neutral` is the
+ * default — so a newly logged action is grey until someone decides it is not,
+ * and there is no second full list to keep in step with the category map.
+ * `tests/admin.test.ts` fails if a key here is not a real action.
+ */
+const ACTIVITY_TONE_BY_ACTION: Record<string, Exclude<ActivityTone, 'neutral'>> = {
+  /* Money arrived, credit was issued, or the swap the product exists for
+     actually happened. */
+  payment_paid: 'good',
+  credit_added: 'good',
+  swap_locked: 'good',
+  swap_confirmed: 'good',
+  confirmation: 'good',
+  offer_accepted: 'good',
+  group_paid: 'good',
+  meet_answered: 'good',
+  rating_given: 'good',
+  dispute_resolved: 'good',
+
+  /* Needs a look, or a limit stopped it. */
+  payment_pending: 'warn',
+  request_capped: 'warn',
+  request_paused: 'warn',
+  trip_removed: 'warn',
+  chart_reset: 'warn',
+  admin_action: 'warn',
+
+  /* A problem: money failed, a swap fell through, or a safety action was
+     taken. `someone_faster` and `acceptor_backed_out` are here rather than
+     `warn` because both cost the requester the swap they were waiting on. */
+  payment_failed: 'bad',
+  swap_voided: 'bad',
+  dispute_opened: 'bad',
+  acceptor_backed_out: 'bad',
+  someone_faster: 'bad',
+  report_filed: 'bad',
+  block: 'bad',
+}
+
+/** The tone of an action; `neutral` for anything the map does not name. */
+export function activityTone(action: string): ActivityTone {
+  return ACTIVITY_TONE_BY_ACTION[action] ?? 'neutral'
+}
+
+/** Every action the tone map names — exported for the drift guard in tests. */
+export function tonedActions(): string[] {
+  return Object.keys(ACTIVITY_TONE_BY_ACTION).sort()
+}
+
+/**
+ * The time of day on a row, for design 15's Time column ("22:41").
+ *
+ * The screen shows the date **and** this. The design shows a time alone only
+ * because all six of its rows are from one evening; an audit log that prints
+ * `22:41` with no day cannot tell today from three weeks ago, and one that
+ * prints only a day cannot order two events on the same day.
+ *
+ * `localeFor()` is imported rather than re-derived, so the `lang` → BCP-47
+ * mapping stays in the one place L10 put it.
+ */
+export function activityTime(iso: string, lang: LangCode): string {
+  const at = new Date(iso)
+  if (Number.isNaN(at.getTime())) return ''
+  try {
+    return new Intl.DateTimeFormat(localeFor(lang), {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(at)
+  } catch {
+    return ''
+  }
 }
 

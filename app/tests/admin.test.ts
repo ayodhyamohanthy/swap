@@ -17,7 +17,10 @@ import {
   activityCategory,
   activityDetails,
   activityLabelKey,
+  activityTime,
   activityToCsv,
+  activityTone,
+  activityTrain,
   buildOverview,
   creditSummary,
   creditsToCsv,
@@ -27,11 +30,13 @@ import {
   swapsThisWeek,
   swapsToCsv,
   toCsv,
+  tonedActions,
   uncategorisedActions,
   usersToCsv,
   type AdminOverviewInput,
   type AdminSwapRow,
   type AdminUserRow,
+  type ActivityTone,
 } from '@/lib/admin'
 import {
   isCreditExpired,
@@ -935,6 +940,100 @@ describe('activityDetails reads an allow-list, never the whole meta (rule 13)', 
     )
     expect(text.length).toBeLessThanOrEqual(60)
     expect(text.endsWith('…')).toBe(true)
+  })
+})
+
+/* Design 15 gives the train its own column, which means the Details list has
+   to stop carrying it — otherwise the same number is printed twice in one row
+   and reads as two facts. */
+describe('activityTrain, and the train leaving the Details list', () => {
+  const row = (meta: Record<string, unknown>) => logActivity('pnr_added', meta)
+
+  it('reads the train number for its own column', () => {
+    expect(activityTrain(row({ train_no: '12951', passengers: 2 }))).toBe('12951')
+  })
+
+  it('is null when the row has no train, so the column renders empty', () => {
+    expect(activityTrain(row({ passengers: 2 }))).toBeNull()
+    expect(activityTrain(row({ train_no: '' }))).toBeNull()
+  })
+
+  it('bounds the value the same way the Details list does', () => {
+    /* A `train_no` that is not a bounded string is null in both places rather
+       than a number in one and a string in the other. */
+    expect(activityTrain(row({ train_no: 12951 }))).toBe('12951')
+    expect(activityTrain(row({ train_no: 'x'.repeat(60) }))).toHaveLength(24)
+  })
+
+  it('leaves the train in Details by default, and drops it on request', () => {
+    const full = row({ train_no: '12951', class: '3A', passengers: 2 })
+    expect(activityDetails(full)).toBe('12951 · 3A · 2')
+    expect(activityDetails(full, { omit: ['train_no'] })).toBe('3A · 2')
+  })
+
+  it('does not leave a dangling separator when the train was the only field', () => {
+    expect(activityDetails(row({ train_no: '12951' }), { omit: ['train_no'] })).toBe('')
+  })
+})
+
+/* Design 15's row colour. The tone map is sparse on purpose — `neutral` is the
+   default — so the risk is not a wrong colour, it is a key that silently does
+   nothing because it is misspelled or names an action that was renamed. */
+describe('activityTone (design 15)', () => {
+  it('marks the outcomes the product exists for as good', () => {
+    expect(activityTone('payment_paid')).toBe('good')
+    expect(activityTone('swap_confirmed')).toBe('good')
+  })
+
+  it('separates a decline from a problem', () => {
+    /* `offer_declined` is a normal answer, not a failure — the requester's
+       request is still open for someone else to accept. */
+    expect(activityTone('offer_declined')).toBe('neutral')
+    expect(activityTone('acceptor_backed_out')).toBe('bad')
+  })
+
+  it('defaults to neutral, so a new action is grey until someone decides', () => {
+    expect(activityTone('sign_in')).toBe('neutral')
+    expect(activityTone('an_action_that_does_not_exist')).toBe('neutral')
+  })
+
+  it('names only real actions — no typo can sit here doing nothing', () => {
+    const toned = tonedActions()
+    expect(toned.length).toBeGreaterThan(0)
+    for (const action of toned) {
+      /* `activityCategory` answers `other` for anything it has never heard of,
+         and `tests/admin.test.ts` already fails if a *logged* action lands in
+         `other` — so `other` here means the name is not a real action. */
+      expect(activityCategory(action), `${action} is not a known action`).not.toBe('other')
+    }
+  })
+
+  it('covers every tone the map can return', () => {
+    const seen = new Set<ActivityTone>(tonedActions().map(activityTone))
+    expect(seen).toEqual(new Set(['good', 'warn', 'bad']))
+  })
+})
+
+/* Design 15's Time column. It shows the time AND the date: the design's own
+   rows are all one evening, so a bare "22:41" is unambiguous there and
+   ambiguous in a real log, where it cannot tell today from three weeks ago. */
+describe('activityTime', () => {
+  it('renders a zero-padded 24-hour time', () => {
+    expect(activityTime('2026-09-28T22:41:00+05:30', 'en')).toMatch(/^\d{2}:\d{2}$/)
+    expect(activityTime('2026-09-28T09:05:00+05:30', 'en')).toMatch(/^\d{2}:\d{2}$/)
+  })
+
+  it('uses the locale it is given, not the machine default', () => {
+    /* Both are HH:MM; the point is that the argument is threaded through
+       `localeFor()` rather than ignored. */
+    const iso = '2026-09-28T22:41:00+05:30'
+    expect(activityTime(iso, 'hi')).toMatch(/^\d{2}:\d{2}$/)
+    expect(activityTime(iso, 'en')).toBe(activityTime(iso, 'hi'))
+  })
+
+  it('returns nothing rather than "Invalid Date"', () => {
+    expect(activityTime('not a date', 'en')).toBe('')
+    expect(activityTime('', 'en')).toBe('')
   })
 })
 
