@@ -490,8 +490,8 @@
     "pLogged": "Thanks for telling us. We’ve noted this."
   },
   "matches": {
-    "title": "People on your train",
-    "sub": "Same train, same date, same class.",
+    "title": "Matches",
+    "sub": "People in your train looking to swap",
     "sendTo": "Send to {n} · free",
     "sent": "Sent. They see only your first name and berth type.",
     "verified": "Google checked",
@@ -503,7 +503,8 @@
     "sentState": "Sent",
     "viewRequest": "View my request",
     "openSwaps": "Only people open to swap are listed.",
-    "cappedToday": "You've sent {n} requests today. You can send more tomorrow."
+    "cappedToday": "You've sent {n} requests today. You can send more tomorrow.",
+    "berthLine": "{type} berth"
   },
   "manage": {
     "title": "Your request",
@@ -523,7 +524,14 @@
     "acceptThis": "Accept this",
     "keepWaiting": "Keep waiting",
     "payCta": "Pay ₹99",
-    "acceptedCta": "Someone said yes. Pay ₹99 to lock it."
+    "acceptedCta": "Someone said yes. Pay ₹99 to lock it.",
+    "changeWhat": "Change what I want",
+    "pauseRequest": "Pause request",
+    "withdrawRequest": "Withdraw request",
+    "wanted": "{berth} berth wanted",
+    "waiting": "Waiting for replies",
+    "payLater": "Sending is free. Pay only if someone says yes.",
+    "noReplyOn": "Nobody has replied on {train} yet"
   },
   "updates": {
     "title": "Updates",
@@ -570,7 +578,10 @@
     "qrNote": "Others can scan this at the station.",
     "qrOffline": "No signal, so type the link instead — it still works.",
     "native": "Share…",
-    "link": "Coach link"
+    "link": "Coach link",
+    "heading": "Invite your coach",
+    "coachSub": "More people, better chances to find a swap.",
+    "whatsappCta": "Share on WhatsApp"
   },
   "invite": {
     "title": "SeatSwap",

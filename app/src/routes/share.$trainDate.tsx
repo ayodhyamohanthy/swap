@@ -76,10 +76,22 @@ function ShareScreen() {
 
   return (
     <div>
-      <h1 className="text-title text-ink">{t('share.title', { train: trainNo })}</h1>
-      <p className="mt-1 text-body text-muted">{t('share.body')}</p>
+      {/* Design 2b "Invite your coach": the ask, the reason it works, then the
+          one button the design leads with. The platform row stays below it —
+          docs/01's growth loop needs Instagram/Facebook/Telegram/SMS too, and
+          the QR is the no-signal path (docs/10). */}
+      <h1 className="text-title text-ink">{t('share.heading')}</h1>
+      <p className="mt-1 text-body text-muted">{t('share.coachSub')}</p>
+      <p className="mt-3 font-head text-headline text-ink">
+        {t('share.title', { train: trainNo })}
+      </p>
 
-      <Button className="mt-4" onClick={nativeShare}>
+      <Button className="mt-4" onClick={() => open('whatsapp')}>
+        <Share2 aria-hidden className="size-5" />
+        {t('share.whatsappCta')}
+      </Button>
+
+      <Button className="mt-2" variant="outline" onClick={nativeShare}>
         <Share2 aria-hidden className="size-5" />
         {t('share.native')}
       </Button>

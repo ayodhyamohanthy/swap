@@ -1,5 +1,5 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
-import { Check, Share2, ShieldCheck } from 'lucide-react'
+import { Check, Share2, ShieldCheck, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
@@ -29,7 +29,11 @@ function MatchesScreen() {
   const navigate = useNavigate()
   const toast = useToast()
   const request = useSwapRequest(id)
-  const [selected, setSelected] = useState<string[]>([])
+  /* Design 2a: every match starts ticked and the button reads "Send to 5 ·
+     free" — the send is free (rule 2) and asking all of them costs nothing. So
+     the state is who is TICKED OFF, not who is ticked on, and an empty list
+     means "send to everyone". */
+  const [deselected, setDeselected] = useState<string[]>([])
   const [sentOnce, setSentOnce] = useState(false)
 
   /* Success metric (docs/01 line 38, docs/12 line 78): the "you're the first on
@@ -99,11 +103,13 @@ function MatchesScreen() {
   }
 
   const doSend = () => {
-    const chosen = selected.length > 0 ? selected : pending.map((row) => row.candidate.id)
+    const chosen = pending
+      .map((row) => row.candidate.id)
+      .filter((candidateId) => !deselected.includes(candidateId))
     if (chosen.length === 0) return
     sendRequest(request.id, chosen)
     setSentOnce(true)
-    setSelected([])
+    setDeselected([])
     toast.show(t('matches.sent'))
   }
 
@@ -137,7 +143,7 @@ function MatchesScreen() {
       ) : null}
 
       <section className="mt-4 space-y-2">
-        {rows.map((row) => {
+        {rows.map((row, index) => {
           if ('offer' in row) {
             const offer = row.offer
             const accepted = offer.status === 'accepted'
@@ -146,16 +152,28 @@ function MatchesScreen() {
                 key={offer.id}
                 className="flex items-center gap-3 rounded-card border border-line bg-card p-3 shadow-soft"
               >
-                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-wash font-head font-bold text-primary">
+                <span
+                  aria-hidden
+                  className={`flex size-11 shrink-0 items-center justify-center rounded-full font-head font-bold ${
+                    index % 2 === 0 ? 'bg-wash text-primary' : 'bg-accent-soft text-accent'
+                  }`}
+                >
                   {offer.acceptor_name.slice(0, 1)}
                 </span>
                 <span className="min-w-0 flex-1">
                   <b className="block truncate font-head text-body text-ink">{offer.acceptor_name}</b>
                   <small className="block text-caption text-muted">
-                    {[t('matches.berthMasked'), offer.acceptor_coach ?? ''].filter(Boolean).join(' · ')}
+                    {[
+                      type(offer.acceptor_berth_type),
+                      offer.acceptor_coach
+                        ? t('trip.coach', { coach: offer.acceptor_coach })
+                        : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </small>
                   <small className="block text-caption text-muted">
-                    {t('matches.choice', { rank: offer.matched_choice_rank })}
+                    {t('matches.berthMasked')} · {t('matches.choice', { rank: offer.matched_choice_rank })}
                   </small>
                 </span>
                 <Pill tone={accepted ? 'primary' : 'neutral'}>
@@ -165,35 +183,59 @@ function MatchesScreen() {
             )
           }
           const { candidate } = row
-          const checked = selected.includes(candidate.id)
+          const checked = !deselected.includes(candidate.id)
           return (
             <label
               key={candidate.id}
               className="flex min-h-12 cursor-pointer items-center gap-3 rounded-card border border-line bg-card p-3 shadow-soft"
             >
+              {/* Real checkbox, visually replaced by the design 2a check button:
+                  the label still toggles it, so tap, keyboard and screen
+                  readers all keep working. */}
               <input
                 type="checkbox"
-                className="size-6 accent-[var(--color-primary)]"
+                className="sr-only"
                 checked={checked}
                 onChange={() =>
-                  setSelected((current) =>
+                  setDeselected((current) =>
                     checked
-                      ? current.filter((value) => value !== candidate.id)
-                      : [...current, candidate.id],
+                      ? [...current, candidate.id]
+                      : current.filter((value) => value !== candidate.id),
                   )
                 }
               />
+              <span
+                aria-hidden
+                className={`flex size-11 shrink-0 items-center justify-center rounded-full ${
+                  index % 2 === 0 ? 'bg-wash text-primary' : 'bg-accent-soft text-accent'
+                }`}
+              >
+                {/* Rule 13: a match is a stranger until they accept, so the
+                    row shows a person glyph, never an invented name. */}
+                <User className="size-5" />
+              </span>
               <span className="min-w-0 flex-1">
                 <b className="block truncate font-head text-body text-ink">
-                  {t('matches.berthMasked')} · {type(candidate.berth_type)}
+                  {t('matches.berthLine', { type: type(candidate.berth_type) })}
                 </b>
                 <small className="block text-caption text-muted">
-                  {[candidate.coach ?? '', candidate.class].filter(Boolean).join(' · ')}
+                  {candidate.coach
+                    ? t('trip.coach', { coach: candidate.coach })
+                    : candidate.class}
                 </small>
-                <small className="mt-0.5 flex items-center gap-1 text-caption text-primary">
-                  <ShieldCheck aria-hidden className="size-3.5" />
+                <small className="mt-0.5 flex items-center gap-1 text-caption text-muted">
+                  {t('matches.berthMasked')}
+                  <ShieldCheck aria-hidden className="size-3.5 text-primary" />
                   {t('matches.verified')}
                 </small>
+              </span>
+              <span
+                aria-hidden
+                className={`tap flex size-9 shrink-0 items-center justify-center rounded-lg border-2 ${
+                  checked ? 'border-primary bg-primary text-white' : 'border-line bg-card text-transparent'
+                }`}
+              >
+                <Check className="size-5" />
               </span>
             </label>
           )
@@ -202,9 +244,14 @@ function MatchesScreen() {
 
       {pending.length > 0 ? (
         <>
-          <Button className="mt-4" onClick={send}>
-            <Check aria-hidden className="size-5" />
-            {t('matches.sendTo', { n: selected.length > 0 ? selected.length : pending.length })}
+          <Button
+            className="mt-4"
+            onClick={send}
+            disabled={pending.every((row) => deselected.includes(row.candidate.id))}
+          >
+            {t('matches.sendTo', {
+              n: pending.filter((row) => !deselected.includes(row.candidate.id)).length,
+            })}
           </Button>
           <p className="mt-2 text-caption text-muted">{t('matches.openSwaps')}</p>
         </>

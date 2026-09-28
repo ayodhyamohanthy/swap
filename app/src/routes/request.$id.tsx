@@ -1,14 +1,14 @@
 import { Link, Outlet, createFileRoute, useNavigate } from '@tanstack/react-router'
-import { ArrowLeftRight, Share2 } from 'lucide-react'
+import { ChevronRight, Info, Pause, Pencil, Play, Share2, TrainFront, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { Pill } from '@/components/ui/pill'
-import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/components/ui/toast'
 import { requestStatusLabel, useI18n } from '@/lib/i18n'
 import { acceptedOffer, offersFor, setRequestPaused, withdrawRequest } from '@/lib/requests'
 import { getTrip } from '@/lib/store'
+import { cn } from '@/lib/utils'
 import { useSwapRequest } from '@/lib/use-store'
 
 /* Screens 15-17 "Your request / No reply / You're the first" (design 12b, 12c)
@@ -22,6 +22,54 @@ export const Route = createFileRoute('/request/$id')({
 /** Layout: the manage screen renders at the index route; /matches renders here. */
 function RequestLayout() {
   return <Outlet />
+}
+
+/**
+ * One row of the manage list (design 12b): icon, label, chevron. Renders a
+ * real `<Link>` or `<button>` so tab order, Enter and screen readers behave,
+ * and the chevron is decorative — the row itself is the control.
+ */
+function ActionRow({
+  icon: Icon,
+  label,
+  tone = 'ink',
+  to,
+  search,
+  onClick,
+}: {
+  icon: typeof Pencil
+  label: string
+  tone?: 'ink' | 'danger'
+  /** Renders the row as a link to this route instead of a button. */
+  to?: string
+  search?: Record<string, string>
+  onClick?: () => void
+}) {
+  const className = cn(
+    'tap flex w-full items-center gap-3 border-b border-line px-4 py-3 text-left font-head text-body last:border-b-0',
+    tone === 'danger' ? 'text-danger' : 'text-ink',
+  )
+  const inner = (
+    <>
+      <Icon aria-hidden className="size-5 shrink-0" />
+      <span className="min-w-0 flex-1">{label}</span>
+      <ChevronRight aria-hidden className="size-5 shrink-0 text-muted" />
+    </>
+  )
+  if (to) {
+    /* The only link target is "change what I want" (new request for the same
+       trip), so the href is built here rather than passed as a node. */
+    return (
+      <Link to={to} search={search} className={className}>
+        {inner}
+      </Link>
+    )
+  }
+  return (
+    <button type="button" onClick={onClick} className={className}>
+      {inner}
+    </button>
+  )
 }
 export function ManageRequestScreen() {
   const { id } = Route.useParams()
@@ -68,13 +116,45 @@ export function ManageRequestScreen() {
     if (next) toast.show(t('manage.pausedNote'))
   }
 
+  /* Design 12b: the summary card says what you asked for and where, so the
+     action list below is all "change / pause / withdraw" and nothing repeats
+     the state. `request.choices[0]` is the 1st choice (docs/04 A step 6). */
+  const wanted = request.choices[0] ? type(request.choices[0]) : null
+  const where = trip ? (trip.passengers[0]?.coach ?? trip.train_no) : null
+
   return (
     <div>
       <h1 className="text-title text-ink">{t('manage.title')}</h1>
-      <div className="mt-1 flex items-center gap-2">
-        <Pill tone={awaiting || locked ? 'primary' : 'neutral'}>{statusLabel}</Pill>
-        {trip ? <span className="text-caption text-muted">{trip.train_no}</span> : null}
-      </div>
+
+      {wanted ? (
+        <Card className="mt-4 flex items-center gap-3">
+          <TrainFront aria-hidden className="size-8 shrink-0 text-primary" />
+          <span className="min-w-0 flex-1">
+            <b className="block font-head text-body text-ink">
+              {[
+                t('manage.wanted', { berth: wanted }),
+                where ? t('trip.coach', { coach: where }) : '',
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </b>
+            {searching ? (
+              <Pill tone="accent" className="mt-1">
+                {t('manage.waiting')}
+              </Pill>
+            ) : (
+              <Pill tone={awaiting || locked ? 'primary' : 'neutral'} className="mt-1">
+                {statusLabel}
+              </Pill>
+            )}
+          </span>
+        </Card>
+      ) : (
+        <div className="mt-1 flex items-center gap-2">
+          <Pill tone={awaiting || locked ? 'primary' : 'neutral'}>{statusLabel}</Pill>
+          {trip ? <span className="text-caption text-muted">{trip.train_no}</span> : null}
+        </div>
+      )}
 
       {awaiting && accepted ? (
         <Card className="mt-4 border-accent/40 bg-accent-soft">
@@ -130,15 +210,20 @@ export function ManageRequestScreen() {
 
       {searching && offers.length === 0 ? (
         <Card className="mt-4">
-          <CardTitle>{t('manage.noReplyTitle')}</CardTitle>
+          {/* Design 12c names the train: "Nobody has replied on 12752 yet". */}
+          <CardTitle>
+            {trip?.train_no
+              ? t('manage.noReplyOn', { train: trip.train_no })
+              : t('manage.noReplyTitle')}
+          </CardTitle>
           <CardBody>{t('manage.noReplyBody')}</CardBody>
-          <Button className="mt-3" variant="outline" asChild>
+          <Button className="mt-3" asChild>
             <Link to="/share/$trainDate" params={{ trainDate: shareDate }}>
               <Share2 aria-hidden className="size-5" />
               {t('manage.share')}
             </Link>
           </Button>
-          <Button className="mt-2" asChild>
+          <Button className="mt-2" variant="outline" asChild>
             <Link to="/request/new" search={{ tripId: request.trip_id }}>
               {t('manage.tryAnother')}
             </Link>
@@ -181,37 +266,42 @@ export function ManageRequestScreen() {
 
       {searching ? (
         <>
-          <Card className="mt-4 flex items-center gap-3">
-            <span className="flex-1">
-              <b className="block font-head text-body text-ink">{t('manage.pause')}</b>
-              <span className="block text-caption text-muted">{t('manage.pausedNote')}</span>
-            </span>
-            <Switch checked={paused} aria-label={t('manage.pause')} onCheckedChange={togglePause} />
-          </Card>
-          <div className="mt-4 flex flex-col gap-2">
-            <Button variant="outline" asChild>
-              <Link to="/request/new" search={{ tripId: request.trip_id }}>
-                {t('manage.edit')}
-              </Link>
-            </Button>
-            <Button
-              variant="ghost"
-              className="justify-start text-danger"
+          {/* Design 12b: one card, three rows, each with an icon and a
+              chevron — the request's whole life cycle, nothing else. */}
+          <Card className="mt-4 flex-col items-stretch gap-0 p-0">
+            <ActionRow
+              icon={Pencil}
+              label={t('manage.changeWhat')}
+              to="/request/new"
+              search={{ tripId: request.trip_id }}
+            />
+            <ActionRow
+              icon={paused ? Play : Pause}
+              label={paused ? t('manage.resume') : t('manage.pauseRequest')}
+              onClick={() => togglePause(!paused)}
+            />
+            <ActionRow
+              icon={Trash2}
+              label={t('manage.withdrawRequest')}
+              tone="danger"
               onClick={() => {
                 withdrawRequest(request.id)
                 toast.show(t('manage.withdrawn'))
                 navigate({ to: '/' })
               }}
-            >
-              {t('manage.withdraw')}
-            </Button>
-          </div>
+            />
+          </Card>
+          {paused ? (
+            <p className="mt-2 text-caption text-muted">{t('manage.pausedNote')}</p>
+          ) : null}
         </>
       ) : null}
 
-      <p className="mt-4 flex gap-2 text-caption text-muted">
-        <ArrowLeftRight aria-hidden className="size-4 shrink-0" />
-        {t('first.sendFree')}
+      {/* Design 12b closes on the reassurance, not on a slogan: sending is
+          free and money only moves after somebody says yes (rule 2). */}
+      <p className="mt-4 flex items-start gap-2 rounded-card bg-wash p-3 text-caption text-ink">
+        <Info aria-hidden className="size-4 shrink-0 text-primary" />
+        {t('manage.payLater')}
       </p>
     </div>
   )

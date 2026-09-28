@@ -182,3 +182,65 @@ describe('Home is two designs, not one screen (25a empty vs 1a with trips)', () 
     }
   })
 })
+
+describe('Requests are the design\'s three screens (2a matches, 12b manage, 12c no reply)', () => {
+  it('sends to every match by default and counts the ones left ticked', () => {
+    /* Design 2a: five matches, five green checks, "Send to 5 · free". Sending
+       is free (rule 2), so nothing is opt-IN — the state we keep is who was
+       ticked OFF, and the button counts the survivors. A regression to an
+       opt-in list would read "Send to 5" over five empty boxes. */
+    const src = read('src/routes/request.$id.matches.tsx')
+    expect(src).toMatch(/const \[deselected, setDeselected\] = useState<string\[\]>\(\[\]\)/)
+    expect(src).toMatch(/const checked = !deselected\.includes\(candidate\.id\)/)
+    /* …and the real checkbox stays in the DOM (tap/keyboard/screen readers),
+       with the design's check drawn next to it. */
+    expect(src).toMatch(/type="checkbox"/)
+    expect(src).toMatch(/className="sr-only"/)
+    expect(src).toMatch(/checked \? 'border-primary bg-primary text-white'/)
+    /* No raw accent checkbox any more: the left-hand native one is gone. */
+    expect(src).not.toMatch(/accent-\[var\(--color-primary\)\]/)
+  })
+
+  it('keeps the row to what the data model knows (rule 13: no invented names)', () => {
+    const src = read('src/routes/request.$id.matches.tsx')
+    /* The design names every match; the local pool has no name for a stranger,
+       so the row leads with the berth type and draws a person glyph. */
+    expect(src).toMatch(/matches\.berthLine/)
+    expect(src).toMatch(/<User className="size-5" \/>/)
+    /* Berths stay masked before payment (rule 13). */
+    expect(src).toMatch(/matches\.berthMasked/)
+  })
+
+  it('summarises the request, then offers exactly three actions (design 12b)', () => {
+    const src = read('src/routes/request.$id.tsx')
+    expect(src).toMatch(/manage\.wanted/)
+    expect(src).toMatch(/manage\.waiting/)
+    for (const key of ['manage.changeWhat', 'manage.pauseRequest', 'manage.withdrawRequest']) {
+      expect(src, `design 12b row ${key}`).toContain(key)
+    }
+    /* The reassurance card, not a slogan: sending is free, money moves after
+       a yes (rule 2). */
+    expect(src).toMatch(/manage\.payLater/)
+    /* Design 12c names the train it is waiting on. */
+    expect(src).toMatch(/manage\.noReplyOn/)
+  })
+
+  it('leads the share screen with WhatsApp (design 2b) and keeps every channel', () => {
+    const src = read('src/routes/share.$trainDate.tsx')
+    expect(src.indexOf("open('whatsapp')")).toBeLessThan(src.indexOf("t('share.native')"))
+    for (const platform of ['telegram', 'facebook', 'instagram', 'sms']) {
+      expect(src, `docs/01 growth loop keeps ${platform}`).toContain(`open('${platform}')`)
+    }
+    expect(src).toMatch(/share\.heading/)
+  })
+
+  it('ships the new copy in both languages (docs/09)', () => {
+    for (const catalog of [en, hi]) {
+      expect(catalog.matches.title).toBeTruthy()
+      expect(catalog.matches.berthLine).toContain('{type}')
+      expect(catalog.manage.wanted).toContain('{berth}')
+      expect(catalog.manage.payLater).toBeTruthy()
+      expect(catalog.share.whatsappCta).toBeTruthy()
+    }
+  })
+})
