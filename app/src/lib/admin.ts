@@ -5,6 +5,9 @@
    activity filters, demo-mode admin_action log. Money = paise. */
 
 import { logActivity, type ActivityRow, type PaymentRow, type Trip } from './store'
+/* Type-only: the phase map is keyed by `RequestStatus`, so adding a status to
+   the state machine must break the build here rather than at runtime. */
+import type { RequestStatus, SwapOffer, SwapRequest } from './requests'
 import { formatRupees } from './money'
 import { spendableCreditPaise, type CreditLedgerRow } from './payments'
 import { trackEvent } from './analytics'
@@ -85,16 +88,154 @@ export interface AdminSwapRow {
   requester_last4: string
   train_no: string
   journey_date: string
-  status: string
+  /** The real `RequestStatus`, not a loose string: the screen builds the
+      tooltip key from it, so the type is what keeps the two in step. */
+  status: RequestStatus
+  /** First name + initial from the accepted offer (rule 13 — never more). */
+  acceptor_name: string | null
+  /** Money actually collected, `amount − credit_used`. 0 until a payment is
+      paid, which is why design 17 prints ₹0 on its waiting row. */
+  amount_paise: number
+  phase: SwapPhase
   updated_at: string
 }
 
 export function swapsToCsv(rows: AdminSwapRow[]): string {
   return toCsv(
-    ['id', 'requester_last4', 'train_no', 'journey_date', 'status', 'updated_at'],
-    rows.map((r) => [r.id, r.requester_last4, r.train_no, r.journey_date, r.status, r.updated_at]),
+    [
+      'id',
+      'requester_last4',
+      'train_no',
+      'journey_date',
+      'phase',
+      'acceptor_name',
+      'amount_paise',
+      'status',
+      'updated_at',
+    ],
+    rows.map((r) => [
+      r.id,
+      r.requester_last4,
+      r.train_no,
+      r.journey_date,
+      r.phase,
+      r.acceptor_name ?? '',
+      r.amount_paise,
+      r.status,
+      r.updated_at,
+    ]),
   )
 }
+
+/* ---- design 17's status phases ----
+   The design draws five chips: Waiting / Accepted / Paid / Done / To credit.
+   `RequestStatus` has **nine** values, and five chips cannot reach four of
+   them — including `disputed`, which is the one state an operator most needs
+   to find, because it is the only one where money is held and a human has to
+   decide. A filter that cannot reach a state is a filter that hides rows.
+
+   So the phases are derived from the state machine and the design's five names
+   are kept wherever they map cleanly. `disputed` and `closed` are added, and
+   the deviation is recorded on the board rather than quietly widening a chip.
+   The cost is two more chips than the design draws; the alternative is rows
+   nobody can filter to. */
+export const SWAP_PHASES = [
+  'waiting',
+  'accepted',
+  'paid',
+  'done',
+  'to_credit',
+  'disputed',
+  'closed',
+] as const
+
+export type SwapPhase = (typeof SWAP_PHASES)[number]
+
+/* The chip labels, `all` included. Kept here rather than in the route so a test
+   can assert every one resolves in both languages — the failure this catches is
+   a chip rendering `admin.phaseToCredit` as literal text, which is exactly the
+   class of bug the raw `request.status` enum was. */
+export const SWAP_PHASE_LABEL: Record<SwapPhase | 'all', MessageKey> = {
+  all: 'admin.swapAll',
+  waiting: 'admin.phaseWaiting',
+  accepted: 'admin.phaseAccepted',
+  paid: 'admin.phasePaid',
+  done: 'admin.phaseDone',
+  to_credit: 'admin.phaseToCredit',
+  disputed: 'admin.phaseDisputed',
+  closed: 'admin.phaseClosed',
+}
+
+/* A `Record<RequestStatus, SwapPhase>` on purpose: adding a status to the
+   union becomes a compile error here, rather than a row that silently renders
+   `undefined` and a chip count that no longer adds up. */
+const SWAP_PHASE_BY_STATUS: Record<RequestStatus, SwapPhase> = {
+  /* No acceptor yet. A draft belongs here rather than in a chip of its own:
+     it has no counterparty and no money, so from the operator's seat it is the
+     same fact as a search in progress — and the design gives it no chip. */
+  draft: 'waiting',
+  searching: 'waiting',
+  accepted_awaiting_payment: 'accepted',
+  /* Money in, waiting on both confirmations. */
+  locked: 'paid',
+  confirmed: 'done',
+  /* Voided: rule 6 sends the ₹99 to the requester's credit, never the bank. */
+  voided: 'to_credit',
+  disputed: 'disputed',
+  /* Ended without a swap and without credit moving. */
+  expired: 'closed',
+  withdrawn: 'closed',
+}
+
+export function swapPhase(status: RequestStatus): SwapPhase {
+  return SWAP_PHASE_BY_STATUS[status] ?? 'closed'
+}
+
+/** Every status that lands in one phase. The chip counts are built from this. */
+export function statusesByPhase(phase: SwapPhase): RequestStatus[] {
+  return (Object.keys(SWAP_PHASE_BY_STATUS) as RequestStatus[]).filter(
+    (status) => SWAP_PHASE_BY_STATUS[status] === phase,
+  )
+}
+
+/** Rows in one phase, or every row for `null` — the design's "All" chip. */
+export function filterSwaps(rows: AdminSwapRow[], phase: SwapPhase | null): AdminSwapRow[] {
+  return phase === null ? rows : rows.filter((row) => row.phase === phase)
+}
+
+/**
+ * Money actually collected for one request.
+ *
+ * `amount_paise` is the full price charged (9900 single, 19900 group) and
+ * `credit_used_paise` is the part paid from credit, so the cash that arrived is
+ * the difference. Design 17 agrees with this definition: it prints **₹49** on a
+ * swap part-paid with credit, **₹99** on the ones paid in full, and **₹0** while
+ * nothing is paid. It is the same rule `moneyInTodayPaise` uses, and a test pins
+ * the two together so a tile and a table on one console cannot disagree.
+ */
+export function collectedPaise(payment: PaymentRow | undefined): number {
+  if (!payment || payment.status !== 'paid') return 0
+  return Math.max(0, payment.amount_paise - payment.credit_used_paise)
+}
+
+/**
+ * The acceptor for a request, in the order the model can be trusted.
+ *
+ * `locked_offer_id` is authoritative once payment succeeds: `lockRequest`
+ * supersedes every other offer but deliberately leaves the locked one
+ * `accepted`, so the name survives into Paid and Done. Before that, the first
+ * accepted offer is the one awaiting payment. `null` means nobody has accepted
+ * yet — which is exactly design 17's `—`.
+ */
+export function acceptorName(request: SwapRequest, offers: SwapOffer[]): string | null {
+  const forRequest = offers.filter((offer) => offer.request_id === request.id)
+  const locked = request.locked_offer_id
+    ? forRequest.find((offer) => offer.id === request.locked_offer_id)
+    : undefined
+  if (locked) return locked.acceptor_name
+  return forRequest.find((offer) => offer.status === 'accepted')?.acceptor_name ?? null
+}
+
 //__PART2__
 export interface AdminPaymentRow {
   id: string

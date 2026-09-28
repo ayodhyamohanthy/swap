@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   ACTIVITY_CATEGORIES,
   ADMIN_ROUTES,
+  acceptorName,
   activityActions,
   activityCategory,
   activityDetails,
@@ -22,11 +23,17 @@ import {
   activityTone,
   activityTrain,
   buildOverview,
+  collectedPaise,
   creditSummary,
   creditsToCsv,
   filterActivity,
+  filterSwaps,
   firstOnTrainToday,
   paymentsToCsv,
+  statusesByPhase,
+  SWAP_PHASES,
+  SWAP_PHASE_LABEL,
+  swapPhase,
   swapsThisWeek,
   swapsToCsv,
   toCsv,
@@ -37,6 +44,7 @@ import {
   type AdminSwapRow,
   type AdminUserRow,
   type ActivityTone,
+  type SwapPhase,
 } from '@/lib/admin'
 import {
   isCreditExpired,
@@ -55,7 +63,9 @@ import {
   setPaymentStatus,
   startPayment,
   type ActivityRow,
+  type PaymentRow,
 } from '@/lib/store'
+import type { RequestStatus, SwapOffer, SwapRequest } from '@/lib/requests'
 
 const DAY = 24 * 60 * 60 * 1000
 const T0 = Date.parse('2026-11-12T10:00:00.000Z')
@@ -114,6 +124,9 @@ describe('admin CSV exporters never leak a full PNR', () => {
     train_no: '12951',
     journey_date: '2026-11-12',
     status: 'locked',
+    acceptor_name: 'Arjun S',
+    amount_paise: PRICE_PAISE,
+    phase: 'paid',
     updated_at: '2026-11-12',
   }
 
@@ -131,8 +144,271 @@ describe('admin CSV exporters never leak a full PNR', () => {
   })
 })
 
-/** A live (unexpired) credit row, for the balance tiles. */
-function liveCredit(amountPaise: number, id = 'w_live') {
+/* ---- design 17: the Swaps screen's phases and its two derivable columns ---- */
+
+function swapRequest(over: Partial<SwapRequest> = {}): SwapRequest {
+  return {
+    id: 'req_1',
+    trip_id: 'trip_1',
+    requester_id: null,
+    group_id: null,
+    choices: ['LB'],
+    same_coach: false,
+    keep_together: false,
+    reason_key: null,
+    status: 'searching',
+    paused: false,
+    locked_offer_id: null,
+    sent_at: null,
+    created_at: '2026-11-12T10:00:00.000Z',
+    updated_at: '2026-11-12T10:00:00.000Z',
+    ...over,
+  }
+}
+
+function swapOffer(over: Partial<SwapOffer> = {}): SwapOffer {
+  return {
+    id: 'off_1',
+    request_id: 'req_1',
+    acceptor_trip_id: 'trip_2',
+    acceptor_name: 'Arjun S',
+    acceptor_berth_type: 'UB',
+    acceptor_coach: 'S4',
+    acceptor_berth_no: '21',
+    matched_choice_rank: 1,
+    status: 'sent',
+    created_at: '2026-11-12T10:00:00.000Z',
+    responded_at: null,
+    ...over,
+  }
+}
+
+/** A screen row with `phase` derived from `status`, the way the route builds it. */
+function swapRow(over: Partial<AdminSwapRow> = {}): AdminSwapRow {
+  const status = over.status ?? 'searching'
+  return {
+    id: 'req_1',
+    requester_last4: '9630',
+    train_no: '12951',
+    journey_date: '2026-11-12',
+    status,
+    acceptor_name: null,
+    amount_paise: 0,
+    phase: swapPhase(status),
+    updated_at: '2026-11-12',
+    ...over,
+  }
+}
+
+describe('swapPhase — design 17\'s chips, and the states they cannot reach', () => {
+  /* The union as it stands today. The real guard is the
+     `Record<RequestStatus, SwapPhase>` in lib/admin.ts — adding a status to the
+     state machine is a compile error there — and this list is what makes the
+     runtime counts assertable at all, since types are erased. */
+  const ALL: RequestStatus[] = [
+    'draft',
+    'searching',
+    'accepted_awaiting_payment',
+    'locked',
+    'confirmed',
+    'voided',
+    'disputed',
+    'expired',
+    'withdrawn',
+  ]
+
+  it('maps every status, so no row is unfilterable', () => {
+    for (const status of ALL) {
+      expect(SWAP_PHASES, status).toContain(swapPhase(status))
+    }
+  })
+
+  it('partitions them: every status lands in exactly one phase', () => {
+    const seen = SWAP_PHASES.flatMap((phase) => statusesByPhase(phase))
+    expect([...seen].sort()).toEqual([...ALL].sort())
+    expect(new Set(seen).size).toBe(seen.length)
+  })
+
+  it('leaves no chip dead — every phase owns at least one status', () => {
+    for (const phase of SWAP_PHASES) {
+      expect(statusesByPhase(phase).length, `${phase} is unreachable`).toBeGreaterThan(0)
+    }
+  })
+
+  it("keeps the design's five names wherever they map", () => {
+    expect(swapPhase('searching')).toBe('waiting')
+    expect(swapPhase('accepted_awaiting_payment')).toBe('accepted')
+    expect(swapPhase('locked')).toBe('paid')
+    expect(swapPhase('confirmed')).toBe('done')
+    expect(swapPhase('voided')).toBe('to_credit')
+  })
+
+  it('adds a chip for `disputed`, which the design has none for', () => {
+    /* The design draws five chips and the state machine has nine values, so
+       four of them are unreachable through the design's filter — `disputed`
+       among them, and that is the one state where money is held and a person
+       has to decide. It is the worst of the four to hide. */
+    expect(SWAP_PHASES).toContain('disputed')
+    expect(swapPhase('disputed')).toBe('disputed')
+  })
+
+  it('has a chip label in both languages for every phase', () => {
+    const missing: string[] = []
+    for (const chip of ['all', ...SWAP_PHASES] as Array<SwapPhase | 'all'>) {
+      for (const lang of SHIPPED_LANGS) {
+        if (!lookupLabel(CATALOGS[lang], SWAP_PHASE_LABEL[chip])) {
+          missing.push(`${lang}:${SWAP_PHASE_LABEL[chip]}`)
+        }
+      }
+    }
+    expect(missing).toEqual([])
+  })
+
+  it('can name the exact state behind a phase, in both languages', () => {
+    /* The pill shows the phase and the tooltip shows the real state, so the two
+       vocabularies never collapse into one — and every status the map can
+       produce needs a tooltip string to exist. */
+    const missing: string[] = []
+    for (const status of ALL) {
+      for (const lang of SHIPPED_LANGS) {
+        if (!lookupLabel(CATALOGS[lang], `request.statuses.${status}`)) {
+          missing.push(`${lang}:request.statuses.${status}`)
+        }
+      }
+    }
+    expect(missing).toEqual([])
+  })
+})
+
+describe('filterSwaps — the All chip is the sum of the parts', () => {
+  const rows = [
+    swapRow({ id: 'a', status: 'searching' }),
+    swapRow({ id: 'b', status: 'locked' }),
+    swapRow({ id: 'c', status: 'confirmed' }),
+    swapRow({ id: 'd', status: 'disputed' }),
+  ]
+
+  it('returns everything for null, which is what All means', () => {
+    expect(filterSwaps(rows, null)).toHaveLength(rows.length)
+  })
+
+  it('partitions: the phase counts add up to the total', () => {
+    /* If this fails, a chip is hiding a row — which is the whole reason the
+       design's five chips were widened to seven. */
+    const counted = SWAP_PHASES.reduce(
+      (total, phase) => total + filterSwaps(rows, phase).length,
+      0,
+    )
+    expect(counted).toBe(rows.length)
+  })
+
+  it('narrows to one phase', () => {
+    expect(filterSwaps(rows, 'paid').map((r) => r.id)).toEqual(['b'])
+    expect(filterSwaps(rows, 'waiting').map((r) => r.id)).toEqual(['a'])
+    expect(filterSwaps(rows, 'disputed').map((r) => r.id)).toEqual(['d'])
+  })
+})
+
+describe('swapsToCsv carries design 17\'s columns', () => {
+  it('writes both vocabularies: the phase for reading, the status for grepping', () => {
+    const csv = swapsToCsv([
+      swapRow({ status: 'locked', acceptor_name: 'Arjun S', amount_paise: 4900 }),
+    ])
+    const [header, line] = csv.trim().split('\n')
+    expect(header.split(',')).toEqual([
+      'id',
+      'requester_last4',
+      'train_no',
+      'journey_date',
+      'phase',
+      'acceptor_name',
+      'amount_paise',
+      'status',
+      'updated_at',
+    ])
+    expect(line).toContain('paid')
+    expect(line).toContain('locked')
+    expect(line).toContain('Arjun S')
+    expect(line).toContain('4900')
+  })
+
+  it('leaves the acceptor blank rather than writing the word null', () => {
+    expect(swapsToCsv([swapRow({ acceptor_name: null })])).not.toContain('null')
+  })
+})
+
+describe('collectedPaise (design 17 Amount, rule 1)', () => {
+  const paid = (amount: number, credit: number, status: PaymentRow['status'] = 'paid'): PaymentRow => ({
+    id: 'pay_1',
+    request_id: 'req_1',
+    payer_id: null,
+    provider: 'razorpay',
+    provider_ref: null,
+    amount_paise: amount,
+    credit_used_paise: credit,
+    currency: 'INR',
+    status,
+    receipt_number: 'SS-00001',
+    created_at: '2026-11-12T10:00:00.000Z',
+    updated_at: '2026-11-12T10:00:00.000Z',
+  })
+
+  it('counts the cash, not the list price', () => {
+    /* Design 17 prints ₹49 on a swap part-paid with credit and ₹99 on the ones
+       paid in full. This is that rule, and it is the same one `moneyInTodayPaise`
+       uses — a tile and a table on one console must not disagree. */
+    expect(collectedPaise(paid(PRICE_PAISE, 0))).toBe(PRICE_PAISE)
+    expect(collectedPaise(paid(PRICE_PAISE, THANK_YOU_PAISE))).toBe(PRICE_PAISE - THANK_YOU_PAISE)
+  })
+
+  it('is zero until the money is actually in', () => {
+    expect(collectedPaise(undefined)).toBe(0)
+    expect(collectedPaise(paid(PRICE_PAISE, 0, 'pending'))).toBe(0)
+    expect(collectedPaise(paid(PRICE_PAISE, 0, 'created'))).toBe(0)
+    expect(collectedPaise(paid(PRICE_PAISE, 0, 'failed'))).toBe(0)
+  })
+
+  it('never goes negative, even if credit somehow exceeded the price', () => {
+    expect(collectedPaise(paid(PRICE_PAISE, PRICE_PAISE + 1000))).toBe(0)
+  })
+})
+
+describe('acceptorName (design 17 Acceptor, rule 13)', () => {
+  it('is null before anyone accepts — the design prints an em dash', () => {
+    expect(acceptorName(swapRequest(), [swapOffer({ status: 'sent' })])).toBeNull()
+    expect(acceptorName(swapRequest(), [])).toBeNull()
+  })
+
+  it('finds the offer awaiting payment', () => {
+    const accepted = swapOffer({ status: 'accepted' })
+    expect(acceptorName(swapRequest({ status: 'accepted_awaiting_payment' }), [accepted])).toBe(
+      'Arjun S',
+    )
+  })
+
+  it('follows locked_offer_id once payment has locked the swap', () => {
+    /* `lockRequest` supersedes every other offer but deliberately leaves the
+       locked one `accepted`, so the name survives into Paid and Done. It is
+       `locked_offer_id` that says WHICH acceptor, and it has to win even when
+       another offer is still sitting there accepted. */
+    const stale = swapOffer({ id: 'off_1', acceptor_name: 'Arjun S', status: 'accepted' })
+    const locked = swapOffer({ id: 'off_2', acceptor_name: 'Sneha R', status: 'accepted' })
+    const request = swapRequest({ status: 'locked', locked_offer_id: 'off_2' })
+    expect(acceptorName(request, [stale, locked])).toBe('Sneha R')
+  })
+
+  it('ignores offers belonging to another request', () => {
+    const other = swapOffer({
+      id: 'off_9',
+      request_id: 'req_2',
+      acceptor_name: 'Someone Else',
+      status: 'accepted',
+    })
+    expect(acceptorName(swapRequest(), [other])).toBeNull()
+  })
+})
+
+/** A live (unexpired) credit row, for the balance tiles. */function liveCredit(amountPaise: number, id = 'w_live') {
   return {
     id,
     amount_paise: amountPaise,
