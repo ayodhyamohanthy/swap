@@ -11,6 +11,18 @@
    <Outlet/>. The whole design-23 Overview screen was unreachable and nothing
    in the toolchain noticed. See docs/14-LANES.md, L7 pass 7.
 
+   TWO MODES (backlog 12). `MODE=softnav` (default) is the original probe:
+   load once, then soft-navigate — the way a user moves between tabs. A soft
+   navigation never hydrates, so it can never see a hydration error.
+   `MODE=direct` full-loads every route URL instead. Only the shell is
+   server-rendered (see the L7 → L3 note in docs/14-LANES.md) and it hydrates
+   on every full load, so direct mode re-runs the app's one hydration against
+   the markup the dev server just SSR'd, and fails on the first mismatch.
+   React reports both known variants on console.error ("A tree hydrated but
+   some attributes ...", "Hydration failed because ...") — the same channel
+   `tests/hydration.test.tsx` reads in CI; this is the browser half of that
+   guard. `TARGET=<route>` probes a single route in either mode.
+
    WHAT THIS DOES *NOT* CATCH — read this before trusting a green run.
    That bug rendered the entire admin sidebar, so the page had plenty of text.
    A "renders nothing" check cannot see it. The pathless-route class is covered
@@ -31,7 +43,9 @@
        If it cannot be resolved the script says so and exits 1.
 
    USAGE
-     node app/scripts/smoke-routes.mjs
+     node app/scripts/smoke-routes.mjs                          # softnav (default)
+     MODE=direct node app/scripts/smoke-routes.mjs              # full-load each route
+     TARGET=/ node app/scripts/smoke-routes.mjs                  # one route, either mode
      BASE=http://127.0.0.1:5199 node app/scripts/smoke-routes.mjs
      VERBOSE=1 node app/scripts/smoke-routes.mjs      # print all 58 rows
 
@@ -45,6 +59,24 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const routesDir = join(root, 'src', 'routes')
 const BASE = process.env.BASE || 'http://127.0.0.1:5199'
 const VERBOSE = process.env.VERBOSE === '1'
+
+/* softnav: the original probe (one load, client-side navigation, no
+   hydration). direct: a full document load per route, which is the only way a
+   browser ever sees a hydration error — see the header. */
+const MODE = (process.env.MODE || 'softnav').toLowerCase()
+if (MODE !== 'softnav' && MODE !== 'direct') {
+  console.error(`MODE must be 'softnav' or 'direct', got '${MODE}'`)
+  process.exit(1)
+}
+/* One route URL exactly as the probe would generate it (e.g. TARGET=/swaps).
+   Empty means "every route". */
+const TARGET = process.env.TARGET || ''
+
+/* React reports hydration failures on console.error in messages that always
+   carry the stem "hydrat" ("A tree hydrated but some attributes ... didn't
+   match", "Hydration failed because ..."). Direct mode highlights these;
+   softnav can never produce one. */
+const HYDRATION_ERROR = /hydrat/i
 
 /* A screen is "blank" below this many characters of visible text. Every real
    screen in this app renders at least a heading, and an empty-state screen
@@ -113,11 +145,21 @@ try {
   process.exit(1)
 }
 
+/* Kept as a list WITH duplicates (two files can probe the same URL, e.g. an
+   index and its sibling) — the historical count is "58 routes probed" and the
+   duplication is harmless: a URL worth probing once is worth probing twice. */
 const routes = readdirSync(routesDir)
   .filter((name) => name.endsWith('.tsx'))
   .map(toUrl)
   .filter(Boolean)
   .sort()
+
+if (TARGET && !routes.includes(TARGET)) {
+  console.error(`TARGET '${TARGET}' is not one of the ${routes.length} route URLs the probe generates.`)
+  console.error(`Routes start: ${routes.slice(0, 5).join(' ')} ...`)
+  process.exit(1)
+}
+const probeRoutes = TARGET ? [TARGET] : routes
 
 const browser = await puppeteer.launch({
   executablePath: findChrome(),
@@ -129,9 +171,27 @@ const page = await browser.newPage()
    images and the tab bar are built for. */
 await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2 })
 
+/* Dev noise, but ONLY in direct mode and ONLY for the manifest, identified by
+   URL rather than blanket: `vite-plugin-pwa` deliberately does not serve the
+   manifest when `devOptions.enabled` is false (docs/08), so every fresh
+   document load fetches /manifest.webmanifest and gets a 404 — Chrome then
+   logs both a resource failure and an installability complaint. Chrome puts
+   the failing URL in `message.location().url` on the resource failure and
+   spells the URL out in the installability text; any other resource 404 has
+   a different URL and still fails the route. Softnav keeps the original
+   strict behaviour: it does not reload, so it never sees this pair. */
+function isManifestNoise(message) {
+  const text = message.text()
+  const url = message.location()?.url ?? ''
+  if (url.endsWith('/manifest.webmanifest')) return /^Failed to load resource/.test(text)
+  return /^Manifest fetch from .*\/manifest\.webmanifest failed/.test(text)
+}
+
 let bucket = []
 page.on('console', (message) => {
-  if (message.type() === 'error') bucket.push(`console: ${message.text().slice(0, 160)}`)
+  if (message.type() !== 'error') return
+  if (MODE === 'direct' && isManifestNoise(message)) return
+  bucket.push(`console: ${message.text().slice(0, 160)}`)
 })
 page.on('pageerror', (error) => bucket.push(`throw: ${String(error).slice(0, 160)}`))
 
@@ -185,26 +245,47 @@ await page.evaluate(() => {
     'seatswap.seen.v1',
     'seatswap.groups.v1',
     'seatswap.invites.v1',
-    'seatswap.requests.v1',
     'seatswap.outbox.v1',
   ]) {
     localStorage.setItem(key, JSON.stringify([]))
   }
+  /* One accepted incoming response. `updatesFrom()` turns it into one unread
+     update, so the Swaps-tab badge is live during the probe — the conditional
+     shell content that the shipped hydration bug lived behind. Without a row
+     the badge never renders and no hydration check can ever see that branch.
+     `incoming` is an object, not an array — the other keys above are arrays. */
+  localStorage.setItem(
+    'seatswap.requests.v1',
+    JSON.stringify({ requests: [], offers: [], incoming: { x_1: 'accepted' } }),
+  )
 })
 await page.reload({ waitUntil: 'networkidle2' })
 
 const results = []
-for (const path of routes) {
+for (const path of probeRoutes) {
   bucket = []
-  await page.evaluate((target) => {
-    /* Soft navigation. `page.goto` on a client-rendered route serves the
-       prerendered home page (only `/` is prerendered) and throws React #418;
-       pushState alone fires no event, so the popstate is what makes the router
-       re-read location. */
-    history.pushState(null, '', target)
-    window.dispatchEvent(new PopStateEvent('popstate', { state: null }))
-  }, path)
-  await new Promise((resolve) => setTimeout(resolve, 380))
+  if (MODE === 'direct') {
+    /* Full document load: the server renders the shell fresh for this URL and
+       React hydrates against it. `load` (not `networkidle2`) because a dev
+       server keeps the HMR socket open forever; the settle after it is when
+       hydration + the router's first render happen. */
+    try {
+      await page.goto(`${BASE}${path}`, { waitUntil: 'load', timeout: 20_000 })
+    } catch (error) {
+      bucket.push(`goto: ${String(error).slice(0, 160)}`)
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+  } else {
+    await page.evaluate((target) => {
+      /* Soft navigation. `page.goto` on a client-rendered route serves the
+         prerendered home page (only `/` is prerendered) and throws React #418;
+         pushState alone fires no event, so the popstate is what makes the
+         router re-read location. */
+      history.pushState(null, '', target)
+      window.dispatchEvent(new PopStateEvent('popstate', { state: null }))
+    }, path)
+    await new Promise((resolve) => setTimeout(resolve, 380))
+  }
 
   const probe = await page.evaluate(() => {
     const main = document.querySelector('main')
@@ -219,9 +300,11 @@ await browser.close()
 const blank = results.filter((row) => row.textLen < BLANK_TEXT_LENGTH)
 const noisy = results.filter((row) => row.errors.length)
 
+console.log(`mode: ${MODE}${TARGET ? ` (target ${TARGET})` : ''}`)
 console.log(`routes probed: ${results.length}`)
 console.log(`blank screens: ${blank.length}`)
 console.log(`routes with errors: ${noisy.length}`)
+console.log(`hydration errors: ${noisy.reduce((n, row) => n + row.errors.filter((m) => HYDRATION_ERROR.test(m)).length, 0)}`)
 
 if (blank.length > 0) {
   console.log('\n=== RENDERED NOTHING ===')
@@ -231,7 +314,8 @@ if (noisy.length > 0) {
   console.log('\n=== ERRORS ===')
   for (const row of noisy) {
     console.log(`  ${row.requested}`)
-    for (const message of row.errors.slice(0, 3)) console.log(`      ${message}`)
+    for (const message of row.errors.slice(0, 3))
+      console.log(`      ${HYDRATION_ERROR.test(message) ? '[hydration] ' : ''}${message}`)
   }
 }
 if (VERBOSE) {
