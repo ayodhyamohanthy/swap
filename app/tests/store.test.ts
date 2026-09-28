@@ -23,6 +23,7 @@ import {
   setReminder,
   settings,
   updateSettings,
+  type Trip,
 } from "@/lib/store"
 
 describe("local trips store", () => {
@@ -267,5 +268,34 @@ describe("trip ratings feed future matches, never money", () => {
     ])
     expect(rows.map((row) => row.id)).toEqual(["rated", "plain"])
     expect(rows[0].score).toBeGreaterThan(rows[1].score)
+  })
+
+  it("carries a trip's rating into its match candidacy", async () => {
+    const { rateTrip } = await import("@/lib/store")
+    const { createRequest, matchesFor, resetRequests } = await import("@/lib/requests")
+    resetRequests()
+    const mine = await addTrip({
+      pnr: "4512789630",
+      train_no: "12951",
+      journey_date: "2026-11-12",
+      class: "3A",
+      from_code: "MMCT",
+      to_code: "NDLS",
+      passengers: [{ coach: "B3", berth_no: "27", berth_type: "LB" }],
+    })
+    const theirs = await addTrip({
+      pnr: "4512789648",
+      train_no: "12951",
+      journey_date: "2026-11-12",
+      class: "3A",
+      from_code: "MMCT",
+      to_code: "NDLS",
+      passengers: [{ coach: "B4", berth_no: "41", berth_type: "UB" }],
+    })
+    setOpenToSwap(theirs.id, true)
+    rateTrip(theirs.id, 4)
+    const request = createRequest({ trip_id: mine.id, choices: ["UB"] })
+    const row = matchesFor(request.id).find((r): r is { candidate: CandidateSpec; trip: Trip } => "candidate" in r)
+    expect(row?.candidate.rating).toBe(8)
   })
 })
