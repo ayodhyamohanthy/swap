@@ -12,7 +12,7 @@
 | L5 | Swaps + chat + safety | OpenCode/Muse Spark | done. Confirm/cancel persist, earned routing, meet records, ratings persist+score+gated, chat report parties, real-row receipts, guard Hindi/leet hardening, integration vs L3/L4/L6 green |
 | L6 | Groups + onboard | WorkBuddy/Claude | done. `groupTogetherCount` now reports the biggest same-train/date/coach cluster instead of whichever trip was linked first; GROUP_MAX_SWAPS audited — consistent at all five sites |
 | L7 | Admin | WorkBuddy/Claude | done. Six passes. (1) Overview (design 23): added Accepted / Money in / Credit given and fixed two numbers that were wrong — "Swaps done" counted per-side `confirmation` rows instead of `swap_confirmed`, and "Busiest trains" counted any train-tagged row under a "Swaps done" column; Money in is gross − credit, so credit is never counted as revenue. (2) Activity log (design 15): categorised chips. (3) Activity log: human action labels ("Added PNR", not `pnr_added`), raw action kept as a tooltip. (4) Activity log: Details column, rendered from a 26-field **allow-list** rather than a dump of `meta`, so caller-controlled values (`settings_changed.patch`, free-text `reason`) cannot reach an operator and no future meta key becomes a leak by default. Four guards read `src/` for every `logActivity()` call and fail if an action has no chip, no label in either language, no bounded detail, or a label too long for a row; all four were mutation-checked. (5) Overview: design 23's "Swaps this week" chart. The last point is today and equals `swapsDoneToday` by construction — a test asserts it, because a chart and a tile on the same screen disagreeing about one swap is the defect this lane keeps finding. Days that have not happened are `null`, not `0`, so the line stops at today instead of falling to the floor every Monday. (6) Overview: the "First on their train today" donut, on the metric docs/01 and docs/12 already named — an earlier note claiming it was undefined was wrong and is corrected in backlog 8. It excludes capped searches (a spent send budget is not a dead end), reports `null` rather than 0% when nobody searched, and surfaces both the cap flag and any unreadable count instead of guessing |
-| L8 | DB + schema | WorkBuddy/Claude | done. Pinned the enum + payments-target contracts with 17 new schema tests (all nine enums already matched); reviewed `get_matches()` and found it is the only path matching can ever take — plus two defects in the unapplied spec |
+| L8 | DB + schema | WorkBuddy/Claude | done. Resolved `get_matches()`' two open questions (row pagination stays; 50 is the server ceiling, 20 the phone's page size) and pinned the note to the SQL with a drift guard. Found that `together_seats` is never populated, making docs/08's "keep-together fit 10" unreachable from both the local stub and the production view — see backlog 9. Previously: Pinned the enum + payments-target contracts with 17 new schema tests (all nine enums already matched); reviewed `get_matches()` and found it is the only path matching can ever take — plus two defects in the unapplied spec |
 | L9 | Infra + credits | WorkBuddy/Claude | done. Pinned the vitest pool in `app/vitest.config.ts` so the documented green gate works again — `npm run test` runs the whole suite with no flags (31 files, ~3m30s). The test *count* moves as lanes add tests; what matters is "Test Files 31 passed", since a wrong pool silently drops files while reporting success |
 | L10 | i18n (single writer) | WorkBuddy/Claude | done. (5) The dead-end metric: `admin.firstOnTrain`, `firstOnTrainNone` (the null state), `firstOnTrainUnknown`, and the `matches_viewed` action label — en + hi. Previously: (4) Design 23's chart: `admin.chartSwaps` (en+hi), plus `localeFor()` — the `lang` → BCP-47 mapping now lives in one place, so shipping a third language is a one-line change instead of a hunt for every `lang === 'hi'` — and `formatWeekday()`, which derives weekday labels from `Intl` rather than a `weekdays` block in all 22 catalogues. `formatTripDate()` was refactored onto `localeFor()`. Previously: (1) Overview tile copy for the L7 metric fix: `s_accepted`, `s_swaps_done`, `s_money_in`, `s_credit_given`, `moneyInUnknown`, `colTrain`/`colTrainName`/`colSwapsDone` (en+hi); removed `s_confirmed`, whose label described the old per-side count. (2) Activity category chips: `catAll`, `catLabel`, `catTrips`, `catRequests`, `catSignins`, `catAccount`, `catOther` — Payments/Swaps/Reports chips reuse the sidebar's own keys so the two cannot drift. (3) `admin.act.*`: 49 action labels in both languages, keyed by action name so the naming convention is the mapping |
 
@@ -216,13 +216,60 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
    blocked/paused, daily-cap, filter and quota rules was corrected too — those
    stay in `rankMatches()`. Part 1's indexes were verified column-by-column and
    are correct as written.
-   **Still needs a decision before applying:** a booking with several passengers
-   yields several `match_cards` rows, so a `LIMIT` can split a booking across
-   pages; and the 50-row clamp contradicts the "never more than 20 rows" promise
-   in `azure/load/rpc-contract-note.ts`. Apply as a SECOND migration file —
-   `tests/schema.test.ts` only compares the init migration to `schema.sql` and
-   never enumerates the directory, so no `schema.sql` edit is needed. The old
-   header claim that the schema test blocked this was wrong.
+   **Both open questions resolved, 2026-09-28.** Row-based pagination stays.
+   - *Booking split across pages.* Harmless — but **not** for the reason the
+     note gave ("the client regroups by booking_id"; that only helps if the
+     client already holds every page, which a first render does not). The real
+     reason is that `match_cards` exposes no per-booking seat count, so the
+     client cannot infer anything from how many rows of a booking it received.
+     That is a constraint on the future fix, not a licence: if seat counts are
+     ever added for the keep-together score, they must be a **per-row** column
+     (every row carrying the booking's full count), never a client-side count
+     of rows received. Per-row keeps splitting harmless by construction.
+   - *50-row clamp vs "never more than 20 rows on a phone".* Both stand, as
+     different things: **50 is the server's abuse ceiling** (what no caller can
+     exceed), **20 is the phone client's page size** (a payload choice the
+     server has no business encoding — it cannot know the device, and a desktop
+     caller may want more). The contract note now says that instead of
+     presenting them as a contradiction.
+   A drift guard in `tests/azure-burndown.test.ts` now pins the note to the SQL
+   — the clamp values, the signature, `p_after` staying a `uuid`, and the
+   function staying a *narrowing* query rather than a second copy of
+   `rankMatches`. **Still not applied, and still not verifiable here**: there is
+   no Postgres in this environment, so the SQL has been reviewed and pinned but
+   never executed. Apply as a SECOND migration file — `tests/schema.test.ts`
+   only compares the init migration to `schema.sql` and never enumerates the
+   directory, so no `schema.sql` edit is needed. The old header claim that the
+   schema test blocked this was wrong.
+9. **`together_seats` is never populated, so docs/08's "keep-together fit 10" is
+   a score component that cannot fire.** Found 2026-09-28 while resolving item 6.
+   The evidence chain, all of it checked:
+   - `docs/08-PWA-AND-TECH.md` line 19 specifies the score as "choice rank (1st
+     50, 2nd 35, 3rd 20) + same coach 10 + **keep-together fit 10** + acceptor
+     rating 0–10".
+   - `lib/matching.ts` line 159 awards it: `if (request.keep_together &&
+     (cand.together_seats ?? 1) >= (request.group_size ?? 1)) score +=
+     KEEP_TOGETHER_POINTS`.
+   - `CandidateSpec.together_seats` is optional and **nothing in `src/` ever
+     assigns it** — `candidateFor()` in `lib/requests.ts` omits the field.
+   - It is not a local-stub gap either: the production view `match_cards`
+     (`supabase/schema.part7.sql`) exposes `booking_id, train_no, train_name,
+     journey_date, from_code, to_code, class, is_chair_car, passenger_id,
+     label, coach, berth_type, status, quota, first_name, last_initial` — **no
+     seat count of any kind**. So the backend cannot supply it as the schema
+     stands.
+   - `tests/matching.test.ts` proves the bonus works *given* `together_seats: 2`,
+     a value no production path can produce. The test passes on data that cannot
+     occur, which is why this went unnoticed.
+   A tripwire in `tests/matching.test.ts` now pins the gap (it fails, naming
+   `lib/requests.ts`, the moment anyone wires the field) and asserts the view
+   still has no seat column. **The fix needs a decision this lane should not
+   make alone:** what does "together" mean — the count of CNF passengers on the
+   booking (computable from the view), or berths that are actually *adjacent*
+   (not computable: `match_cards` deliberately exposes no `berth_no`, per rule
+   13)? Those differ, and a raw passenger count would overstate a booking whose
+   berths are scattered across the coach. Needs an answer from the human or
+   from docs/01 before either the schema or `candidateFor` changes.
 7. L7: design 15's activity log — **categorised filter done, 2026-09-28.**
    Chips are All / Trips / Requests / Payments / Swaps / Reports / Sign-ins /
    Account, plus an **Other** chip that appears *only* when something is
