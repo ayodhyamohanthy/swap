@@ -5,6 +5,7 @@
    activity filters, demo-mode admin_action log. Money = paise. */
 
 import { logActivity, type ActivityRow, type PaymentRow, type Trip } from './store'
+import { formatRupees } from './money'
 import { trackEvent } from './analytics'
 import { isSupabaseConfigured } from './supabase'
 import type { MessageKey } from './i18n'
@@ -525,5 +526,109 @@ export function filterActivity(rows: ActivityRow[], filter: ActivityFilter): Act
 /** Distinct action names for the filter dropdown. */
 export function activityActions(rows: ActivityRow[]): string[] {
   return [...new Set(rows.map((row) => row.action))].sort()
+}
+
+/* ------------------------------------------------------------------ *
+ * Activity details (design 15's Details column)                       *
+ * ------------------------------------------------------------------ */
+
+/** Bounded, single-line values. */
+function detailToken(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const text = value.trim()
+    return text ? text.slice(0, 24) : null
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return null
+}
+
+function detailCount(value: unknown): string | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? String(value) : null
+}
+
+/** Money stays in paise on the wire and renders as whole rupees. */
+function detailMoney(value: unknown): string | null {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? formatRupees(value) : null
+}
+
+/**
+ * A masked PNR tail. This is the guard, not just a formatter: it keeps only
+ * the LAST FOUR characters, so even if a call site one day logged a full
+ * 10-digit PNR under `last4`, the column still shows four digits (rule 13).
+ */
+function detailMasked(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const text = value.trim()
+  return text ? `····${text.slice(-4)}` : null
+}
+
+/** Free text — `report_filed.reason` and the operator's `admin_action.reason`.
+    Collapsed to one line and cut short: a reason is a note, not a transcript. */
+function detailFreeText(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const flat = value.replace(/\s+/g, ' ').trim()
+  return flat ? flat.slice(0, 40) : null
+}
+
+/**
+ * What the Details column may render, in reading order.
+ *
+ * An ALLOW-LIST, never a dump of `meta`. Log meta is written by ~50 call sites
+ * and two of them carry caller-controlled values: `settings_changed` stores
+ * whatever patch object it was handed, and `report_filed` / `admin_action`
+ * store a free-text `reason`. Rendering `meta` wholesale would put all of that
+ * in front of an operator, and would silently start showing any field a future
+ * call site decides to add — which is how a debug field becomes a data leak.
+ */
+const DETAIL_FIELDS: ReadonlyArray<[string, (value: unknown) => string | null]> = [
+  ['train_no', detailToken],
+  ['class', detailToken],
+  ['quota', detailToken],
+  ['last4', detailMasked],
+  ['passengers', detailCount],
+  ['matches', detailCount],
+  ['limit', detailCount],
+  ['rank', detailCount],
+  ['stars', detailCount],
+  ['filled', detailCount],
+  ['trips', detailCount],
+  ['attached_trips', detailCount],
+  ['local_trips', detailCount],
+  ['provider', detailToken],
+  ['kind', detailToken],
+  ['action', detailToken],
+  ['target', detailToken],
+  ['side', detailToken],
+  ['outcome', detailToken],
+  ['status', detailToken],
+  ['source', detailToken],
+  ['lang', detailToken],
+  ['method', detailToken],
+  ['amount_paise', detailMoney],
+  ['credit_used_paise', detailMoney],
+  ['reason', detailFreeText],
+]
+
+const DETAIL_SEPARATOR = ' · '
+const DETAIL_MAX_LENGTH = 60
+
+/**
+ * A short summary of what a row recorded (design 15's Details column).
+ *
+ * Deliberately **language-neutral** — bare values and `·` separators, no
+ * English glue ("3 passengers") — because a secondary column does not justify
+ * ~10 glue keys in every language, and the tokens are already the vocabulary
+ * the rest of the console uses (train numbers, class codes, provider names).
+ * Money is the one exception and goes through `formatRupees`.
+ */
+export function activityDetails(row: ActivityRow, maxLength = DETAIL_MAX_LENGTH): string {
+  const meta = row.meta as Record<string, unknown>
+  const parts: string[] = []
+  for (const [key, render] of DETAIL_FIELDS) {
+    const text = render(meta[key])
+    if (text) parts.push(text)
+  }
+  const joined = parts.join(DETAIL_SEPARATOR)
+  return joined.length > maxLength ? `${joined.slice(0, Math.max(1, maxLength - 1))}…` : joined
 }
 

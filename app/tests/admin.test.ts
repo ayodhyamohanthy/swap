@@ -15,6 +15,7 @@ import {
   ADMIN_ROUTES,
   activityActions,
   activityCategory,
+  activityDetails,
   activityLabelKey,
   activityToCsv,
   buildOverview,
@@ -45,6 +46,7 @@ import {
   resetStore,
   setPaymentStatus,
   startPayment,
+  type ActivityRow,
 } from '@/lib/store'
 
 const DAY = 24 * 60 * 60 * 1000
@@ -630,5 +632,86 @@ describe('usersToCsv carries the design-16 columns', () => {
   it('keeps credit in whole paise, never rupees', () => {
     expect(usersToCsv([user])).toContain(',5000,')
     expect(usersToCsv([user])).not.toContain(',50,')
+  })
+})
+
+/* Design 15's Details column. The risk here is not a wrong number, it is
+   showing something that should not be shown: log meta is written by ~50 call
+   sites and two of them carry caller-controlled values — `settings_changed`
+   stores an arbitrary patch object, and `report_filed` / `admin_action` store
+   free text. So the column reads an allow-list, never `meta`. */
+describe('activityDetails reads an allow-list, never the whole meta (rule 13)', () => {
+  function row(meta: Record<string, unknown>, action = 'pnr_added'): ActivityRow {
+    return {
+      id: 'act_1',
+      actor_id: 'u_1',
+      actor_role: 'user',
+      action,
+      entity: 'booking',
+      entity_id: 'b_1',
+      meta,
+      created_at: '2026-11-12T10:00:00.000Z',
+    }
+  }
+
+  it('summarises a PNR row with the tail masked and no full PNR', () => {
+    const text = activityDetails(row({ train_no: '12951', class: '3A', last4: '9630', passengers: 2 }))
+    expect(text).toBe('12951 · 3A · ····9630 · 2')
+    expect(text).not.toMatch(/\b\d{10}\b/)
+  })
+
+  it('renders money as whole rupees from paise', () => {
+    expect(activityDetails(row({ amount_paise: 9900, provider: 'razorpay' }, 'payment_paid'))).toBe(
+      'razorpay · ₹99',
+    )
+    expect(activityDetails(row({ amount_paise: 9900, credit_used_paise: 5000 }, 'payment_paid'))).toBe(
+      '₹99 · ₹50',
+    )
+  })
+
+  /* The mask is the guard, not just a formatter: if a call site ever logged a
+     full PNR under `last4`, only the last four characters may reach the row. */
+  it('keeps only the last four characters of a masked tail', () => {
+    const text = activityDetails(row({ last4: '1234567890' }))
+    expect(text).toBe('····7890')
+    expect(text).not.toContain('123456')
+  })
+
+  it('shows nothing it was not told to show', () => {
+    const pii = {
+      pnr: '1234567890',
+      email: 'asha@example.com',
+      phone: '+91 98765 43210',
+      full_name: 'Asha Ramanathan',
+      ticket_photo: 'https://example.com/t.jpg',
+      /* A future setting lands in `settings_changed`'s patch verbatim. */
+      anything_new: 'leaked',
+    }
+    const text = activityDetails(row(pii, 'settings_changed'))
+    expect(text).toBe('')
+    for (const value of Object.values(pii)) expect(text).not.toContain(value)
+  })
+
+  it('flattens free text to one line and cuts it short', () => {
+    expect(activityDetails(row({ reason: 'line one\nline two   spaced' }, 'report_filed'))).toBe(
+      'line one line two spaced',
+    )
+    expect(activityDetails(row({ reason: 'x'.repeat(200) }, 'report_filed')).length).toBe(40)
+  })
+
+  it('bounds the whole summary to one short line', () => {
+    const text = activityDetails(
+      row({
+        train_no: '12951',
+        class: '3A',
+        last4: '9630',
+        passengers: 2,
+        provider: 'razorpay',
+        kind: 'acceptor_credit',
+        reason: 'y'.repeat(200),
+      }),
+    )
+    expect(text.length).toBeLessThanOrEqual(60)
+    expect(text.endsWith('…')).toBe(true)
   })
 })

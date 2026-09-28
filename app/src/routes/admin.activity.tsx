@@ -7,6 +7,7 @@ import { Field, Input } from '@/components/ui/input'
 import {
   ACTIVITY_CATEGORIES,
   activityActions,
+  activityDetails,
   activityLabelKey,
   activityToCsv,
   downloadCsv,
@@ -133,23 +134,31 @@ function AdminActivity() {
         </Card>
       ) : (
         <ul className="mt-4 space-y-2">
-          {rows.map((row) => (
-            <li
-              key={row.id}
-              className="flex items-center justify-between gap-3 rounded-card border border-line bg-card p-3"
-            >
-              <span className="min-w-0">
+          {rows.map((row) => {
+            const detail = activityDetails(row)
+            return (
+              <li
+                key={row.id}
+                className="rounded-card border border-line bg-card p-3"
+              >
                 {/* The label is what an admin reads; the raw action stays as a
                     tooltip so the row is still greppable against the code. */}
                 <b className="block truncate font-head text-body text-ink" title={row.action}>
                   {t(activityLabelKey(row.action))}
                 </b>
+                {/* Design 15 keeps Train in its own column; it reads fine folded
+                    into Details, which is already a `·`-separated list. */}
+                {detail ? (
+                  <small className="mt-0.5 block truncate text-caption text-muted" title={detail}>
+                    {detail}
+                  </small>
+                ) : null}
                 <small className="block text-caption text-muted">
                   {date(row.created_at.slice(0, 10))} · {row.actor_role}
                 </small>
-              </span>
-            </li>
-          ))}
+              </li>
+            )
+          })}
         </ul>
       )}
     </div>
