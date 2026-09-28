@@ -712,6 +712,7 @@
     "creditBalance": "Unused balance",
     "moneyInUnknown": "paid payments are left out of Money in — the credit used is not recorded.",
     "busiest": "Busiest trains",
+    "colDetails": "Details",
     "colTrain": "Train no.",
     "colTrainName": "Train name",
     "colSwapsDone": "Swaps done",

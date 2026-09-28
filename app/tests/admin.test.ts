@@ -15,8 +15,11 @@ import {
   ADMIN_ROUTES,
   activityActions,
   activityCategory,
+  ACTIVITY_TRAIN_FIELD,
   activityDetails,
+  activityDetailsExcept,
   activityLabelKey,
+  activityTrain,
   activityToCsv,
   buildOverview,
   creditSummary,
@@ -998,5 +1001,53 @@ describe('creditSummary (design 24)', () => {
 
   it('is all zeros for an empty ledger', () => {
     expect(creditSummary([], NOW)).toEqual({ givenPaise: 0, usedPaise: 0, balancePaise: 0 })
+  })
+})
+
+/* Design 15 gives Train a column of its own, so the Details column must stop
+   rendering it — and must stop rendering it by KEY, not by cutting the number
+   out of finished text. These pin the difference. */
+describe('design 15: Train is its own column, not a token in Details', () => {
+  function row(meta: Record<string, unknown>, action = 'pnr_added'): ActivityRow {
+    return { ...logActivity(action, meta) }
+  }
+
+  it('reads the train through the same allow-list the details use', () => {
+    expect(activityTrain(row({ train_no: '12951' }))).toBe('12951')
+  })
+
+  it('is null when the row carries no train, so the cell can show a dash', () => {
+    expect(activityTrain(row({ class: '3A' }))).toBeNull()
+  })
+
+  it('bounds the train cell like any other allow-listed token', () => {
+    const long = '1'.repeat(80)
+    expect(activityTrain(row({ train_no: long }))?.length).toBe(24)
+  })
+
+  it('cannot be fed a value the allow-list would not render', () => {
+    expect(activityTrain(row({ train_no: { toString: () => '12951' } }))).toBeNull()
+  })
+
+  it('leaves the train out of Details when the column renders it', () => {
+    const r = row({ train_no: '12951', class: '3A', passengers: 2 })
+    expect(activityDetails(r)).toBe('12951 · 3A · 2')
+    expect(activityDetailsExcept(r, [ACTIVITY_TRAIN_FIELD])).toBe('3A · 2')
+  })
+
+  it('drops the whole field, so no separator is left behind', () => {
+    const r = row({ train_no: '12951' })
+    expect(activityDetailsExcept(r, [ACTIVITY_TRAIN_FIELD])).toBe('')
+  })
+
+  /* The reason skipping is by key: a train number that arrived under another
+     allow-listed field is a different fact and must survive. */
+  it('keeps an identical value that arrived under a different key', () => {
+    const r = row({ train_no: '12951', quota: '12951' })
+    expect(activityDetailsExcept(r, [ACTIVITY_TRAIN_FIELD])).toBe('12951')
+  })
+
+  it('still renders the train for callers that want one line (the CSV, the narrow card)', () => {
+    expect(activityDetails(row({ train_no: '12951' }))).toBe('12951')
   })
 })

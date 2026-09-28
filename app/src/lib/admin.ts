@@ -830,13 +830,48 @@ const DETAIL_MAX_LENGTH = 60
  * Money is the one exception and goes through `formatRupees`.
  */
 export function activityDetails(row: ActivityRow, maxLength = DETAIL_MAX_LENGTH): string {
+  return activityDetailsExcept(row, [], maxLength)
+}
+
+/**
+ * `activityDetails` with some allow-listed fields held back, for a layout that
+ * renders one of them in a column of its own (design 15 gives Train its own
+ * column, and a value shown twice on one row is noise, not redundancy).
+ *
+ * Skipping is by KEY against the same `DETAIL_FIELDS` allow-list, never a
+ * string subtraction on the rendered line: cutting `12752` out of finished
+ * text would also cut a `12752` that arrived under some other key, and would
+ * leave a stray separator behind.
+ */
+export function activityDetailsExcept(
+  row: ActivityRow,
+  skip: readonly string[],
+  maxLength = DETAIL_MAX_LENGTH,
+): string {
   const meta = row.meta as Record<string, unknown>
   const parts: string[] = []
   for (const [key, render] of DETAIL_FIELDS) {
+    if (skip.includes(key)) continue
     const text = render(meta[key])
     if (text) parts.push(text)
   }
   const joined = parts.join(DETAIL_SEPARATOR)
   return joined.length > maxLength ? `${joined.slice(0, Math.max(1, maxLength - 1))}…` : joined
+}
+
+/** The key `activityTrain` reads, so a caller can hold back exactly the field
+    the Train column renders without naming the string twice. */
+export const ACTIVITY_TRAIN_FIELD = 'train_no'
+
+/**
+ * Design 15's Train column. Reads through the SAME allow-list renderer the
+ * Details column uses, so the column inherits the bound on length and type
+ * rather than reaching into `meta` on its own — a second reader of `meta` is
+ * a second place a future key could leak from.
+ */
+export function activityTrain(row: ActivityRow): string | null {
+  const field = DETAIL_FIELDS.find(([key]) => key === ACTIVITY_TRAIN_FIELD)
+  if (!field) return null
+  return field[1]((row.meta as Record<string, unknown>)[ACTIVITY_TRAIN_FIELD])
 }
 

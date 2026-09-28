@@ -1,21 +1,35 @@
 import { createFileRoute } from '@tanstack/react-router'
 import type { RouteChrome } from '@/components/app-shell'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
+import {
+  AlertTriangle,
+  ArrowLeftRight,
+  Circle,
+  CreditCard,
+  FileText,
+  LogIn,
+  Send,
+  Settings,
+  type LucideIcon,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
 import { Field, Input } from '@/components/ui/input'
 import {
   ACTIVITY_CATEGORIES,
+  ACTIVITY_TRAIN_FIELD,
   activityActions,
-  activityDetails,
+  activityCategory,
+  activityDetailsExcept,
   activityLabelKey,
   activityToCsv,
+  activityTrain,
   downloadCsv,
   filterActivity,
   uncategorisedActions,
   type ActivityCategory,
 } from '@/lib/admin'
-import { useI18n, type MessageKey } from '@/lib/i18n'
+import { localeFor, useI18n, type LangCode, type MessageKey } from '@/lib/i18n'
 import { useAppState } from '@/lib/use-store'
 
 /* Admin A2 "Activity log" (design 15). Every state change in the app writes a
@@ -48,8 +62,102 @@ const CATEGORY_LABEL: Record<ActivityCategory | 'all', MessageKey> = {
   other: 'admin.catOther',
 }
 
+/**
+ * Design 15's Action column carries an icon per row, and it is the screen's
+ * biggest scanning win: an operator finds the payment among forty rows by
+ * shape, before reading a word.
+ *
+ * Keyed by CATEGORY, not by action. There are ~50 actions and eight
+ * categories, so an action map would need a new entry (and a new colour
+ * decision) every time a lane logs something new, and the day someone forgets
+ * is the day a row renders no icon. Category is already the exhaustive,
+ * guarded mapping — `tests/admin.test.ts` fails if a logged action lands in
+ * `other` — and `Record<ActivityCategory, …>` makes a missing entry a
+ * TYPE error rather than a blank cell.
+ */
+const CATEGORY_ICON: Record<ActivityCategory, LucideIcon> = {
+  trips: FileText,
+  requests: Send,
+  payments: CreditCard,
+  swaps: ArrowLeftRight,
+  reports: AlertTriangle,
+  signins: LogIn,
+  account: Settings,
+  other: Circle,
+}
+
+/** Semantic tokens only (AGENTS.md conventions): no raw hex in a component.
+    Only the two rows an operator must not miss get a colour — money and a
+    report — because eight colours is a legend, not a signal. */
+const CATEGORY_TONE: Record<ActivityCategory, string> = {
+  trips: 'text-muted',
+  requests: 'text-primary',
+  payments: 'text-accent',
+  swaps: 'text-primary',
+  reports: 'text-danger',
+  signins: 'text-muted',
+  account: 'text-muted',
+  other: 'text-muted',
+}
+
+/** The row's action, as an icon + its label. Shared by the table and the
+    narrow list so the two cannot drift. */
+function ActionCell({ action, label }: { action: string; label: string }) {
+  const category = activityCategory(action)
+  const Icon = CATEGORY_ICON[category]
+  return (
+    <span className="flex items-center gap-2">
+      {/* Decorative: the label beside it already says what happened, so a
+          screen reader should not hear the category twice. */}
+      <Icon aria-hidden className={`size-4 shrink-0 ${CATEGORY_TONE[category]}`} />
+      <span className="truncate font-head text-body text-ink" title={action}>
+        {label}
+      </span>
+    </span>
+  )
+}
+
+/** Held back from Details because the Train column renders it (by key, not by
+    string surgery — see `activityDetailsExcept`). */
+const TRAIN_ONLY = [ACTIVITY_TRAIN_FIELD] as const
+
+function Th({ children }: { children: ReactNode }) {
+  return (
+    <th scope="col" className="px-3 py-2 text-caption font-semibold uppercase tracking-wide text-muted">
+      {children}
+    </th>
+  )
+}
+
+function Td({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <td className={`px-3 py-2 ${className}`}>{children}</td>
+}
+
+/**
+ * Design 15's Time column is a clock, not a date: an operator reading an audit
+ * trail is placing events within the last hour. The date stays as the cell's
+ * tooltip (and on its own line in the narrow layout) so a row from yesterday
+ * can never be misread as one from this morning.
+ *
+ * Hour and minute only, through the active locale, so a Hindi console reads
+ * Devanagari digits like the rest of the app. Falls back to the raw ISO clock
+ * rather than throwing if a runtime has no data for the locale.
+ */
+export function activityClock(iso: string, lang: LangCode): string {
+  const at = new Date(iso)
+  if (Number.isNaN(at.getTime())) return ''
+  try {
+    return new Intl.DateTimeFormat(localeFor(lang), {
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(at)
+  } catch {
+    return iso.slice(11, 16)
+  }
+}
+
 function AdminActivity() {
-  const { t, date } = useI18n()
+  const { t, date, lang } = useI18n()
   const { activity } = useAppState()
   const [query, setQuery] = useState('')
   const [action, setAction] = useState<string | null>(null)
@@ -133,33 +241,77 @@ function AdminActivity() {
           <CardBody>{t('admin.empty')}</CardBody>
         </Card>
       ) : (
-        <ul className="mt-4 space-y-2">
-          {rows.map((row) => {
-            const detail = activityDetails(row)
-            return (
-              <li
-                key={row.id}
-                className="rounded-card border border-line bg-card p-3"
-              >
-                {/* The label is what an admin reads; the raw action stays as a
-                    tooltip so the row is still greppable against the code. */}
-                <b className="block truncate font-head text-body text-ink" title={row.action}>
-                  {t(activityLabelKey(row.action))}
-                </b>
-                {/* Design 15 keeps Train in its own column; it reads fine folded
-                    into Details, which is already a `·`-separated list. */}
-                {detail ? (
-                  <small className="mt-0.5 block truncate text-caption text-muted" title={detail}>
-                    {detail}
+        <>
+          {/* Design 15 is a ~1080px console and its log is a real table: Time /
+              Action / Train / Details, scanned top-to-bottom by column. Below
+              `lg` that does not fit — `AppShell` clamps every screen to
+              `.app-column` (34rem) — so the same rows render as cards there.
+              One `rows` array, two layouts; no second filter, no second sort.
+
+              The design's fifth column, User, is deliberately absent: every row
+              is written with one opaque `actor_id` and a hardcoded `'user'`
+              role (`lib/store.ts`), so the column would repeat one string down
+              the page. Names arrive with peer rows, not with markup. */}
+          <div className="mt-4 hidden overflow-x-auto rounded-card border border-line bg-card lg:block">
+            <table className="w-full border-collapse text-body">
+              <caption className="sr-only">{t('admin.log')}</caption>
+              <thead>
+                <tr className="border-b border-line text-left">
+                  <Th>{t('admin.colWhen')}</Th>
+                  <Th>{t('admin.colAction')}</Th>
+                  <Th>{t('admin.colTrain')}</Th>
+                  <Th>{t('admin.colDetails')}</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.id} className="border-b border-line last:border-0 align-top">
+                    <Td className="whitespace-nowrap text-muted">
+                      <time dateTime={row.created_at} title={date(row.created_at.slice(0, 10))}>
+                        {activityClock(row.created_at, lang)}
+                      </time>
+                    </Td>
+                    <Td>
+                      <ActionCell action={row.action} label={t(activityLabelKey(row.action))} />
+                    </Td>
+                    <Td className="whitespace-nowrap text-ink">{activityTrain(row) ?? '—'}</Td>
+                    <Td className="text-muted">{activityDetailsExcept(row, TRAIN_ONLY)}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <ul className="mt-4 space-y-2 lg:hidden">
+            {rows.map((row) => {
+              const train = activityTrain(row)
+              const detail = activityDetailsExcept(row, TRAIN_ONLY)
+              return (
+                <li key={row.id} className="rounded-card border border-line bg-card p-3">
+                  <ActionCell action={row.action} label={t(activityLabelKey(row.action))} />
+                  {/* Train keeps its own line here too, so the narrow layout
+                      reads the same fields in the same order as the table. */}
+                  {train ? (
+                    <small className="mt-0.5 block truncate text-caption text-ink">
+                      {t('admin.colTrain')} {train}
+                    </small>
+                  ) : null}
+                  {detail ? (
+                    <small className="mt-0.5 block truncate text-caption text-muted" title={detail}>
+                      {detail}
+                    </small>
+                  ) : null}
+                  <small className="block text-caption text-muted">
+                    <time dateTime={row.created_at}>
+                      {date(row.created_at.slice(0, 10))} · {activityClock(row.created_at, lang)}
+                    </time>{' '}
+                    · {row.actor_role}
                   </small>
-                ) : null}
-                <small className="block text-caption text-muted">
-                  {date(row.created_at.slice(0, 10))} · {row.actor_role}
-                </small>
-              </li>
-            )
-          })}
-        </ul>
+                </li>
+              )
+            })}
+          </ul>
+        </>
       )}
     </div>
   )
