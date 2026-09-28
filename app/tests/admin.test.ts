@@ -21,6 +21,7 @@ import {
   buildOverview,
   creditsToCsv,
   filterActivity,
+  firstOnTrainToday,
   paymentsToCsv,
   swapsThisWeek,
   swapsToCsv,
@@ -708,6 +709,100 @@ describe('swapsThisWeek (design 23)', () => {
     const activity = [confirmed(at('2026-11-08')), confirmed(at('2026-11-20'))]
     const week = swapsThisWeek(activity, NOW)
     expect(week.every((point) => point.swaps === null || point.swaps === 0)).toBe(true)
+  })
+})
+
+/* Design 23's "First on their train today" (docs/01 line 38, docs/12 line 78).
+   The metric exists to answer "how often do we hit the zero-match dead end", so
+   what it EXCLUDES matters as much as what it counts. */
+describe('firstOnTrainToday (design 23)', () => {
+  const NOW = new Date(2026, 10, 12, 10, 0, 0).getTime()
+
+  function viewed(matches: number, capped = false, when = NOW) {
+    return {
+      ...logActivity('matches_viewed', { matches, capped }),
+      created_at: new Date(when).toISOString(),
+    }
+  }
+
+  it('reports null, not 0%, when nobody searched', () => {
+    const stats = firstOnTrainToday([])
+    expect(stats.searched).toBe(0)
+    expect(stats.percent).toBeNull()
+    /* 0 would assert "everyone who looked found someone". Nobody looked. */
+    expect(stats.percent).not.toBe(0)
+  })
+
+  it('reports a real 0% when every search found someone', () => {
+    const stats = firstOnTrainToday([viewed(3), viewed(1)])
+    expect(stats.searched).toBe(2)
+    expect(stats.first).toBe(0)
+    expect(stats.percent).toBe(0)
+  })
+
+  it('excludes capped searches, which did not fail to find anyone', () => {
+    /* A capped user's pool may be full of people — the matches screen already
+       refuses to show them the "you're the first" card. Counting them here
+       would resurrect the lie the card avoids. */
+    const stats = firstOnTrainToday([viewed(0, true), viewed(4)])
+    expect(stats.searched).toBe(1)
+    expect(stats.first).toBe(0)
+    expect(stats.percent).toBe(0)
+    /* Without the exclusion this reads 1/2 = 50%. */
+  })
+
+  it('counts a zero-match search as first on their train', () => {
+    const stats = firstOnTrainToday([viewed(0), viewed(0), viewed(2), viewed(5)])
+    expect(stats.searched).toBe(4)
+    expect(stats.first).toBe(2)
+    expect(stats.percent).toBe(50)
+  })
+
+  it('rounds to a whole percent', () => {
+    expect(firstOnTrainToday([viewed(0), viewed(1), viewed(2)]).percent).toBe(33)
+    expect(firstOnTrainToday([viewed(0), viewed(0), viewed(1)]).percent).toBe(67)
+  })
+
+  it('ignores every other action, including the cap', () => {
+    const when = new Date(NOW).toISOString()
+    const rows = [
+      { ...logActivity('request_sent', {}), created_at: when },
+      { ...logActivity('request_capped', { limit: 10 }), created_at: when },
+    ]
+    expect(firstOnTrainToday(rows).searched).toBe(0)
+  })
+
+  it('leaves an unreadable count out of both sides and reports it', () => {
+    const broken = {
+      ...logActivity('matches_viewed', {}),
+      created_at: new Date(NOW).toISOString(),
+    }
+    const stats = firstOnTrainToday([viewed(0), viewed(2), broken])
+    expect(stats.unknown).toBe(1)
+    expect(stats.searched).toBe(2)
+    expect(stats.first).toBe(1)
+    expect(stats.percent).toBe(50)
+  })
+
+  it('is scoped to today, like every other tile', () => {
+    const yesterday = new Date(2026, 10, 11, 12, 0, 0).getTime()
+    const stats = overview({ activity: [viewed(0), viewed(0, false, yesterday)] }, NOW)
+    expect(stats.firstOnTrainToday.searched).toBe(1)
+    expect(stats.firstOnTrainToday.first).toBe(1)
+  })
+})
+
+/* The cap has to survive into the operator's log, or the exclusion above is
+   invisible on the one row where it matters. */
+describe('activityDetails shows the cap flag', () => {
+  it('names the flag on a capped search', () => {
+    expect(activityDetails(logActivity('matches_viewed', { matches: 0, capped: true }))).toBe(
+      '0 · capped',
+    )
+  })
+
+  it('stays quiet when the flag is false', () => {
+    expect(activityDetails(logActivity('matches_viewed', { matches: 3, capped: false }))).toBe('3')
   })
 })
 

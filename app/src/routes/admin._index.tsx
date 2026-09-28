@@ -101,6 +101,48 @@ function SwapWeekChart({ points, lang, title }: {
   )
 }
 
+/* Design 23's "First on their train today" donut.
+   Drawn as a dashed stroke on a circle rather than an arc path: the geometry is
+   one line instead of a trigonometric one, and the round cap gives the design's
+   softened ends for free.
+
+   `percent === null` means nobody searched, which is NOT the same as 0% — 0%
+   would assert that everyone who looked found someone. The ring renders empty
+   and the card says so in words. */
+function FirstOnTrainDonut({ percent, label }: { percent: number | null; label: string }) {
+  const RADIUS = 40
+  const CIRCUMFERENCE = 2 * Math.PI * RADIUS
+  const filled = percent === null ? 0 : (percent / 100) * CIRCUMFERENCE
+
+  return (
+    <svg viewBox="0 0 120 120" className="mt-2 size-28" role="img" aria-label={label}>
+      <circle cx="60" cy="60" r={RADIUS} fill="none" strokeWidth="12" className="stroke-line" />
+      {percent === null ? null : (
+        <circle
+          cx="60"
+          cy="60"
+          r={RADIUS}
+          fill="none"
+          strokeWidth="12"
+          strokeLinecap="round"
+          className="stroke-primary"
+          strokeDasharray={`${filled} ${CIRCUMFERENCE - filled}`}
+          transform="rotate(-90 60 60)"
+        />
+      )}
+      <text
+        x="60"
+        y="60"
+        textAnchor="middle"
+        dominantBaseline="central"
+        className="fill-ink font-head text-title font-bold"
+      >
+        {percent === null ? '—' : `${percent}%`}
+      </text>
+    </svg>
+  )
+}
+
 function AdminOverview() {
   const { t, lang } = useI18n()
   const { activity, wallet, payments, trips } = useAppState()
@@ -171,6 +213,25 @@ function AdminOverview() {
           </Card>
         ) : null}
       </div>
+
+      {/* Design 23's "First on their train today". The rate is the share of
+          today's match searches that came back empty (docs/01 line 38). */}
+      <Card className="mt-4">
+        <p className="font-head text-section text-ink">{t('admin.firstOnTrain')}</p>
+        <FirstOnTrainDonut percent={stats.firstOnTrainToday.percent} label={t('admin.firstOnTrain')} />
+        {stats.firstOnTrainToday.percent === null ? (
+          <p className="mt-2 text-caption text-muted">{t('admin.firstOnTrainNone')}</p>
+        ) : (
+          <p className="mt-2 text-caption text-muted">
+            {stats.firstOnTrainToday.first} / {stats.firstOnTrainToday.searched}
+          </p>
+        )}
+        {stats.firstOnTrainToday.unknown > 0 ? (
+          <p className="mt-2 text-caption text-muted">
+            {stats.firstOnTrainToday.unknown} {t('admin.firstOnTrainUnknown')}
+          </p>
+        ) : null}
+      </Card>
 
       <Card className="mt-4 flex items-start gap-2">
         <Coins aria-hidden className="mt-0.5 size-5 shrink-0 text-accent" />

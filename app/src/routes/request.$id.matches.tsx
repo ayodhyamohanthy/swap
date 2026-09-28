@@ -1,6 +1,6 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Check, Share2, ShieldCheck } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
@@ -8,7 +8,7 @@ import { Pill } from '@/components/ui/pill'
 import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/lib/i18n'
 import { matchesFor, sendCapped, sendRequest } from '@/lib/requests'
-import { getTrip, isSeen } from '@/lib/store'
+import { getTrip, isSeen, logActivity } from '@/lib/store'
 import type { Trip } from '@/lib/store'
 import type { CandidateSpec } from '@/lib/matching'
 import { MAX_OUTGOING_PER_DAY } from '@/lib/matching'
@@ -31,6 +31,36 @@ function MatchesScreen() {
   const request = useSwapRequest(id)
   const [selected, setSelected] = useState<string[]>([])
   const [sentOnce, setSentOnce] = useState(false)
+
+  /* Success metric (docs/01 line 38, docs/12 line 78): the "you're the first on
+     this train" rate. One row per request per session, using the same
+     StrictMode-safe session flag the payment screens use.
+
+     The count is taken inside the effect rather than read from the render
+     below, because the `!request` early return sits above where `rows` and
+     `capped` are derived, and a hook may not be called after it.
+
+     `capped` is RECORDED here, not filtered. A user whose send budget is spent
+     has not failed to find a match — the pool may be full of people — so
+     counting them as "first on their train" is the same lie the card further
+     down already guards against. The Overview excludes capped rows, which
+     keeps the cap visible in the log instead of hiding it here. */
+  useEffect(() => {
+    if (!request || typeof window === 'undefined') return
+    const key = `seatswap.matches-viewed.${id}`
+    try {
+      if (window.sessionStorage.getItem(key)) return
+      window.sessionStorage.setItem(key, '1')
+    } catch {
+      /* private mode */
+    }
+    logActivity(
+      'matches_viewed',
+      { matches: matchesFor(id).length, capped: sendCapped() },
+      { type: 'swap_request', id },
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request?.id])
 
   if (!request) {
     return (

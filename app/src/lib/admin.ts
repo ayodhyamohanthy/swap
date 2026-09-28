@@ -287,6 +287,35 @@ export interface AdminOverview {
    * first, always exactly 7 entries.
    */
   swapsThisWeek: SwapDayPoint[]
+  /**
+   * Design 23's "First on their train today" donut — the share of today's
+   * match searches that came back empty (docs/01 line 38, docs/12 line 78).
+   */
+  firstOnTrainToday: FirstOnTrain
+}
+
+/**
+ * Design 23's donut. "You're the first on this train" is the state a user
+ * reaches when their request has no matches (docs/04 line 16, docs/09 line 17).
+ */
+export interface FirstOnTrain {
+  /** Searches today that could have matched — capped ones are excluded. */
+  searched: number
+  /** Of those, how many found nobody. */
+  first: number
+  /**
+   * Rows whose `matches` count could not be read. Excluded from both sides and
+   * reported, the same way `moneyInUnknownToday` refuses to guess.
+   */
+  unknown: number
+  /**
+   * `first / searched` as a whole percent, or **null** when nobody searched.
+   *
+   * Null is not zero. Zero means "everyone who looked found someone"; null
+   * means "nobody looked". A donut reading 0% on a quiet morning asserts the
+   * first, and that is the same defect class as the rest of this file.
+   */
+  percent: number | null
 }
 
 /** One column of the week chart. */
@@ -342,6 +371,43 @@ function localDayKey(date: Date): string {
    the same swap, which is the exact defect this file keeps having to fix. */
 function isToday(iso: string, nowMs: number): boolean {
   return localDayKey(new Date(iso)) === localDayKey(new Date(nowMs))
+}
+
+/**
+ * Design 23's "First on their train today".
+ *
+ * Numerator and denominator come from the SAME population — the
+ * `matches_viewed` rows the matches screen writes — so the rate cannot be
+ * skewed by a mismatch between two different event counts.
+ *
+ * Two exclusions, both deliberate:
+ *
+ * 1. **Capped searches.** A user whose 10-a-day send budget is spent has not
+ *    failed to find a match; the pool may be full of people. The matches screen
+ *    already refuses to show the "you're the first" card in that case
+ *    (`request.$id.matches.tsx`), so counting them here would resurrect the
+ *    exact lie the card avoids.
+ * 2. **Unreadable counts.** A row with no readable `matches` is evidence of
+ *    nothing, so it leaves both sides of the ratio and is reported instead.
+ */
+export function firstOnTrainToday(activity: ActivityRow[]): FirstOnTrain {
+  const rows = activity.filter(
+    (row) => row.action === 'matches_viewed' && row.meta.capped !== true,
+  )
+  let first = 0
+  let unknown = 0
+  for (const row of rows) {
+    const matches = num(row.meta.matches)
+    if (matches === null) unknown += 1
+    else if (matches === 0) first += 1
+  }
+  const searched = rows.length - unknown
+  return {
+    searched,
+    first,
+    unknown,
+    percent: searched === 0 ? null : Math.round((first / searched) * 100),
+  }
 }
 
 const WEEK_LENGTH = 7
@@ -448,6 +514,8 @@ export function buildOverview(input: AdminOverviewInput, nowMs = Date.now()): Ad
     /* Deliberately over the WHOLE log, not just `today` — the week starts
        before today for six days out of seven. */
     swapsThisWeek: swapsThisWeek(input.activity, nowMs),
+    /* The tile says "today", so this one is scoped to today's rows. */
+    firstOnTrainToday: firstOnTrainToday(today),
   }
 }
 
@@ -504,6 +572,7 @@ const ACTIVITY_CATEGORY_BY_ACTION: Record<string, ActivityCategory> = {
   request_drafted: 'requests',
   request_sent: 'requests',
   request_capped: 'requests',
+  matches_viewed: 'requests',
   request_paused: 'requests',
   request_resumed: 'requests',
   request_withdrawn: 'requests',
@@ -643,6 +712,18 @@ function detailFreeText(value: unknown): string | null {
 }
 
 /**
+ * A `true` flag renders as the given token; anything else renders nothing.
+ *
+ * A factory rather than one shared formatter because the token IS the key name,
+ * and this column shows bare tokens (`3A`, `razorpay`) instead of English glue.
+ * Without it the cap on a `matches_viewed` row would be invisible to an
+ * operator, which is the one thing that row needs to say.
+ */
+function flagToken(token: string): (value: unknown) => string | null {
+  return (value) => (value === true ? token : null)
+}
+
+/**
  * What the Details column may render, in reading order.
  *
  * An ALLOW-LIST, never a dump of `meta`. Log meta is written by ~50 call sites
@@ -659,6 +740,7 @@ const DETAIL_FIELDS: ReadonlyArray<[string, (value: unknown) => string | null]> 
   ['last4', detailMasked],
   ['passengers', detailCount],
   ['matches', detailCount],
+  ['capped', flagToken('capped')],
   ['limit', detailCount],
   ['rank', detailCount],
   ['stars', detailCount],
