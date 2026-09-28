@@ -11,7 +11,7 @@
 | L4 | Payments (Razorpay/PayPal/credit) | WorkBuddy/Claude | done. Rule 2 now enforced on the local path: a group-covered swap can no longer be charged a second ₹99 |
 | L5 | Swaps + chat + safety | OpenCode/Muse Spark | done. Confirm/cancel persist, earned routing, meet records, ratings persist+score+gated, chat report parties, real-row receipts, guard Hindi/leet hardening, integration vs L3/L4/L6 green |
 | L6 | Groups + onboard | Pixel Canary/Claude | active: 2026-09-28T11:28Z | designs 52/53/34 parity + group rule audit; `routes/groups.*`, `routes/onboard.*`, `lib/groups.ts`. Previously: `groupTogetherCount` now reports the biggest same-train/date/coach cluster instead of whichever trip was linked first; GROUP_MAX_SWAPS audited — consistent at all five sites |
-| L7 | Admin | WorkBuddy/Claude | done. Seven passes. (7) **Found and fixed the reason the Overview screen never rendered.** `routes/admin._index.tsx` declared `createFileRoute('/admin/_index')`; every other index route in the repo uses a trailing-slash id (`/profile/`, `/swaps/`, `/profile/payments/`, `/request/$id/`, `/groups/$id/`, `/pay/$requestId/`), and a leading underscore is TanStack's marker for a *pathless* route — so the generator emitted `path: ''`, `/admin` matched the admin layout and the `<Outlet/>` stayed empty. `ADMIN_ROUTES[0]` links straight to `/admin`, so the entire design-23 screen — six tiles, the week chart, the donut — was unreachable behind a nav link pointing at it, while typecheck, the full suite and the production build all stayed green. Renamed to `routes/admin.index.tsx` + `createFileRoute('/admin/')`. **Why nothing caught it:** the dead-link guard in `tests/routes.test.ts` had a `norm()` that stripped a trailing `/_index`, so it deliberately treated `/admin/_index` and `/admin` as the same route and passed; that tolerance is now removed. Three new assertions pin the invariant (no id containing `_index`; every index route ends in `/`; the generated tree contains no `path: ''`), all mutation-checked by restoring the broken form — the first attempt had two of the three written wrong and only 1 of 3 fired, which is the whole argument for mutation testing a guard. Also verified the screen end-to-end in a real headless Chrome for the first time (dev server, 1180px viewport, seeded activity): tiles, chart geometry and donut all render correctly — see the L7 → L1 request about the phone-width clamp. Previously: six passes. (1) Overview (design 23): added Accepted / Money in / Credit given and fixed two numbers that were wrong — "Swaps done" counted per-side `confirmation` rows instead of `swap_confirmed`, and "Busiest trains" counted any train-tagged row under a "Swaps done" column; Money in is gross − credit, so credit is never counted as revenue. (2) Activity log (design 15): categorised chips. (3) Activity log: human action labels ("Added PNR", not `pnr_added`), raw action kept as a tooltip. (4) Activity log: Details column, rendered from a 26-field **allow-list** rather than a dump of `meta`, so caller-controlled values (`settings_changed.patch`, free-text `reason`) cannot reach an operator and no future meta key becomes a leak by default. Four guards read `src/` for every `logActivity()` call and fail if an action has no chip, no label in either language, no bounded detail, or a label too long for a row; all four were mutation-checked. (5) Overview: design 23's "Swaps this week" chart. The last point is today and equals `swapsDoneToday` by construction — a test asserts it, because a chart and a tile on the same screen disagreeing about one swap is the defect this lane keeps finding. Days that have not happened are `null`, not `0`, so the line stops at today instead of falling to the floor every Monday. (6) Overview: the "First on their train today" donut, on the metric docs/01 and docs/12 already named — an earlier note claiming it was undefined was wrong and is corrected in backlog 8. It excludes capped searches (a spent send budget is not a dead end), reports `null` rather than 0% when nobody searched, and surfaces both the cap flag and any unreadable count instead of guessing |
+| L7 | Admin | WorkBuddy/Claude | done. Eight passes. (8) Design 24's credit tiles — and the bug that building them exposed. The Credits screen showed one tile where the design has three; the other two were derivable, so they exist now: **Credit given** (every positive ledger row, ever), **Credit used** (the magnitude of the negative rows) and **Unused balance** (`spendableCreditPaise`, floored at zero). Building them surfaced that `admin.index.tsx` passed `walletTotalPaise: wallet.reduce((n, r) => n + r.amount_paise, 0)` — a sum with **no expiry filter** — into a field documented as "credit still unspent and **unexpired**", so credit that had already lapsed was counted as in circulation. Rather than patch the caller, `AdminOverviewInput` now takes the **ledger** instead of a pre-summed number, which makes the wrong input unrepresentable, and the balance is derived through the canonical `spendableCreditPaise` rather than a second definition that could drift. Mutation-checked (replacing the balance with a bare reduce fails `leaves expired credit out of circulation`). Verified in a real browser: ₹149 given / ₹49 used / ₹1 unused, with `given − used − balance` exactly the expired ₹99 earn. **One tile deliberately not built:** the design's "Expiring this month" — the ledger records a single `usedTotal`, not which earn each spend consumed, so attributing an expiry to a month needs a consumption-order assumption that would invert the tile's meaning. It would be a guess wearing a number's clothes. Previously: seven passes. (7) **Found and fixed the reason the Overview screen never rendered.** `routes/admin._index.tsx` declared `createFileRoute('/admin/_index')`; every other index route in the repo uses a trailing-slash id (`/profile/`, `/swaps/`, `/profile/payments/`, `/request/$id/`, `/groups/$id/`, `/pay/$requestId/`), and a leading underscore is TanStack's marker for a *pathless* route — so the generator emitted `path: ''`, `/admin` matched the admin layout and the `<Outlet/>` stayed empty. `ADMIN_ROUTES[0]` links straight to `/admin`, so the entire design-23 screen — six tiles, the week chart, the donut — was unreachable behind a nav link pointing at it, while typecheck, the full suite and the production build all stayed green. Renamed to `routes/admin.index.tsx` + `createFileRoute('/admin/')`. **Why nothing caught it:** the dead-link guard in `tests/routes.test.ts` had a `norm()` that stripped a trailing `/_index`, so it deliberately treated `/admin/_index` and `/admin` as the same route and passed; that tolerance is now removed. Three new assertions pin the invariant (no id containing `_index`; every index route ends in `/`; the generated tree contains no `path: ''`), all mutation-checked by restoring the broken form — the first attempt had two of the three written wrong and only 1 of 3 fired, which is the whole argument for mutation testing a guard. Also verified the screen end-to-end in a real headless Chrome for the first time (dev server, 1180px viewport, seeded activity): tiles, chart geometry and donut all render correctly — see the L7 → L1 request about the phone-width clamp. Previously: six passes. (1) Overview (design 23): added Accepted / Money in / Credit given and fixed two numbers that were wrong — "Swaps done" counted per-side `confirmation` rows instead of `swap_confirmed`, and "Busiest trains" counted any train-tagged row under a "Swaps done" column; Money in is gross − credit, so credit is never counted as revenue. (2) Activity log (design 15): categorised chips. (3) Activity log: human action labels ("Added PNR", not `pnr_added`), raw action kept as a tooltip. (4) Activity log: Details column, rendered from a 26-field **allow-list** rather than a dump of `meta`, so caller-controlled values (`settings_changed.patch`, free-text `reason`) cannot reach an operator and no future meta key becomes a leak by default. Four guards read `src/` for every `logActivity()` call and fail if an action has no chip, no label in either language, no bounded detail, or a label too long for a row; all four were mutation-checked. (5) Overview: design 23's "Swaps this week" chart. The last point is today and equals `swapsDoneToday` by construction — a test asserts it, because a chart and a tile on the same screen disagreeing about one swap is the defect this lane keeps finding. Days that have not happened are `null`, not `0`, so the line stops at today instead of falling to the floor every Monday. (6) Overview: the "First on their train today" donut, on the metric docs/01 and docs/12 already named — an earlier note claiming it was undefined was wrong and is corrected in backlog 8. It excludes capped searches (a spent send budget is not a dead end), reports `null` rather than 0% when nobody searched, and surfaces both the cap flag and any unreadable count instead of guessing |
 | L8 | DB + schema | WorkBuddy/Claude | done. Resolved `get_matches()`' two open questions (row pagination stays; 50 is the server ceiling, 20 the phone's page size) and pinned the note to the SQL with a drift guard. Found that `together_seats` is never populated, making docs/08's "keep-together fit 10" unreachable from both the local stub and the production view — see backlog 9. Previously: Pinned the enum + payments-target contracts with 17 new schema tests (all nine enums already matched); reviewed `get_matches()` and found it is the only path matching can ever take — plus two defects in the unapplied spec |
 | L9 | Infra + credits | WorkBuddy/Claude | done. (2) Added the repo's **first e2e capability**: `app/scripts/smoke-routes.mjs` loads the app in headless Chrome, soft-navigates every one of the 58 route URLs, and fails on a blank screen or an uncaught/console error. Result on this tree: **58 probed, 0 blank, 0 errors**. Mutation-checked with a temporary route that rendered nothing and logged an error — it named `/smoke-probe` exactly and exited 1, then the probe was deleted and the tree re-verified green. Its documented blind spot: it would *not* have caught the pathless-route bug that motivated it (that rendered a full sidebar with an empty `<Outlet/>`, so there was plenty of text), which is why `tests/routes.test.ts` guards the route tree and this guards the running app — complements, not substitutes. Not wired into CI; filed as backlog 10 because it needs a browser, and that is a cost/latency call for Ayu. `puppeteer-core` is deliberately not a project dependency, so no lockfile churn. Previously: pinned the vitest pool in `app/vitest.config.ts` so the documented green gate works again — `npm run test` runs the whole suite with no flags (31 files, ~3m30s). The test *count* moves as lanes add tests; what matters is "Test Files 31 passed", since a wrong pool silently drops files while reporting success |
 | L10 | i18n (single writer) | WorkBuddy/Claude | done. (5) The dead-end metric: `admin.firstOnTrain`, `firstOnTrainNone` (the null state), `firstOnTrainUnknown`, and the `matches_viewed` action label — en + hi. Previously: (4) Design 23's chart: `admin.chartSwaps` (en+hi), plus `localeFor()` — the `lang` → BCP-47 mapping now lives in one place, so shipping a third language is a one-line change instead of a hunt for every `lang === 'hi'` — and `formatWeekday()`, which derives weekday labels from `Intl` rather than a `weekdays` block in all 22 catalogues. `formatTripDate()` was refactored onto `localeFor()`. Previously: (1) Overview tile copy for the L7 metric fix: `s_accepted`, `s_swaps_done`, `s_money_in`, `s_credit_given`, `moneyInUnknown`, `colTrain`/`colTrainName`/`colSwapsDone` (en+hi); removed `s_confirmed`, whose label described the old per-side count. (2) Activity category chips: `catAll`, `catLabel`, `catTrips`, `catRequests`, `catSignins`, `catAccount`, `catOther` — Payments/Swaps/Reports chips reuse the sidebar's own keys so the two cannot drift. (3) `admin.act.*`: 49 action labels in both languages, keyed by action name so the naming convention is the mapping |
@@ -160,6 +160,34 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
   One present here is dated 2026-09-26, so this is long-standing, not new.
   Add `app/.tanstack/` to `.gitignore`. Worth pairing with the other two
   unowned-file findings below — `app/vitest.config.ts` and `routes/profile.*`.
+- 2026-09-28 L7 → L3 (owns `lib/requests.ts`; L3 was `done`, so no collision):
+  **fixed a hydration bug in the Swaps-tab badge, found while verifying L7.**
+  `useUnreadUpdates()` in `lib/use-store.ts` called `useAppState()` and
+  `useRequestsState()` for their *subscriptions* and then **discarded both
+  return values**, rendering `unreadUpdates()` instead — a direct read of module
+  state. That state is populated from `localStorage` at module load, so the
+  client's first render already had data, while `getServerSnapshot()`
+  deliberately returns an empty state. React therefore saw a badge the server
+  had not written and **regenerated the entire tree on every page load**:
+  `+ aria-label="Swaps, 2 new"` / `- aria-label="Swaps"`.
+  It was the only hook in that file doing it — every sibling (`useCreditPaise`,
+  `useSeenFlag`, `usePaymentFor`, `useSwapRequest`, …) reads from the subscribed
+  snapshot — which is exactly why it went unnoticed.
+  Fix: `updates()` was split into a **pure** `updatesFrom(state, app, at)` plus a
+  thin `updates()`, and a new `unreadUpdatesFor(app, requests, at)` derives the
+  rows from the snapshots the hook already holds. `updates()` keeps its
+  signature, so `markAllUpdatesRead` and every other imperative caller are
+  untouched. Three tests in `tests/requests.test.ts` pin the property that makes
+  the bug impossible; both halves were mutation-checked and each fails its own
+  named test (reading the live requests state; reading the live `seen` map).
+  **Worth knowing for anyone verifying this app:** *only the shell is
+  server-rendered.* `curl` of `/` and of `/admin/credits` both show an empty
+  Suspense boundary in `<main>` — route content renders after hydration in SPA
+  mode. So a *route-level* hydration mismatch cannot occur, and the shell is the
+  entire surface where one can. `useI18n` and `useOnline` already follow the
+  right pattern deliberately (`lib/i18n.tsx` says so in a comment, and
+  `BOOT_SCRIPT` exists for the same reason); `useUnreadUpdates` was the one
+  place that did not.
 
 ## Backlog (unclaimed, ready to pull)
 
@@ -426,4 +454,47 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
     (`--host 127.0.0.1`), because `vite dev` otherwise listens on `[::1]` only.
     Also `app/scripts/**` is in **no lane's ownership map** (docs/13 §1) —
     joining `app/vitest.config.ts`, `routes/profile.*` and now `app/.tanstack/`.
-    Four unowned paths is a pattern worth fixing in the map itself.
+    **Five** unowned paths, counting `routes/__root.tsx` (item 11): the root
+    document, the test-runner config, the script directory and two route trees
+    all sit outside the map. That is a pattern worth fixing in the map itself.
+
+11. **L10 + whoever owns `routes/__root.tsx`: the prerendered `lang` attribute
+    was a hydration mismatch for every Hindi reader — done 2026-09-28.**
+    `BOOT_SCRIPT` sets `document.documentElement.lang = 'hi'` before first paint
+    (deliberately, so the document is marked Hindi from the very first frame),
+    while `RootDocument` rendered `<html lang="en">` — a bare literal, not
+    `DEFAULT_LANG`, even though `DEFAULT_LANG` was already imported for the meta
+    tags rendered right beside it.
+    React 19 reports this as a **different** error from a structural mismatch:
+    "A tree hydrated but some attributes of the server rendered HTML didn't
+    match the client properties. **This won't be patched up.**" So unlike the
+    badge bug it does *not* regenerate the tree — the DOM keeps `lang="hi"` and
+    the end state is accidentally correct. The cost is a console error on every
+    load for every Hindi user, which is the kind of noise that teaches people to
+    ignore hydration errors.
+    Fixed with `lang={DEFAULT_LANG}` plus `suppressHydrationWarning` on `<html>`
+    — the divergence is intentional, and that is React's documented mechanism for
+    exactly this case.
+    **Verified independent of the badge fix:** with the badge bug temporarily
+    restored, the structural mismatch still fires, so `suppressHydrationWarning`
+    on `<html>` does not mask descendant mismatches. Measured by direct load
+    before and after: `LANG=hi` → 1 error, now 0; `LANG=en` → 0 throughout.
+
+12. **A shell-hydration guard, so this class is caught rather than hunted.**
+    The shell is the only server-rendered surface (see the L7 → L3 note), and two
+    mismatches have now been found there **by hand** — both by driving a real
+    browser, neither by any of the ~500 tests, by typecheck, or by the build.
+    A real guard means rendering the shell server-side, hydrating it against that
+    HTML with a *populated* store, and asserting no `console.error`. That is
+    buildable (`react-dom/server` + `hydrateRoot` under jsdom) but it needs the
+    router context, so it is not a five-minute job.
+    The cheap version until then: extend `app/scripts/smoke-routes.mjs` to do a
+    **direct load** per route and fail on a hydration error. Note that its
+    current soft-navigation *cannot* see one — client-side navigation never
+    hydrates, so it can only ever report a mismatch on `/`. Adding a `TARGET` +
+    `MODE=direct|softnav` split is what made the difference here.
+    One trap worth recording, because it nearly produced a wrong result twice in
+    this pass: **a scripted `str.replace` with no assertion fails silently.**
+    Two mutation runs were reported before it was noticed that the first mutation
+    was still in the file. Assert the mutation applied — or use an editor that
+    errors on no-match — before trusting a green or red run.
