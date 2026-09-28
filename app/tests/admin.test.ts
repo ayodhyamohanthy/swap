@@ -15,6 +15,7 @@ import {
   ADMIN_ROUTES,
   activityActions,
   activityCategory,
+  activityLabelKey,
   activityToCsv,
   buildOverview,
   creditsToCsv,
@@ -35,6 +36,7 @@ import {
   shouldAutoConfirm,
   shouldNotifyChartTime,
 } from '@/lib/jobs'
+import { CATALOGS, SHIPPED_LANGS } from '@/lib/i18n'
 import { FEE_PAISE, GROUP_PRICE_PAISE, PRICE_PAISE, THANK_YOU_PAISE } from '@/lib/money'
 import {
   activityLog,
@@ -47,6 +49,23 @@ import {
 
 const DAY = 24 * 60 * 60 * 1000
 const T0 = Date.parse('2026-11-12T10:00:00.000Z')
+
+/** Follow a dotted catalogue path ("admin.act.pnr_added"). */
+function catalogueValue(node: unknown, path: string): unknown {
+  return path.split('.').reduce<unknown>(
+    (current, part) =>
+      current && typeof current === 'object'
+        ? (current as Record<string, unknown>)[part]
+        : undefined,
+    node,
+  )
+}
+
+/** The label string at a catalogue path, or null when it is missing. */
+function lookupLabel(catalogue: unknown, path: string): string | null {
+  const value = catalogueValue(catalogue, path)
+  return typeof value === 'string' ? value : null
+}
 
 describe('admin route table', () => {
   it('lists the seven console screens', () => {
@@ -405,6 +424,34 @@ describe('filterActivity by category (design 15)', () => {
         'signins',
         'account',
       ])
+    })
+
+    /* Design 15 shows "Added PNR", not `pnr_added`. The label key is derived
+       from the action name, so the only way to get this wrong is to add an
+       action and forget its copy — which is what this catches. */
+    it('has a human label for every action, in both languages', () => {
+      const missing: string[] = []
+      for (const action of loggedActions()) {
+        const key = activityLabelKey(action)
+        for (const lang of SHIPPED_LANGS) {
+          if (!lookupLabel(CATALOGS[lang], key)) missing.push(`${lang}:${key}`)
+        }
+      }
+      expect(missing).toEqual([])
+    })
+
+    it('keeps every label short enough to read in a row', () => {
+      /* These are row headings, not sentences (design 15: "Paid ₹99",
+         "Sent request"). A label that grew into a sentence would wrap the
+         list; catch it here rather than on the screen. */
+      const tooLong: string[] = []
+      for (const action of loggedActions()) {
+        for (const lang of SHIPPED_LANGS) {
+          const label = lookupLabel(CATALOGS[lang], activityLabelKey(action))
+          if (label && label.length > 28) tooLong.push(`${lang}:${action} = ${label}`)
+        }
+      }
+      expect(tooLong).toEqual([])
     })
   })
 })

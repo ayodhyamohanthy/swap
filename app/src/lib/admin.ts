@@ -477,6 +477,21 @@ export function activityCategory(action: string): ActivityCategory {
 }
 
 /**
+ * The catalogue key for an action's human label (design 15 shows "Added PNR",
+ * not `pnr_added`).
+ *
+ * Derived from the action name, so there is no second list to keep in step
+ * with `ACTIVITY_CATEGORY_BY_ACTION` — the naming convention *is* the mapping,
+ * and `tests/admin.test.ts` walks every `logActivity()` call and fails if a
+ * label is missing from either language. An action with no label renders its
+ * own key (`admin.act.some_new_thing`), which is loud rather than silent; the
+ * screen also keeps the raw action as a tooltip.
+ */
+export function activityLabelKey(action: string): MessageKey {
+  return `admin.act.${action}` as MessageKey
+}
+
+/**
  * Actions present in `rows` that no category claims. The screen renders an
  * "Other" chip when this is non-empty, so an action added without updating the
  * map shows up loudly instead of quietly vanishing from every chip.

@@ -7,6 +7,7 @@ import { Field, Input } from '@/components/ui/input'
 import {
   ACTIVITY_CATEGORIES,
   activityActions,
+  activityLabelKey,
   activityToCsv,
   downloadCsv,
   filterActivity,
@@ -120,7 +121,7 @@ function AdminActivity() {
           <option value="">{t('admin.filterAll')}</option>
           {actions.map((name) => (
             <option key={name} value={name}>
-              {name}
+              {t(activityLabelKey(name))}
             </option>
           ))}
         </select>
@@ -138,7 +139,11 @@ function AdminActivity() {
               className="flex items-center justify-between gap-3 rounded-card border border-line bg-card p-3"
             >
               <span className="min-w-0">
-                <b className="block truncate font-head text-body text-ink">{row.action}</b>
+                {/* The label is what an admin reads; the raw action stays as a
+                    tooltip so the row is still greppable against the code. */}
+                <b className="block truncate font-head text-body text-ink" title={row.action}>
+                  {t(activityLabelKey(row.action))}
+                </b>
                 <small className="block text-caption text-muted">
                   {date(row.created_at.slice(0, 10))} · {row.actor_role}
                 </small>
