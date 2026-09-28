@@ -14,7 +14,7 @@ import { getTrip, listTrips } from '@/lib/store'
    coach + berth type — never a name, PNR or berth number (rule 13). */
 
 export const Route = createFileRoute('/onboard/$tripId')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'home' } satisfies RouteChrome,
   component: OnboardScreen,
 })
 

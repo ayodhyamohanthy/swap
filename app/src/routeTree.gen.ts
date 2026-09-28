@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as CheckRouteImport } from './routes/check'
 import { Route as GoodbyeRouteImport } from './routes/goodbye'
+import { Route as GroupsRouteImport } from './routes/groups'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as SigninRouteImport } from './routes/signin'
 import { Route as SwapsRouteImport } from './routes/swaps'
@@ -25,6 +26,7 @@ import { Route as AdminReportsRouteImport } from './routes/admin.reports'
 import { Route as AdminSwapsRouteImport } from './routes/admin.swaps'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as ChatIdRouteImport } from './routes/chat.$id'
+import { Route as GroupsIndexRouteImport } from './routes/groups.index'
 import { Route as GroupsIdRouteImport } from './routes/groups.$id'
 import { Route as IncomingIdRouteImport } from './routes/incoming.$id'
 import { Route as OnboardTripIdRouteImport } from './routes/onboard.$tripId'
@@ -88,6 +90,11 @@ const GoodbyeRoute = GoodbyeRouteImport.update({
   path: '/goodbye',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GroupsRoute = GroupsRouteImport.update({
+  id: '/groups',
+  path: '/groups',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -148,10 +155,15 @@ const ChatIdRoute = ChatIdRouteImport.update({
   path: '/chat/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GroupsIndexRoute = GroupsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => GroupsRoute,
+} as any)
 const GroupsIdRoute = GroupsIdRouteImport.update({
-  id: '/groups/$id',
-  path: '/groups/$id',
-  getParentRoute: () => rootRouteImport,
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => GroupsRoute,
 } as any)
 const IncomingIdRoute = IncomingIdRouteImport.update({
   id: '/incoming/$id',
@@ -364,6 +376,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRouteWithChildren
   '/check': typeof CheckRoute
   '/goodbye': typeof GoodbyeRoute
+  '/groups': typeof GroupsRouteWithChildren
   '/profile': typeof ProfileRouteWithChildren
   '/signin': typeof SigninRoute
   '/swaps': typeof SwapsRouteWithChildren
@@ -396,6 +409,7 @@ export interface FileRoutesByFullPath {
   '/welcome/note': typeof WelcomeNoteRoute
   '/welcome/privacy': typeof WelcomePrivacyRoute
   '/admin/': typeof AdminIndexRoute
+  '/groups/': typeof GroupsIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/swaps/': typeof SwapsIndexRoute
   '/groups/$id/plan': typeof GroupsIdPlanRoute
@@ -449,6 +463,7 @@ export interface FileRoutesByTo {
   '/welcome/note': typeof WelcomeNoteRoute
   '/welcome/privacy': typeof WelcomePrivacyRoute
   '/admin': typeof AdminIndexRoute
+  '/groups': typeof GroupsIndexRoute
   '/profile': typeof ProfileIndexRoute
   '/swaps': typeof SwapsIndexRoute
   '/groups/$id/plan': typeof GroupsIdPlanRoute
@@ -478,6 +493,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRouteWithChildren
   '/check': typeof CheckRoute
   '/goodbye': typeof GoodbyeRoute
+  '/groups': typeof GroupsRouteWithChildren
   '/profile': typeof ProfileRouteWithChildren
   '/signin': typeof SigninRoute
   '/swaps': typeof SwapsRouteWithChildren
@@ -510,6 +526,7 @@ export interface FileRoutesById {
   '/welcome/note': typeof WelcomeNoteRoute
   '/welcome/privacy': typeof WelcomePrivacyRoute
   '/admin/': typeof AdminIndexRoute
+  '/groups/': typeof GroupsIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/swaps/': typeof SwapsIndexRoute
   '/groups/$id/plan': typeof GroupsIdPlanRoute
@@ -540,6 +557,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/check'
     | '/goodbye'
+    | '/groups'
     | '/profile'
     | '/signin'
     | '/swaps'
@@ -572,6 +590,7 @@ export interface FileRouteTypes {
     | '/welcome/note'
     | '/welcome/privacy'
     | '/admin/'
+    | '/groups/'
     | '/profile/'
     | '/swaps/'
     | '/groups/$id/plan'
@@ -625,6 +644,7 @@ export interface FileRouteTypes {
     | '/welcome/note'
     | '/welcome/privacy'
     | '/admin'
+    | '/groups'
     | '/profile'
     | '/swaps'
     | '/groups/$id/plan'
@@ -653,6 +673,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/check'
     | '/goodbye'
+    | '/groups'
     | '/profile'
     | '/signin'
     | '/swaps'
@@ -685,6 +706,7 @@ export interface FileRouteTypes {
     | '/welcome/note'
     | '/welcome/privacy'
     | '/admin/'
+    | '/groups/'
     | '/profile/'
     | '/swaps/'
     | '/groups/$id/plan'
@@ -714,12 +736,12 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRouteWithChildren
   CheckRoute: typeof CheckRoute
   GoodbyeRoute: typeof GoodbyeRoute
+  GroupsRoute: typeof GroupsRouteWithChildren
   ProfileRoute: typeof ProfileRouteWithChildren
   SigninRoute: typeof SigninRoute
   SwapsRoute: typeof SwapsRouteWithChildren
   UpdatesRoute: typeof UpdatesRoute
   ChatIdRoute: typeof ChatIdRoute
-  GroupsIdRoute: typeof GroupsIdRouteWithChildren
   IncomingIdRoute: typeof IncomingIdRoute
   OnboardTripIdRoute: typeof OnboardTripIdRoute
   PayRequestIdRoute: typeof PayRequestIdRouteWithChildren
@@ -764,6 +786,13 @@ declare module '@tanstack/react-router' {
       path: '/goodbye'
       fullPath: '/goodbye'
       preLoaderRoute: typeof GoodbyeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/groups': {
+      id: '/groups'
+      path: '/groups'
+      fullPath: '/groups'
+      preLoaderRoute: typeof GroupsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profile': {
@@ -850,12 +879,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/groups/': {
+      id: '/groups/'
+      path: '/'
+      fullPath: '/groups/'
+      preLoaderRoute: typeof GroupsIndexRouteImport
+      parentRoute: typeof GroupsRoute
+    }
     '/groups/$id': {
       id: '/groups/$id'
-      path: '/groups/$id'
+      path: '/$id'
       fullPath: '/groups/$id'
       preLoaderRoute: typeof GroupsIdRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof GroupsRoute
     }
     '/incoming/$id': {
       id: '/incoming/$id'
@@ -1169,6 +1205,33 @@ const AdminRouteChildren: AdminRouteChildren = {
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
+interface GroupsIdRouteChildren {
+  GroupsIdPlanRoute: typeof GroupsIdPlanRoute
+  GroupsIdIndexRoute: typeof GroupsIdIndexRoute
+}
+
+const GroupsIdRouteChildren: GroupsIdRouteChildren = {
+  GroupsIdPlanRoute: GroupsIdPlanRoute,
+  GroupsIdIndexRoute: GroupsIdIndexRoute,
+}
+
+const GroupsIdRouteWithChildren = GroupsIdRoute._addFileChildren(
+  GroupsIdRouteChildren,
+)
+
+interface GroupsRouteChildren {
+  GroupsIdRoute: typeof GroupsIdRouteWithChildren
+  GroupsIndexRoute: typeof GroupsIndexRoute
+}
+
+const GroupsRouteChildren: GroupsRouteChildren = {
+  GroupsIdRoute: GroupsIdRouteWithChildren,
+  GroupsIndexRoute: GroupsIndexRoute,
+}
+
+const GroupsRouteWithChildren =
+  GroupsRoute._addFileChildren(GroupsRouteChildren)
+
 interface ProfilePaymentsRouteChildren {
   ProfilePaymentsIdRoute: typeof ProfilePaymentsIdRoute
   ProfilePaymentsIndexRoute: typeof ProfilePaymentsIndexRoute
@@ -1230,20 +1293,6 @@ const SwapsRouteChildren: SwapsRouteChildren = {
 
 const SwapsRouteWithChildren = SwapsRoute._addFileChildren(SwapsRouteChildren)
 
-interface GroupsIdRouteChildren {
-  GroupsIdPlanRoute: typeof GroupsIdPlanRoute
-  GroupsIdIndexRoute: typeof GroupsIdIndexRoute
-}
-
-const GroupsIdRouteChildren: GroupsIdRouteChildren = {
-  GroupsIdPlanRoute: GroupsIdPlanRoute,
-  GroupsIdIndexRoute: GroupsIdIndexRoute,
-}
-
-const GroupsIdRouteWithChildren = GroupsIdRoute._addFileChildren(
-  GroupsIdRouteChildren,
-)
-
 interface PayRequestIdRouteChildren {
   PayRequestIdDoneRoute: typeof PayRequestIdDoneRoute
   PayRequestIdMethodRoute: typeof PayRequestIdMethodRoute
@@ -1285,12 +1334,12 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRouteWithChildren,
   CheckRoute: CheckRoute,
   GoodbyeRoute: GoodbyeRoute,
+  GroupsRoute: GroupsRouteWithChildren,
   ProfileRoute: ProfileRouteWithChildren,
   SigninRoute: SigninRoute,
   SwapsRoute: SwapsRouteWithChildren,
   UpdatesRoute: UpdatesRoute,
   ChatIdRoute: ChatIdRoute,
-  GroupsIdRoute: GroupsIdRouteWithChildren,
   IncomingIdRoute: IncomingIdRoute,
   OnboardTripIdRoute: OnboardTripIdRoute,
   PayRequestIdRoute: PayRequestIdRouteWithChildren,

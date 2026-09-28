@@ -25,7 +25,7 @@ import { listTrips } from '@/lib/store'
    ("3 of 4 together"), ₹199 once for up to 3 swaps (docs/01, docs/04 C). */
 
 export const Route = createFileRoute('/groups/$id/plan')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'home' } satisfies RouteChrome,
   component: GroupPlanScreen,
 })
 
