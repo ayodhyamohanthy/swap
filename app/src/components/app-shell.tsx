@@ -1,6 +1,7 @@
-import { Link, useMatches } from '@tanstack/react-router'
+import { Link, useLocation, useMatches } from '@tanstack/react-router'
 import { ArrowLeftRight, ChevronLeft, House, Settings, User } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { isAdminRoute } from '@/lib/admin'
 import { useI18n } from '@/lib/i18n'
 import { useOnline } from '@/lib/use-online'
 import { useUnreadUpdates } from '@/lib/use-store'
@@ -133,9 +134,24 @@ export function AppShell({ children }: { children: ReactNode }) {
   const leaf = matches[matches.length - 1]
   const chrome = (leaf?.staticData ?? {}) as RouteChrome
   const mode = chrome.chrome ?? 'tabs'
+  /* The admin console is a desktop tool (design 23: sidebar + six tiles + chart
+     at ~1080px) and lays itself out with `lg:` rules — but `.app-column` clamps
+     every screen to 34rem, so at a 1180px window the sidebar ate 224px of a
+     544px column and the content got ~300px (L7 → L1 request). Admin opts out
+     of the column; every passenger screen keeps it, because phone-first is the
+     product design, not an accident.
+
+     `useLocation` is the router's own state, so on `/` — the route the SPA
+     shell is prerendered at — server and client agree exactly and nothing
+     changes for any route except /admin. On a direct /admin load the client
+     drops the class the '/'-prerendered HTML carries; that deep link already
+     fails hydration once today on its chrome (TopBar/Tabs vs bare), and React
+     reports one #418 per hydration attempt, so this adds no new error. */
+  const location = useLocation()
+  const inColumn = !isAdminRoute(location.pathname)
 
   return (
-    <div className="app-column flex min-h-dvh flex-col">
+    <div className={cn('flex min-h-dvh flex-col', inColumn && 'app-column')}>
       {mode !== 'setup' ? <TopBar back={mode === 'plain'} showSettings={chrome.showSettings} /> : null}
       <OfflineBanner />
       <main className={cn('flex-1 px-4 pt-4', mode === 'setup' && 'pt-10', 'pb-8')}>{children}</main>
