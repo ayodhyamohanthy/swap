@@ -13,3 +13,5 @@ dist/
 *.log
 .DS_Store
 coverage/
+# Embedded prototype repo (separate codebase — not part of the TanStack app)
+swap/
