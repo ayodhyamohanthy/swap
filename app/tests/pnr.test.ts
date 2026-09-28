@@ -22,6 +22,7 @@ import {
   normaliseQuota,
   normaliseStatus,
   parseBookingSms,
+  parsePassengerList,
   pnrLast4,
 } from "@/lib/pnr"
 
@@ -167,5 +168,35 @@ describe("booking SMS parsing (runs on the device)", () => {
   it("keeps a short PNR out of the trip form", () => {
     const parsed = parseBookingSms("PNR 12345")
     expect(isValidPnr(parsed.pnr)).toBe(false)
+  })
+
+  it("reads every berth a multi-passenger SMS names", () => {
+    const parsed = parseBookingSms(
+      "PNR:4512789630 TRN:12951 DOJ:12-11-26 3A MMCT to NDLS P1-B3,27 LB CNF, P2-B3,30 UB CNF",
+    )
+    expect(parsed.passengers).toEqual([
+      { coach: "B3", berth_no: "27", berth_type: "LB", status: "CNF" },
+      { coach: "B3", berth_no: "30", berth_type: "UB", status: "CNF" },
+    ])
+    /* The single-passenger fields keep pointing at the first berth. */
+    expect(parsed.coach).toBe("B3")
+    expect(parsed.berth_no).toBe("27")
+  })
+
+  it("ignores waitlist serials, train numbers and dates when listing berths", () => {
+    expect(parsePassengerList("PNR 4512789630 TRN 12951 DOJ 12-11-2026 WL23", "SL")).toEqual([])
+    expect(
+      parsePassengerList("S1,23 LB RAC, S2,45 SU CNF", "SL"),
+    ).toEqual([
+      { coach: "S1", berth_no: "23", berth_type: "LB", status: "RAC" },
+      { coach: "S2", berth_no: "45", berth_type: "SU", status: "CNF" },
+    ])
+  })
+
+  it("reads chair-car seats with facing words", () => {
+    expect(parsePassengerList("C2 44 WINDOW, C2 45 AISLE", "CC")).toEqual([
+      { coach: "C2", berth_no: "44", berth_type: "WINDOW" },
+      { coach: "C2", berth_no: "45", berth_type: "AISLE" },
+    ])
   })
 })

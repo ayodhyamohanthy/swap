@@ -113,6 +113,20 @@ function AddTripScreen() {
     if (parsed.to_code) setToCode(parsed.to_code)
     if (parsed.class) setTravelClass(parsed.class)
     setPassengers((rows) => {
+      /* An SMS naming every berth fills every passenger row (docs/04 A4);
+         otherwise only the first row is touched and the rest is left alone. */
+      if (parsed.passengers && parsed.passengers.length > 0) {
+        const chairNow = parsed.class ? isChairCar(parsed.class) : isChairCar(travelClass)
+        return parsed.passengers.map((found) => ({
+          coach: found.coach ?? '',
+          berthNo: found.berth_no ?? '',
+          berthType:
+            found.berth_type ?? (chairNow ? ('WINDOW' as const) : ('LB' as const)),
+          status: found.status ?? 'CNF',
+          quota: parsed.quota ?? 'GN',
+          child: false,
+        }))
+      }
       const base = rows.length ? rows : [newPassenger(parsed.class ? isChairCar(parsed.class) : false)]
       return base.map((row, index) =>
         index === 0

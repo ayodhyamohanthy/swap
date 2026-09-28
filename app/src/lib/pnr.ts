@@ -106,6 +106,13 @@ export function isQuota(value: unknown): value is Quota {
  * Booking-SMS parsing (local, regex only — nothing is ever uploaded)  *
  * ------------------------------------------------------------------ */
 
+export interface ParsedPassenger {
+  coach?: string
+  berth_no?: string
+  berth_type?: BerthType
+  status?: TicketStatus
+}
+
 export interface ParsedBookingSms {
   pnr?: string
   train_no?: string
@@ -118,6 +125,8 @@ export interface ParsedBookingSms {
   quota?: Quota
   from_code?: string
   to_code?: string
+  /** Every berth the SMS names, in order — drives the multi-passenger form. */
+  passengers?: ParsedPassenger[]
   /** How many fields we could read — drives the "we filled what we could" note. */
   filled: number
 }
@@ -210,9 +219,9 @@ export function parseBookingSms(sms: unknown): ParsedBookingSms {
   if (cls && isTravelClass(cls[1])) out.class = cls[1]
 
   const coach =
-    text.match(/(?:COACH|CNF)[\s:.#-]*([A-Z]{1,2}[0-9]{1,2})\b/) ??
-    text.match(/\b([A-Z][0-9]{1,2})\b(?!\s*(?:LOWER|MIDDLE|UPPER|WINDOW|AISLE))\b/)
-  if (coach) out.coach = coach[1]
+    text.match(/(?:COACH|CNF)[\s:.#-]*([A-Z]{1,2}[0-9]{1,2})\b/)?.[1] ??
+    bareCoach(text)
+  if (coach) out.coach = coach
 
   const berth = text.match(
     /\b([0-9]{1,3})\s*(SIDE\s+LOWER|SIDE\s+UPPER|LOWER|MIDDLE|UPPER|LB|MB|UB|SL|SU)\b/,
@@ -251,8 +260,49 @@ export function parseBookingSms(sms: unknown): ParsedBookingSms {
   const quota = quotaWord ? normaliseQuota(quotaWord[1]) : undefined
   if (quota) out.quota = quota
 
+  /* Every "COACH, BERTH TYPE STATUS" segment the SMS names, in order — a real
+     IRCTC SMS lists one per passenger ("P1-B3,27 LB CNF, P2-B3,30 UB CNF").
+     The single-passenger fields above keep pointing at the first berth. */
+  const seen = parsePassengerList(text, out.class)
+  if (seen.length > 0) out.passengers = seen
+
   out.filled = Object.entries(out).filter(
     ([key, value]) => key !== 'filled' && value !== undefined && value !== '',
   ).length
   return out
+}
+
+/** Bare "B3" coach without a COACH: prefix. Skips passenger labels ("P1-B3"
+    is passenger 1, not a coach) and seat words. */
+function bareCoach(text: string): string | undefined {
+  const re = /\b([A-Z][0-9]{1,2})\b(?!\s*(?:LOWER|MIDDLE|UPPER|WINDOW|AISLE))\b/g
+  for (const match of text.matchAll(re)) {
+    if (/^P[0-9]{1,2}$/.test(match[1])) continue
+    return match[1]
+  }
+  return undefined
+}
+
+/** All coach+berth segments in an SMS, each with its own type and status. */
+export function parsePassengerList(text: unknown, travelClass?: unknown): ParsedPassenger[] {
+  const upper = String(text ?? '').toUpperCase().replace(/\s+/g, ' ').trim()
+  if (!upper) return []
+  const found: ParsedPassenger[] = []
+  const re =
+    /\b([A-Z]{1,2}[0-9]{1,2})\s*[,:\s-]+\s*([0-9]{1,3})(?:\s*(SIDE\s+LOWER|SIDE\s+UPPER|LOWER|MIDDLE|UPPER|WINDOW|AISLE|MIDDLE\s+SEAT|LB|MB|UB|SL|SU))?(?:\s*(CNF|CONFIRMED|RAC|WL[0-9]*|WAITLIST(?:ED)?|CAN|CANCELLED))?/g
+  let match: RegExpExecArray | null
+  while ((match = re.exec(upper)) !== null) {
+    const berthType = match[3] ? normaliseBerth(match[3], travelClass) : undefined
+    const status = match[4] ? normaliseStatus(match[4]) : undefined
+    /* Skip train numbers, dates, and WL serials the coach pattern catches. */
+    if (match[1].length > 3 || match[1] === 'WL' || Number(match[2]) > 200) continue
+    found.push({
+      coach: match[1],
+      berth_no: match[2],
+      ...(berthType ? { berth_type: berthType } : {}),
+      ...(status ? { status } : {}),
+    })
+    if (found.length >= 6) break
+  }
+  return found
 }
