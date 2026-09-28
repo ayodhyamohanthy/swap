@@ -9,6 +9,7 @@ Give this whole folder to your AI coding platform or developer.
   credits, spend rule), `docs/13-COLLAB-CONTRACT.md` (one lane per agent) and
   `docs/14-LANES.md` (claim your lane before editing).
 - `designs/` — screen images (3 phone screens per image; admin pages are single). Use them for layout and wording; the rules in `agents.md` win if an image disagrees.
+- `PROMPTS.md` — copy-paste prompts per platform (kickoff per lane, integration, design-parity, infra, short version).
 - `SeatSwap-journeys.html` — clickable walkthrough (Requester / Acceptor / Admin).
 
 Suggested first prompt for an AI builder:
