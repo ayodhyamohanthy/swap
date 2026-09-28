@@ -26,7 +26,10 @@
 | GitHub Student Pack | — | while student | Copilot, POEditor Plus 1yr, LambdaTest, Polypane, Sentry/Honeybadger, Appfigures | — |
 | Supabase Startup | ~Team 6mo | apply after Pack | Remove Free limits, zero rewrite | — |
 | Play Store | $25 once | — | TWA via PWABuilder (optional) | Apple $99/yr — skip, PWA covers |
-| Zoho Suite + Wallet | $1,000 wallet credits | 360 days from enable, non-transferable, non-refundable | Ops only: Mail, Desk, Cliq, Analytics, Creator, Catalyst (see §6) | Never app backend/DB/auth, never PNR or wallet data |
+| Zoho Suite + Wallet | $1,000–2,200 wallet credits | 360 days from enable, non-transferable, non-refundable | Ops only: Mail, Desk, Cliq, Analytics, Creator, Catalyst (see §6) | Never app backend/DB/auth, never PNR or wallet data |
+
+> Zoho amount varies by source (you report $2,200 — treat the Wallet page in
+> your org as truth; §6 spend order is unchanged either way).
 
 ## 3. Azure $200 burn-down (ephemeral, delete RG by Dec 10 2026)
 
@@ -87,4 +90,29 @@ Spend it on running the company, NOT serving the PWA:
 Banned in Zoho: full PNRs (store `pnr_last4` only, docs/08), full names,
 phone/email export, ticket photos, wallet balances per user. Zoho sees
 `SS-#####` receipt numbers + aggregates — never the DB rows.
+
+## 7. Student-offer stack matrix (you hold GitHub Student Pack — Sep 2026)
+
+Rule: **one tool per job.** `app/src/lib/analytics.ts` is a no-network
+on-device log today — the forwarder picks ONE analytics backend, Sentry
+stays errors-only, and PII (PNR/full name/phone/email) never leaves the
+device except as ids + amounts.
+
+| Job | Pick | Free / student terms (verify on vendor page) | Why not the others |
+|---|---|---|---|
+| Product analytics + flags + experiments | **PostHog Cloud** (self-host optional) | 1M events/mo + 1M flag req/mo + 100K errors + 5K replays free, monthly reset, no card | Replaces Mixpanel + Statsig — one SDK, one bill |
+| Error + perf + uptime | **Sentry Developer** (already in `skipwait` org) | Solo-dev free: errors/tracing, 10 dashboards, email alerts; Team $26/mo when you add seat 2 | Replaces Datadog/New Relic for v1 — Datadog bills per host, NR needs full-user seats |
+| Messaging (receipts, credit-expiry, chart push) | **Zoho Mail + Web Push** (wallet §6) | Mail free 5 users; push unlimited free | **No Customer.io** — Essentials starts $100/mo, startup year-free only if raised <$10M; you don't need journeys yet |
+| Subscriptions (if ₹99 ever recurs) | **Razorpay + PayPal only** | Test mode free; live = per-txn fee, no credits | **No Chargebee** — overkill for one-time ₹99/₹199; adds MRR billing you don't have |
+| Status / deploys | **Cloudflare + GitHub** | $10k credits + Pages/Workers deploys | Datadog service-accounts + NR are ops-heavy for a 1-person team |
+
+Claim order with your student email: PostHog free (no card) → Sentry
+Developer (skipwait org, add DSN as env only) → Mixpanel Startup
+1yr free as *backup only, do not dual-instrument* → New Relic Students
+free tier as *standby, do not install agent yet*.
+
+studentoffers.co/tools note: that aggregator lists Zoho Catalyst
+(free tier + $250/6mo), Lovable, YC AI stack — useful for discovery, but
+treat vendor pages as truth; claim only the §7 picks above.
+
 
