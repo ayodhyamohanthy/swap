@@ -1,5 +1,5 @@
 import { Link, Outlet, createFileRoute } from '@tanstack/react-router'
-import { Users } from 'lucide-react'
+import { Baby, Plus, TrainFront, User, Users } from 'lucide-react'
 import { useState, useSyncExternalStore } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
@@ -10,13 +10,22 @@ import {
   getGroupsServerSnapshot,
   getGroupsSnapshot,
   getGroup,
+  groupForTrip,
+  groupJourney,
   linkTrip,
   subscribeGroups,
 } from '@/lib/groups'
 import { listTrips } from '@/lib/store'
 
 /* Screen 52 "Family trip" (design 19a): link PNRs, organiser pays (₹199),
-   "Swapping for my parents" (docs/04 C). */
+   "Swapping for my parents" (docs/04 C).
+
+   One row per linked ticket, labelled with the masked PNR ("PNR ends 4821", the
+   only form of a PNR this app prints — the store keeps no full PNR at all) and
+   then one `coach · berth` chip per person, because a ticket is not a seat:
+   design 19a lists a ticket holding 2 people and design 5a prints "A2 · 12" per
+   member. Rule 13 is not in tension with any of this — these are the organiser's
+   own linked PNRs on their own device, never another user's. */
 
 export const Route = createFileRoute('/groups/$id')({
   component: GroupLayout,
@@ -29,7 +38,7 @@ function GroupLayout() {
 
 export function GroupScreen() {
   const { id } = Route.useParams()
-  const { t, date, type, status } = useI18n()
+  const { t, date, status } = useI18n()
   const toast = useToast()
   useSyncExternalStore(subscribeGroups, getGroupsSnapshot, getGroupsServerSnapshot)
   const [linkOpen, setLinkOpen] = useState(false)
@@ -37,7 +46,10 @@ export function GroupScreen() {
   const group = getGroup(id)
   const allTrips = listTrips()
   const linked = new Set(group?.trip_ids ?? [])
-  const available = allTrips.filter((trip) => !linked.has(trip.id))
+  /* A trip already in another family trip cannot be linked here too — one
+     booking in two ₹199 bundles leaves `groupForTrip()` guessing which covers
+     the swap (see `freeTripIds` in lib/groups). */
+  const available = allTrips.filter((trip) => !linked.has(trip.id) && !groupForTrip(trip.id))
 
   if (!group) {
     return (
@@ -46,54 +58,76 @@ export function GroupScreen() {
           <CardTitle>{t('groups.none')}</CardTitle>
         </Card>
         <Button className="mt-4" asChild>
-          <Link to="/">{t('nav.home')}</Link>
+          <Link to="/groups">{t('profile.groups')}</Link>
         </Button>
       </div>
     )
   }
 
   const groupTrips = allTrips.filter((trip) => linked.has(trip.id))
+  const journey = groupJourney(group)
 
   return (
     <div>
       <h1 className="text-title text-ink">{group.name}</h1>
       <p className="mt-1 text-body text-muted">{t('groups.sub')}</p>
-      <p className="mt-1 text-caption text-muted">{t('groups.linked', { n: groupTrips.length })}</p>
 
-      <section className="mt-4 space-y-2">
+      {journey ? (
+        <Card className="mt-4 flex items-center gap-3">
+          <TrainFront aria-hidden className="size-6 shrink-0 text-primary" />
+          <span className="min-w-0 flex-1 font-head text-body text-ink">
+            {`${journey.train_no} ${journey.train_name}`.trim()} · {date(journey.journey_date)}
+          </span>
+        </Card>
+      ) : null}
+
+      <p className="mt-3 text-caption text-muted">{t('groups.linked', { n: groupTrips.length })}</p>
+
+      <section className="mt-2 space-y-2">
         {groupTrips.map((trip) => {
+          const seats = trip.passengers
+            .filter((passenger) => !passenger.is_child_no_berth)
+            .map((passenger) =>
+              [passenger.coach ?? '', passenger.berth_no ?? ''].filter(Boolean).join(' · '),
+            )
+            .filter(Boolean)
+          const children = trip.passengers.filter((row) => row.is_child_no_berth).length
           const passenger = trip.passengers[0]
+          const Icon =
+            children > 0 && seats.length === 0
+              ? Baby
+              : trip.passengers.length > 1
+                ? Users
+                : User
           return (
             <div
               key={trip.id}
               className="flex items-center gap-3 rounded-card border border-line bg-card p-3 shadow-soft"
             >
               <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-wash text-primary">
-                <Users aria-hidden className="size-5" />
+                <Icon aria-hidden className="size-5" />
               </span>
               <span className="min-w-0 flex-1">
                 <b className="block truncate font-head text-body text-ink">
-                  {trip.train_name || t('train.title', { n: trip.train_no })}
+                  {t('trip.pnrEnds', { last4: trip.pnr_last4 })}
                 </b>
-                <small className="block text-caption text-muted">
-                  {[
-                    date(trip.journey_date),
-                    passenger?.coach ?? '',
-                    passenger ? type(passenger.berth_type) : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
+                <small className="block truncate text-caption text-muted">
+                  {seats.length > 0 ? seats.join(' · ') : '—'}
+                  {children > 0 ? ` · ${t('add.childNoBerth')}` : ''}
                 </small>
               </span>
-              <Pill tone={passenger?.status === 'CNF' ? 'primary' : 'neutral'}>
-                {passenger ? status(passenger.status) : ''}
-              </Pill>
+              {passenger && passenger.status !== 'CNF' ? (
+                <Pill tone={passenger.status === 'CAN' ? 'danger' : 'accent'}>
+                  {status(passenger.status)}
+                </Pill>
+              ) : null}
             </div>
           )
         })}
       </section>
 
       <Button className="mt-4" variant="outline" onClick={() => setLinkOpen((open) => !open)}>
+        <Plus aria-hidden className="size-5" />
         {t('groups.link')}
       </Button>
 

@@ -10,6 +10,7 @@ import {
   getGroupsServerSnapshot,
   getGroupsSnapshot,
   getGroup,
+  groupJourney,
   groupTogetherCount,
   subscribeGroups,
 } from '@/lib/groups'
@@ -53,9 +54,19 @@ function GroupPlanScreen() {
      used. Wordless on purpose — no new copy needed in any language. */
   const used = group.paid ? Math.min(groupLockedCount(group.id), GROUP_MAX_SWAPS) : 0
 
+  /* Design 19b subtitles the plan with the journey ("12752 Rajdhani ·
+     Fri 12 Jun"). `groupJourney` returns null when the linked tickets do not
+     share one train and date — then there is nothing honest to headline. */
+  const journey = groupJourney(group)
+
   return (
     <div>
       <h1 className="text-title text-ink">{t('groups.planTitle')}</h1>
+      {journey ? (
+        <p className="mt-1 text-body text-ink">
+          {`${journey.train_no} ${journey.train_name}`.trim()} · {date(journey.journey_date)}
+        </p>
+      ) : null}
       <p className="mt-1 text-body text-muted">{t('groups.planBody')}</p>
 
       <Card className="mt-4 border-primary/30 bg-wash">
