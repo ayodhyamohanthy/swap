@@ -12,6 +12,7 @@ import {
   downloadCsv,
   filterSwaps,
   runAdminAction,
+  shortId,
   SWAP_PHASES,
   SWAP_PHASE_LABEL,
   swapPhase,
@@ -60,11 +61,8 @@ const PHASE_TONE: Record<SwapPhase, 'primary' | 'accent' | 'danger' | 'neutral'>
    copies of this string is two chances for the table to drift out of line. */
 const TRACKS = 'lg:grid-cols-[6.5rem_5rem_minmax(0,1fr)_minmax(0,1fr)_7rem_5.5rem]'
 
-/** `req_a1b2c3d4` → `#a1b2c3d4`. The full id stays as the tooltip and the CSV. */
-function shortId(id: string): string {
-  const tail = id.slice(id.indexOf('_') + 1)
-  return `#${tail || id}`
-}
+/* `shortId` moved to `lib/admin.ts`: design 18's payments table draws the same
+   Swap column, and one definition means the two tables cannot disagree. */
 
 function AdminSwaps() {
   const { t, date } = useI18n()

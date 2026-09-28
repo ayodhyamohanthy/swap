@@ -29,11 +29,18 @@ import {
   filterActivity,
   filterSwaps,
   firstOnTrainToday,
+  PAYMENT_OUTCOMES,
+  PAYMENT_OUTCOME_LABEL,
+  PAYMENT_STATE_LABEL,
+  paymentOutcome,
+  paymentRows,
   paymentsToCsv,
+  shortId,
   statusesByPhase,
   SWAP_PHASES,
   SWAP_PHASE_LABEL,
   swapPhase,
+  swapToCreditRequestIds,
   swapsThisWeek,
   swapsToCsv,
   toCsv,
@@ -41,6 +48,7 @@ import {
   uncategorisedActions,
   usersToCsv,
   type AdminOverviewInput,
+  type AdminPaymentRow,
   type AdminSwapRow,
   type AdminUserRow,
   type ActivityTone,
@@ -64,6 +72,7 @@ import {
   startPayment,
   type ActivityRow,
   type PaymentRow,
+  type WalletTx,
 } from '@/lib/store'
 import type { RequestStatus, SwapOffer, SwapRequest } from '@/lib/requests'
 
@@ -556,6 +565,62 @@ describe('buildOverview credit given (rule 4)', () => {
     const stats = overview({ wallet: [liveCredit(10000)] })
     expect(stats.creditGivenTodayPaise).toBe(14900)
     expect(stats.creditInCirculationPaise).toBe(10000)
+  })
+
+  /* Design 18's "Moved to credit" tile, which the board recorded as needing a
+     definition because rule 6's ₹99 and the acceptor's ₹50 are both
+     `credit_added` rows. They are — but the ledger already separates them by
+     `kind`, so the tile is a narrower filter, not a new decision. */
+  it('counts only the rule-6 kind as moved to credit', () => {
+    logActivity('credit_added', { to: 'u_acc', amount_paise: 5000, kind: 'acceptor_credit' })
+    logActivity('credit_added', { to: 'u_req', amount_paise: 9900, kind: 'swap_to_credit' })
+    logActivity('credit_added', { to: 'u_req2', amount_paise: 9900, kind: 'swap_to_credit' })
+
+    const stats = overview()
+    expect(stats.movedToCreditTodayPaise).toBe(19800)
+    /* The ₹50 thank-yous are NOT money moved — rule 3 is an earn. */
+    expect(stats.creditGivenTodayPaise).toBe(24800)
+  })
+
+  /* The property that makes the two tiles coherent side by side: design 18 draws
+     "Credit given ₹1,250" and "Moved to credit ₹297", which only reads correctly
+     if given CONTAINS moved. They are summed by one function with one predicate,
+     so this holds by construction — a second independent sum is exactly how it
+     would stop holding. */
+  it('keeps moved-to-credit a strict subset of credit given', () => {
+    logActivity('credit_added', { to: 'u_acc', amount_paise: 5000, kind: 'acceptor_credit' })
+    logActivity('credit_added', { to: 'u_req', amount_paise: 9900, kind: 'swap_to_credit' })
+
+    const stats = overview()
+    /* `<=` alone is too weak — it also holds when the filter is missing
+       entirely and both tiles are the same number. The difference is what
+       proves the narrow filter: it is exactly the thank-you credit. */
+    expect(stats.movedToCreditTodayPaise).toBeLessThanOrEqual(stats.creditGivenTodayPaise)
+    expect(stats.creditGivenTodayPaise - stats.movedToCreditTodayPaise).toBe(THANK_YOU_PAISE)
+
+    /* And the other direction: an all-thank-you day moves nothing, so a tile
+       reading ₹0 there is the truth rather than a missing filter. */
+    resetStore()
+    logActivity('credit_added', { to: 'u_acc', amount_paise: 5000, kind: 'acceptor_credit' })
+    const onlyEarns = overview()
+    expect(onlyEarns.movedToCreditTodayPaise).toBe(0)
+    expect(onlyEarns.creditGivenTodayPaise).toBe(5000)
+  })
+
+  /* Design 18's fourth tile. `useCredit` stores `-amount` in the wallet but logs
+     the positive magnitude, so the tile sums the log as-is. */
+  it('counts credit spent today as a positive number', () => {
+    logActivity('credit_used', { amount_paise: 4900 })
+    logActivity('credit_used', { amount_paise: 1100 })
+
+    const stats = overview()
+    expect(stats.creditUsedTodayPaise).toBe(6000)
+  })
+
+  it('is zero, not negative, when no credit moved', () => {
+    const stats = overview()
+    expect(stats.movedToCreditTodayPaise).toBe(0)
+    expect(stats.creditUsedTodayPaise).toBe(0)
   })
 
   /* The defect this pins: "Credit in circulation" is documented as credit still
@@ -1373,5 +1438,224 @@ describe('creditSummary (design 24)', () => {
 
   it('is all zeros for an empty ledger', () => {
     expect(creditSummary([], NOW)).toEqual({ givenPaise: 0, usedPaise: 0, balancePaise: 0 })
+  })
+})
+
+/* Design 18's Payments screen. The route used to render a literal empty array —
+   `const rows: AdminPaymentRow[] = []` — under a comment claiming the emptiness
+   was legitimate because "nothing is captured until a provider webhook confirms
+   it". Wrong on both counts: `usePayments()` already existed in
+   `lib/use-store.ts`, and `startPayment` writes a local row (plus a
+   `payment_created` log line) the moment checkout opens. The list was empty
+   because of the code, not the state. */
+function paymentRow(over: Partial<PaymentRow> = {}): PaymentRow {
+  return {
+    id: 'pay_1',
+    request_id: 'req_a1b2c3d4',
+    payer_id: null,
+    provider: 'razorpay',
+    provider_ref: null,
+    amount_paise: PRICE_PAISE,
+    credit_used_paise: 0,
+    currency: 'INR',
+    status: 'paid',
+    receipt_number: null,
+    created_at: '2026-11-12T10:00:00.000Z',
+    updated_at: '2026-11-12T10:00:00.000Z',
+    ...over,
+  }
+}
+
+/** A credit-ledger row with the two fields design 18's tiles turn on. */
+function creditRow(over: Partial<WalletTx> = {}): WalletTx {
+  return {
+    id: 'tx_1',
+    user_id: null,
+    amount_paise: THANK_YOU_PAISE,
+    kind: 'acceptor_credit',
+    ref_request_id: null,
+    expires_at: null,
+    created_at: '2026-11-12T10:00:00.000Z',
+    ...over,
+  }
+}
+
+describe('shortId — the Swap column designs 17 and 18 share', () => {
+  it('keeps the tail of a prefixed id', () => {
+    expect(shortId('req_a1b2c3d4')).toBe('#a1b2c3d4')
+    expect(shortId('pay_12345678')).toBe('#12345678')
+  })
+
+  it('falls back to the whole id when there is no underscore', () => {
+    expect(shortId('abc')).toBe('#abc')
+  })
+})
+
+describe('swapToCreditRequestIds — the rule-6 rows, and only those', () => {
+  it('takes swap_to_credit and ignores the acceptor thank-you', () => {
+    const ids = swapToCreditRequestIds([
+      creditRow({ id: 'a', kind: 'swap_to_credit', ref_request_id: 'req_1' }),
+      creditRow({ id: 'b', kind: 'acceptor_credit', ref_request_id: 'req_2' }),
+    ])
+    expect([...ids]).toEqual(['req_1'])
+  })
+
+  it('ignores spends, expiries and staff grants', () => {
+    const ids = swapToCreditRequestIds([
+      creditRow({ id: 'a', kind: 'used', amount_paise: -5000, ref_request_id: 'req_1' }),
+      creditRow({ id: 'b', kind: 'expired', amount_paise: -5000, ref_request_id: 'req_2' }),
+      creditRow({ id: 'c', kind: 'admin_adjust', ref_request_id: 'req_3' }),
+    ])
+    expect(ids.size).toBe(0)
+  })
+
+  it('ignores a rule-6 row with no request attached', () => {
+    const ids = swapToCreditRequestIds([
+      creditRow({ kind: 'swap_to_credit', ref_request_id: null }),
+    ])
+    expect(ids.size).toBe(0)
+  })
+})
+
+describe("paymentOutcome — design 18's Status column", () => {
+  const NONE: ReadonlySet<string> = new Set()
+
+  it('reads the payment state on its own', () => {
+    expect(paymentOutcome(paymentRow({ status: 'paid' }), NONE)).toBe('paid')
+    expect(paymentOutcome(paymentRow({ status: 'created' }), NONE)).toBe('pending')
+    expect(paymentOutcome(paymentRow({ status: 'pending' }), NONE)).toBe('pending')
+    expect(paymentOutcome(paymentRow({ status: 'failed' }), NONE)).toBe('failed')
+  })
+
+  it('is to_credit when the paid money became credit under rule 6', () => {
+    const ids = new Set(['req_a1b2c3d4'])
+    expect(paymentOutcome(paymentRow({ status: 'paid' }), ids)).toBe('to_credit')
+  })
+
+  /* The guard that matters: "To credit" is an outcome of a PAID payment, not a
+     label for any request that happens to hold a rule-6 row. A payment still in
+     flight is pending — there is no money there to move. */
+  it('never calls an unpaid payment to_credit', () => {
+    const ids = new Set(['req_a1b2c3d4'])
+    expect(paymentOutcome(paymentRow({ status: 'pending' }), ids)).toBe('pending')
+    expect(paymentOutcome(paymentRow({ status: 'created' }), ids)).toBe('pending')
+    expect(paymentOutcome(paymentRow({ status: 'failed' }), ids)).toBe('failed')
+  })
+
+  it('does not flip a payment whose request is not in the set', () => {
+    const ids = new Set(['req_someone_else'])
+    expect(paymentOutcome(paymentRow({ status: 'paid' }), ids)).toBe('paid')
+  })
+})
+
+describe("paymentRows — design 18's table", () => {
+  it('amounts are what was collected, not what was charged', () => {
+    const rows = paymentRows(
+      [paymentRow({ amount_paise: PRICE_PAISE, credit_used_paise: THANK_YOU_PAISE })],
+      [],
+    )
+    expect(rows[0].amount_paise).toBe(PRICE_PAISE)
+    expect(rows[0].credit_used_paise).toBe(THANK_YOU_PAISE)
+    /* The design's ₹49 on a ₹99 swap paid with ₹50 credit. */
+    expect(rows[0].received_paise).toBe(PRICE_PAISE - THANK_YOU_PAISE)
+  })
+
+  it('collects nothing until the payment is paid', () => {
+    expect(paymentRows([paymentRow({ status: 'pending' })], [])[0].received_paise).toBe(0)
+    expect(paymentRows([paymentRow({ status: 'created' })], [])[0].received_paise).toBe(0)
+  })
+
+  it('carries the design Swap column and sorts newest first', () => {
+    const rows = paymentRows(
+      [
+        paymentRow({ id: 'p_old', request_id: 'req_aaaaaaaa', created_at: '2026-11-12T10:00:00.000Z' }),
+        paymentRow({ id: 'p_new', request_id: 'req_bbbbbbbb', created_at: '2026-11-12T22:41:00.000Z' }),
+      ],
+      [],
+    )
+    expect(rows.map((r) => r.id)).toEqual(['p_new', 'p_old'])
+    expect(rows[0].swap).toBe('#bbbbbbbb')
+  })
+
+  /* The tile sums the LOG and the row status reads the WALLET — two sources,
+     because `credit_added`'s meta carries no request id. This is the test that
+     says they agree, so a call site writing one without the other is caught. */
+  it('agrees with the tile about which request moved to credit', () => {
+    const rows = paymentRows(
+      [paymentRow({ request_id: 'req_a1b2c3d4', status: 'paid' })],
+      [creditRow({ kind: 'swap_to_credit', ref_request_id: 'req_a1b2c3d4' })],
+    )
+    expect(rows[0].outcome).toBe('to_credit')
+  })
+})
+
+describe("paymentsToCsv — design 18's columns", () => {
+  const row: AdminPaymentRow = {
+    id: 'pay_1',
+    request_id: 'req_a1b2c3d4',
+    swap: '#a1b2c3d4',
+    provider: 'razorpay',
+    amount_paise: PRICE_PAISE,
+    credit_used_paise: THANK_YOU_PAISE,
+    received_paise: PRICE_PAISE - THANK_YOU_PAISE,
+    status: 'paid',
+    outcome: 'to_credit',
+    created_at: '2026-11-12T22:41:00.000Z',
+  }
+
+  it('writes the header and the money split', () => {
+    const lines = paymentsToCsv([row]).split('\n')
+    expect(lines[0]).toBe(
+      'id,swap,request_id,provider,amount_paise,credit_used_paise,received_paise,status,outcome,created_at',
+    )
+    expect(lines[1]).toBe(
+      'pay_1,#a1b2c3d4,req_a1b2c3d4,razorpay,9900,5000,4900,paid,to_credit,2026-11-12T22:41:00.000Z',
+    )
+  })
+
+  /* An export leaves the device, so it must not carry a payer id or a full PNR
+     even if a future column tries to add one. */
+  it('carries no payer id and no ten-digit run', () => {
+    const csv = paymentsToCsv([row])
+    expect(csv).not.toContain('payer_id')
+    expect(csv).not.toMatch(/\d{10}/)
+  })
+})
+
+describe('payment labels resolve in every shipped language', () => {
+  it('has an outcome label for each outcome', () => {
+    const missing: string[] = []
+    for (const lang of SHIPPED_LANGS) {
+      for (const outcome of PAYMENT_OUTCOMES) {
+        const key = PAYMENT_OUTCOME_LABEL[outcome]
+        if (!lookupLabel(CATALOGS[lang], key)) missing.push(`${lang}:${key}`)
+      }
+    }
+    expect(missing).toEqual([])
+  })
+
+  it('has a state label for each payment status', () => {
+    const statuses: Array<PaymentRow['status']> = ['created', 'pending', 'paid', 'failed']
+    const missing: string[] = []
+    for (const lang of SHIPPED_LANGS) {
+      for (const status of statuses) {
+        const key = PAYMENT_STATE_LABEL[status]
+        if (!lookupLabel(CATALOGS[lang], key)) missing.push(`${lang}:${key}`)
+      }
+    }
+    expect(missing).toEqual([])
+  })
+
+  /* The coarse outcome and the exact state must not collapse onto one key, or
+     the tooltip stops saying anything the pill did not already say. `created`
+     vs `pending` is the distinction the tooltip exists for. */
+  it('keeps the exact state distinct from the coarse outcome', () => {
+    expect(PAYMENT_STATE_LABEL.created).not.toBe(PAYMENT_OUTCOME_LABEL.pending)
+    expect(PAYMENT_STATE_LABEL.pending).not.toBe(PAYMENT_OUTCOME_LABEL.pending)
+  })
+
+  it('uses one wording for Paid across the swaps and payments tables', () => {
+    expect(PAYMENT_OUTCOME_LABEL.paid).toBe(SWAP_PHASE_LABEL.paid)
+    expect(PAYMENT_OUTCOME_LABEL.to_credit).toBe(SWAP_PHASE_LABEL.to_credit)
   })
 })

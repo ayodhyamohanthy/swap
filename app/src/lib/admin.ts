@@ -4,7 +4,7 @@
    This file: route meta, pure CSV exporters, overview aggregates,
    activity filters, demo-mode admin_action log. Money = paise. */
 
-import { logActivity, type ActivityRow, type PaymentRow, type Trip } from './store'
+import { logActivity, type ActivityRow, type PaymentRow, type Trip, type WalletTx } from './store'
 /* Type-only: the phase map is keyed by `RequestStatus`, so adding a status to
    the state machine must break the build here rather than at runtime. */
 import type { RequestStatus, SwapOffer, SwapRequest } from './requests'
@@ -237,19 +237,172 @@ export function acceptorName(request: SwapRequest, offers: SwapOffer[]): string 
 }
 
 //__PART2__
+/* ------------------------------------------------------------------ *
+ * Payments (design 18)                                                *
+ * ------------------------------------------------------------------ */
+
+/** `req_a1b2c3d4` → `#a1b2c3d4`. The full id stays as the tooltip and the CSV.
+    Lives here rather than in either route because designs 17 and 18 draw the
+    same column, and two copies is two chances for the two tables to disagree
+    about what a swap is called. */
+export function shortId(id: string): string {
+  const tail = id.slice(id.indexOf('_') + 1)
+  return `#${tail || id}`
+}
+
+/**
+ * A wallet row PLUS the two fields that say which rule issued it.
+ *
+ * `CreditLedgerRow` (lib/payments) is deliberately narrow — `id`,
+ * `amount_paise`, `expires_at`. That is enough to sum a balance and not enough
+ * to answer "was this the ₹50 thank-you or the ₹99 fallback?", which is why
+ * design 18's "Moved to credit" tile was written off as needing a definition
+ * it did not have. The ledger CAN tell the two apart (`WalletTx.kind`); the
+ * *view* of it could not.
+ *
+ * Both extra fields are required, so a caller holding only a `CreditLedgerRow`
+ * gets a compile error rather than an empty result that reads as "no credit
+ * ever moved" — the same reasoning as `AdminOverviewInput.wallet` taking the
+ * ledger instead of a pre-summed number.
+ */
+export interface CreditOriginRow extends CreditLedgerRow {
+  kind: WalletTx['kind']
+  ref_request_id: string | null
+}
+
+/** The one kind meaning "a swap did not happen, so the ₹99 became credit"
+    (rule 6). The other earn, `acceptor_credit`, is the ₹50 thank-you (rule 3)
+    and must never be counted as money moved. */
+const SWAP_TO_CREDIT: WalletTx['kind'] = 'swap_to_credit'
+
+/** Request ids whose ₹99 became credit under rule 6. */
+export function swapToCreditRequestIds(wallet: CreditOriginRow[]): Set<string> {
+  const ids = new Set<string>()
+  for (const row of wallet) {
+    if (row.kind === SWAP_TO_CREDIT && row.ref_request_id) ids.add(row.ref_request_id)
+  }
+  return ids
+}
+
+export const PAYMENT_OUTCOMES = ['paid', 'to_credit', 'pending', 'failed'] as const
+export type PaymentOutcome = (typeof PAYMENT_OUTCOMES)[number]
+
+/** `paid` and `to_credit` reuse the swap-phase words deliberately: they are the
+    same two money states, and design 17 and design 18 both write "Paid" and
+    "To credit". One wording for one state, so the two screens cannot drift
+    into different names for the same thing. */
+export const PAYMENT_OUTCOME_LABEL: Record<PaymentOutcome, MessageKey> = {
+  paid: 'admin.phasePaid',
+  to_credit: 'admin.phaseToCredit',
+  pending: 'admin.payPending',
+  failed: 'admin.payFailed',
+}
+
+/** The exact payment state, for the tooltip behind the coarse outcome. Reuses
+    the activity log's own `payment_*` action labels: those four words already
+    ship in both languages and they name exactly these four states, so a second
+    set would be four more strings to keep in step for no new meaning. Keyed by
+    `PaymentRow['status']` so a fifth status breaks the build. */
+export const PAYMENT_STATE_LABEL: Record<PaymentRow['status'], MessageKey> = {
+  created: 'admin.act.payment_created',
+  pending: 'admin.act.payment_pending',
+  paid: 'admin.act.payment_paid',
+  failed: 'admin.act.payment_failed',
+}
+
+/** Keyed by `PaymentRow['status']` so adding a payment status breaks the build
+    here rather than rendering an untranslated enum, the same guard
+    `SWAP_PHASE_BY_STATUS` uses. */
+const PAYMENT_OUTCOME_BY_STATUS: Record<PaymentRow['status'], PaymentOutcome> = {
+  created: 'pending',
+  pending: 'pending',
+  paid: 'paid',
+  failed: 'failed',
+}
+
+/**
+ * Design 18's Status column. `paid` is the payment's own state; `to_credit` is
+ * a *swap* outcome layered on it — money that was collected and then moved to
+ * the payer's credit because the swap did not happen (rule 6). So a payment is
+ * `to_credit` only when it is `paid` AND the ledger holds the rule-6 row for
+ * that request, which is the same condition the tile sums.
+ */
+export function paymentOutcome(
+  payment: PaymentRow,
+  toCreditRequestIds: ReadonlySet<string>,
+): PaymentOutcome {
+  const base = PAYMENT_OUTCOME_BY_STATUS[payment.status] ?? 'failed'
+  if (base === 'paid' && toCreditRequestIds.has(payment.request_id)) return 'to_credit'
+  return base
+}
+
 export interface AdminPaymentRow {
   id: string
   request_id: string
+  /** The design's Swap column. */
+  swap: string
   provider: string
+  /** Gross charged: 9900 single, 19900 group. */
   amount_paise: number
-  status: string
+  credit_used_paise: number
+  /** What the gateway actually captured: `amount − credit_used`. This is the
+      design's Amount column — ₹49 on a ₹99 swap paid with ₹50 credit — and the
+      same definition as `moneyInTodayPaise` and design 17's Amount. */
+  received_paise: number
+  status: PaymentRow['status']
+  outcome: PaymentOutcome
   created_at: string
+}
+
+/** Newest first — an operator's queue is about the top of the list. */
+export function paymentRows(
+  payments: PaymentRow[],
+  wallet: CreditOriginRow[],
+): AdminPaymentRow[] {
+  const toCredit = swapToCreditRequestIds(wallet)
+  return payments
+    .slice()
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .map((payment) => ({
+      id: payment.id,
+      request_id: payment.request_id,
+      swap: shortId(payment.request_id),
+      provider: payment.provider,
+      amount_paise: payment.amount_paise,
+      credit_used_paise: payment.credit_used_paise,
+      received_paise: collectedPaise(payment),
+      status: payment.status,
+      outcome: paymentOutcome(payment, toCredit),
+      created_at: payment.created_at,
+    }))
 }
 
 export function paymentsToCsv(rows: AdminPaymentRow[]): string {
   return toCsv(
-    ['id', 'request_id', 'provider', 'amount_paise', 'status', 'created_at'],
-    rows.map((r) => [r.id, r.request_id, r.provider, r.amount_paise, r.status, r.created_at]),
+    [
+      'id',
+      'swap',
+      'request_id',
+      'provider',
+      'amount_paise',
+      'credit_used_paise',
+      'received_paise',
+      'status',
+      'outcome',
+      'created_at',
+    ],
+    rows.map((r) => [
+      r.id,
+      r.swap,
+      r.request_id,
+      r.provider,
+      r.amount_paise,
+      r.credit_used_paise,
+      r.received_paise,
+      r.status,
+      r.outcome,
+      r.created_at,
+    ]),
   )
 }
 
@@ -425,6 +578,19 @@ export interface AdminOverview {
   moneyInTodayPaise: number
   /** Credit ISSUED today — not the balance still outstanding (rule 4). */
   creditGivenTodayPaise: number
+  /**
+   * The rule-6 slice of `creditGivenTodayPaise`: a swap that did not happen, so
+   * the requester's ₹99 became credit rather than a bank refund.
+   *
+   * A SUBSET, by construction — both are summed from the same `credit_added`
+   * rows with the same predicate, one narrowed by `kind` — so the two must
+   * never be added together. Design 18 draws them as two tiles side by side
+   * (₹1,250 "Credit given" and ₹297 "Moved to credit"), which is only coherent
+   * because given already contains moved.
+   */
+  movedToCreditTodayPaise: number
+  /** Credit SPENT today, as a positive number. The `used` rows. */
+  creditUsedTodayPaise: number
   /** Credit still unspent and unexpired (the wallet balance). */
   creditInCirculationPaise: number
   /**
@@ -654,6 +820,21 @@ export function creditSummary(wallet: CreditLedgerRow[], nowMs: number): CreditS
   return { givenPaise, usedPaise, balancePaise: spendableCreditPaise(wallet, nowMs) }
 }
 
+/**
+ * Credit issued today, optionally narrowed to one rule.
+ *
+ * One function rather than two sums, so "Moved to credit" is a strict SUBSET of
+ * "Credit given" by construction: same rows, same predicate, one narrower
+ * filter. Two independent sums would let a future call site land in one tile
+ * and not the other, and nothing would say so.
+ */
+function creditIssuedPaise(rows: ActivityRow[], kind?: WalletTx['kind']): number {
+  return rows
+    .filter((row) => row.action === 'credit_added')
+    .filter((row) => kind === undefined || row.meta.kind === kind)
+    .reduce((sum, row) => sum + (num(row.meta.amount_paise) ?? 0), 0)
+}
+
 /** Today's tiles from local rows (design 23). Every number is derived; none
     is a placeholder. */
 export function buildOverview(input: AdminOverviewInput, nowMs = Date.now()): AdminOverview {
@@ -701,8 +882,14 @@ export function buildOverview(input: AdminOverviewInput, nowMs = Date.now()): Ad
     /* Signed sum: the store only writes the two fixed rule amounts (₹50
        `acceptor_credit`, ₹99 `swap_to_credit`) plus staff grants, so this
        equals gross credit issued today. */
-    creditGivenTodayPaise: today
-      .filter((row) => row.action === 'credit_added')
+    creditGivenTodayPaise: creditIssuedPaise(today),
+    movedToCreditTodayPaise: creditIssuedPaise(today, SWAP_TO_CREDIT),
+    /* `useCredit` stores `-amount` in the wallet but logs the positive
+       magnitude, so this sums as-is. Summed raw rather than through `Math.abs`
+       on purpose: if a call site ever logged a signed value the tile would go
+       negative and say so, where `abs` would quietly make it look right. */
+    creditUsedTodayPaise: today
+      .filter((row) => row.action === 'credit_used')
       .reduce((sum, row) => sum + (num(row.meta.amount_paise) ?? 0), 0),
     creditInCirculationPaise: creditSummary(input.wallet, nowMs).balancePaise,
     moneyInUnknownToday,
