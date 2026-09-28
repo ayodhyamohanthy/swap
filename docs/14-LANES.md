@@ -8,7 +8,7 @@
 | L1 | PWA shell + design system + Cloudflare deploy | Cline | active: 2026-09-28T16:05Z | icons + screenshots + manifest + deploy |
 | L2 | Trips + PNR | OpenCode/Muse Spark | done. Trips/add/berth/WL/RAC/CAN/quota screens verified vs designs; multi-passenger SMS fill + P-label coach fix |
 | L3 | Requests + matching | WorkBuddy/Claude | done. Daily caps wired, acceptor Settings filters now applied on the incoming path, connecting-only journeys no longer match |
-| L4 | Payments (Razorpay/PayPal/credit) | WorkBuddy/Claude | active: 2026-09-28T11:25Z | keyless audit: pay.*, lib/payments.ts, lib/checkout.ts, lib/money.ts |
+| L4 | Payments (Razorpay/PayPal/credit) | WorkBuddy/Claude | done. Rule 2 now enforced on the local path: a group-covered swap can no longer be charged a second ₹99 |
 | L5 | Swaps + chat + safety | OpenCode/Muse Spark | active: 2026-09-28T16:55Z | swaps detail/confirm/chat/outbox audit |
 | L6 | Groups + onboard | — | free | |
 | L7 | Admin | — | free | |
@@ -28,6 +28,14 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
   travellers' settings (it broke the ₹199 group flow, which legitimately sends
   several requests to one open trip). Needs real peer rows:
   `app/azure/load/get-matches.*`.
+- 2026-09-28 L4 → whoever owns `pay.$requestId.*`: the child pay routes render
+  through the parent's `<Outlet/>`, so the rule-2 guard in `PayScreen` never
+  runs for `/pay/$requestId/method`, `/paypal`, `/status` or `/done`. The money
+  hole is closed in `lib/checkout` now, but a settled swap still *renders* a
+  live "Pay ₹99" UI there and only refuses on tap (with the right copy). A gate
+  on the child screens would be the honest fix; left out of L4's commit because
+  the group flow branches on `isGroupRequestId` and getting that wrong in a
+  route is not caught by any test.
 - 2026-09-28 L3 → L9/L1: `npm run test` (default `forks` pool) times out on
   this machine with `Timeout waiting for worker to respond` on every one of
   the 31 files, 180s, no test executed. `npx vitest run --pool=threads
