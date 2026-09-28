@@ -2,17 +2,24 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
+  BERTHS_PER_BAY,
+  baySlot,
   createGroup,
   getGroup,
+  groupBayRows,
+  groupCoachMap,
   groupForTrip,
   groupJourney,
   groupTogetherCount,
+  groupUnplacedBerths,
   linkTrip,
   listGroups,
   markGroupPaid,
   resetGroups,
+  type GroupCoach,
 } from '@/lib/groups'
 import { GROUP_PRICE_PAISE } from '@/lib/money'
+import type { BerthType } from '@/lib/pnr'
 import { buildQuote } from '@/lib/payments'
 import { beginCheckout, confirmCaptured, lockCoveredRequest } from '@/lib/checkout'
 import {
@@ -32,6 +39,16 @@ import {
   resetStore,
   setOpenToSwap,
 } from '@/lib/store'
+
+/* Source scan, the `qa-placeholders` idiom: one rule-13 guarantee is about
+   what the *route* renders rather than what this file's helpers return, so it
+   has to read the route. */
+const { readFileSync } = process.getBuiltinModule('node:fs') as typeof import('node:fs')
+const { join } = process.getBuiltinModule('node:path') as typeof import('node:path')
+
+function read(rel: string): string {
+  return readFileSync(join(import.meta.dirname, '..', rel), 'utf8')
+}
 
 describe('family groups', () => {
   beforeEach(() => {
@@ -503,5 +520,241 @@ describe('groupJourney (design 19b subtitle)', () => {
     const splitB = await member('12952', DAY)
     expect(groupJourney(createGroup('Split', [splitA, splitB]))).toBeNull()
     expect(groupJourney(createGroup('Empty', []))).toBeNull()
+  })
+})
+
+describe('coach map (design 19b, docs/04 C "see everyone on one coach map")', () => {
+  const DAY = '2026-11-12'
+  let n = 0
+  async function ticket(
+    train: string,
+    seats: Array<{ coach: string | null; berth?: string | null; type?: BerthType; child?: boolean }>,
+    klass: '3A' | 'CC' = '3A',
+  ): Promise<string> {
+    n += 1
+    const trip = await addTrip({
+      pnr: `45127896${String(60 + n).padStart(2, '0')}`,
+      train_no: train,
+      journey_date: DAY,
+      class: klass,
+      from_code: 'MMCT',
+      to_code: 'NDLS',
+      passengers: seats.map((seat) => ({
+        coach: seat.coach,
+        berth_no: seat.berth ?? null,
+        ...(seat.type ? { berth_type: seat.type } : {}),
+        status: seat.coach ? ('CNF' as const) : ('WL' as const),
+        is_child_no_berth: seat.child === true,
+      })),
+    })
+    return trip.id
+  }
+
+  beforeEach(() => {
+    window.localStorage.clear()
+    resetStore()
+    resetGroups()
+    n = 0
+  })
+
+  it('places every berth the family holds, biggest coach first', async () => {
+    const pair = await ticket('12951', [
+      { coach: 'B1', berth: '40' },
+      { coach: 'B1', berth: '42' },
+    ])
+    const parents = await ticket('12951', [
+      { coach: 'A2', berth: '12' },
+      { coach: 'A2', berth: '14' },
+      { coach: 'A2', berth: '16' },
+    ])
+    /* Opens on the coach with most of the family (the strip's default view),
+       and keeps link order inside a coach. */
+    expect(groupCoachMap(createGroup('Five across two coaches', [pair, parents]))).toEqual({
+      coaches: [
+        {
+          coach: 'A2',
+          train_no: '12951',
+          journey_date: DAY,
+          berths: [
+            { berth_no: '12', bay: 2, slot: 4 },
+            { berth_no: '14', bay: 2, slot: 6 },
+            { berth_no: '16', bay: 2, slot: 8 },
+          ],
+        },
+        {
+          coach: 'B1',
+          train_no: '12951',
+          journey_date: DAY,
+          /* 40 is the last berth of bay 5, 42 the second of bay 6: a pair on
+             adjacent bays, not in one. The map is the only place that shows. */
+          berths: [
+            { berth_no: '40', bay: 5, slot: 8 },
+            { berth_no: '42', bay: 6, slot: 2 },
+          ],
+        },
+      ],
+      unseated: 0,
+    })
+  })
+
+  it('ties keep link order, and a coach is train + date + code', async () => {
+    const first = await ticket('12951', [{ coach: 'A2', berth: '12' }])
+    const second = await ticket('12951', [{ coach: 'B1', berth: '40' }])
+    expect(groupCoachMap(createGroup('Two coaches, one each', [first, second])).coaches.map((c) => c.coach)).toEqual([
+      'A2',
+      'B1',
+    ])
+    /* "A2 on 12951" and "A2 on 12952" are not the same place. Fresh PNRs:
+       `first` is already in the group above. */
+    const onFirst = await ticket('12951', [{ coach: 'A2', berth: '12' }])
+    const sameCodeOtherTrain = await ticket('12952', [{ coach: 'A2', berth: '9' }])
+    const map = groupCoachMap(createGroup('Two trains', [onFirst, sameCodeOtherTrain]))
+    expect(map.coaches).toHaveLength(2)
+    expect(map.coaches.map((c) => `${c.train_no}/${c.coach}`)).toEqual(['12951/A2', '12952/A2'])
+  })
+
+  it('counts the seatless without placing them in a coach', async () => {
+    /* The map must not imply a location for someone who does not have one:
+       waitlisted, RAC, and the child travelling without a berth (docs/04 C). */
+    const berth = await ticket('12951', [{ coach: 'A2', berth: '12' }])
+    const childTicket = await ticket('12951', [
+      { coach: 'A2', berth: '13' },
+      { coach: null, child: true },
+    ])
+    const waitlisted = await ticket('12951', [{ coach: null }])
+    const map = groupCoachMap(createGroup('One waiting', [berth, childTicket, waitlisted]))
+    expect(map.coaches).toHaveLength(1)
+    expect(map.coaches[0].berths.map((b) => b.berth_no)).toEqual(['12', '13'])
+    expect(map.unseated).toBe(2)
+  })
+
+  it('draws one row per bay, so "together" is a shape and not just a count', async () => {
+    const trip = await ticket('12951', [
+      { coach: 'A2', berth: '12' },
+      { coach: 'A2', berth: '14' },
+      { coach: 'A2', berth: '16' },
+      { coach: 'A2', berth: '42' },
+    ])
+    const coach = groupCoachMap(createGroup('One bay and a far berth', [trip])).coaches[0]
+    const rows = groupBayRows(coach)
+    /* Bay 2 is berths 9-16, so 12, 14 and 16 are one row — three of the four
+       together — while 42 sits alone four bays down. That "same bay / different
+       bay" answer is what a flat list of four numbers cannot give, and it is
+       the question the screen is named after. */
+    expect(rows.map((row) => row.bay)).toEqual([2, 6])
+    for (const row of rows) expect(row.slots).toHaveLength(BERTHS_PER_BAY)
+    expect(rows[0].slots.filter(Boolean).map((slot) => slot?.berth_no)).toEqual(['12', '14', '16'])
+    expect(rows[1].slots.filter(Boolean).map((slot) => slot?.berth_no)).toEqual(['42'])
+    /* A berth lands at its own index in the bay, which is what makes the row a
+       layout rather than a list. */
+    expect(rows[0].slots[3]?.berth_no).toBe('12')
+    expect(rows[0].slots[5]?.berth_no).toBe('14')
+    expect(rows[0].slots[7]?.berth_no).toBe('16')
+  })
+
+  it('leaves every slot the family does not hold empty', async () => {
+    const trip = await ticket('12951', [{ coach: 'A2', berth: '12' }])
+    const coach = groupCoachMap(createGroup('One berth', [trip])).coaches[0]
+    const [row] = groupBayRows(coach)
+    /* `null`, not a filler — there is no berth in scope for the view to print,
+       which is what keeps another passenger's number off the screen. */
+    expect(row.slots.filter((slot) => slot === null)).toHaveLength(BERTHS_PER_BAY - 1)
+    expect(row.slots.filter(Boolean)).toEqual([{ berth_no: '12', bay: 2, slot: 4 }])
+  })
+
+  it('places by the berth number alone, never by berth_type', async () => {
+    /* `addTrip` defaults `berth_type` to 'LB' whenever the PNR carried no berth
+       word (lib/store.ts: `passenger.berth_type ?? (chair ? 'WINDOW' : 'LB')`),
+       so a genuine upper stored that way is indistinguishable from a real
+       lower. Only slots 1 and 4 of a bay are lower berths, so cross-checking
+       the number against the type would refuse to place three berths in four.
+       Berth 14 is the sixth slot of bay 2, and it must land there regardless. */
+    const untyped = await ticket('12951', [{ coach: 'A2', berth: '14' }])
+    expect(groupCoachMap(createGroup('No berth word', [untyped])).coaches[0].berths[0]).toEqual({
+      berth_no: '14',
+      bay: 2,
+      slot: 6,
+    })
+    /* Even a type that flatly contradicts the number does not move it: the
+       type is not evidence about position, and overruling the ticket with it
+       would be inventing a seat. */
+    const contradicted = await ticket('12951', [{ coach: 'A2', berth: '14', type: 'SL' }])
+    expect(groupCoachMap(createGroup('Contradicted', [contradicted])).coaches[0].berths[0].slot).toBe(6)
+  })
+
+  it('a confirmed seat with no berth number is seated but off the map', async () => {
+    /* Some quotas carry a coach without a berth number. The member exists
+       there, so the cell exists with nothing to print — and crucially it is
+       NOT drawn in the seatless row, which means "no seat yet". */
+    const seat = await ticket('12951', [{ coach: 'D1', berth: null }])
+    const coach = groupCoachMap(createGroup('No number', [seat])).coaches[0]
+    expect(coach.berths).toEqual([{ berth_no: '', bay: null, slot: null }])
+    expect(groupBayRows(coach)).toEqual([])
+    expect(groupUnplacedBerths(coach)).toHaveLength(1)
+  })
+
+  it('a chair car is seated but has no bays to draw', async () => {
+    const trip = await ticket('12951', [{ coach: 'D1', berth: '21' }], 'CC')
+    const coach = groupCoachMap(createGroup('Chair car', [trip])).coaches[0]
+    /* A seat number in a chair car is not a berth, and a row of seats is not a
+       bay — placing seat 21 at "bay 3, slot 5" would be a made-up position. */
+    expect(coach.berths).toEqual([{ berth_no: '21', bay: null, slot: null }])
+    expect(groupBayRows(coach)).toEqual([])
+    expect(groupUnplacedBerths(coach)).toHaveLength(1)
+  })
+
+  it('the view cannot print a berth number in an empty slot (rule 13)', () => {
+    /* Two facts, and both are needed. (1) `groupBayRows` hands the view `null`
+       for every slot the family does not hold, so no number is ever in scope.
+       (2) The route does no bay arithmetic of its own — all of it lives in
+       lib/groups.ts — so it cannot reconstruct one. A number in an empty slot
+       would be another passenger's berth, which rule 13 forbids before
+       payment; and it is derivable (slot 3 of bay 2 is berth 11), which is
+       exactly why this is pinned rather than assumed. */
+    const coach: GroupCoach = {
+      coach: 'A2',
+      train_no: '12951',
+      journey_date: DAY,
+      berths: [{ berth_no: '12', bay: 2, slot: 4 }],
+    }
+    const [row] = groupBayRows(coach)
+    expect(row.slots.filter((slot) => slot === null)).toHaveLength(BERTHS_PER_BAY - 1)
+    expect(read('src/routes/groups.$id.plan.tsx')).not.toContain('BERTHS_PER_BAY')
+  })
+})
+
+describe('baySlot (a berth number is a position, not just a label)', () => {
+  it('reads the bay and the slot straight out of the number', () => {
+    /* The coach's own numbering, repeating an eight-berth bay all the way
+       down — which is the whole reason design 19b's map can be drawn from a
+       ticket at all. No seat chart, no lookup table. */
+    expect(baySlot('1', false)).toEqual({ bay: 1, slot: 1 })
+    expect(baySlot('8', false)).toEqual({ bay: 1, slot: 8 })
+    expect(baySlot('9', false)).toEqual({ bay: 2, slot: 1 })
+    expect(baySlot('12', false)).toEqual({ bay: 2, slot: 4 })
+    expect(baySlot('40', false)).toEqual({ bay: 5, slot: 8 })
+    expect(baySlot('42', false)).toEqual({ bay: 6, slot: 2 })
+    expect(baySlot('72', false)).toEqual({ bay: 9, slot: 8 })
+  })
+
+  it('puts the bay boundary on the last berth of the bay, not one past it', () => {
+    /* Bay 2 is berths 9-16: 16 is the *eighth* slot of bay 2 and 17 the first
+       of bay 3. An off-by-one here is the whole map — it is the difference
+       between "your family is in one bay" and "your family is in two". */
+    expect(baySlot('8', false)).toEqual({ bay: 1, slot: 8 })
+    expect(baySlot('9', false)).toEqual({ bay: 2, slot: 1 })
+    expect(baySlot('16', false)).toEqual({ bay: 2, slot: 8 })
+    expect(baySlot('17', false)).toEqual({ bay: 3, slot: 1 })
+  })
+
+  it('refuses anything that is not a berth', () => {
+    /* A chair car has rows of seats, not bays of berths (CHAIR_CLASSES). */
+    expect(baySlot('21', true)).toBeNull()
+    /* No number, or not a number, or not a berth. */
+    expect(baySlot(null, false)).toBeNull()
+    expect(baySlot('', false)).toBeNull()
+    expect(baySlot('12A', false)).toBeNull()
+    expect(baySlot('0', false)).toBeNull()
+    expect(baySlot('-3', false)).toBeNull()
   })
 })

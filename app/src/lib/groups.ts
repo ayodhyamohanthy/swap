@@ -167,6 +167,163 @@ export function groupJourney(
     : null
 }
 
+/** How many berths one sleeper bay holds.
+
+    Indian Railways numbers berths so this repeats all the way down the coach:
+    berth 12 is the fourth slot of the second bay, berth 40 the eighth slot of
+    the fifth. That repetition is what makes a berth *number* a position and
+    not merely a label, and it is the only reason design 19b's map can be drawn
+    from a ticket at all. */
+export const BERTHS_PER_BAY = 8
+
+/** Where a berth number sits in its coach, or null when the number is not a
+    berth (a chair-car seat, or nothing at all).
+
+    Bay and slot are both consequences of the number itself, so this asks the
+    ticket for nothing it did not already print — and it can therefore never
+    place a berth that was not on the ticket.
+
+    It deliberately does NOT consult `berth_type`, which looks like the obvious
+    cross-check and is a trap: `addTrip` defaults that field to `'LB'` whenever
+    the PNR carried no berth word (`lib/store.ts`:
+    `berth_type: passenger.berth_type ?? (chair ? 'WINDOW' : 'LB')`), so a real
+    upper berth whose type was never parsed is stored identically to a genuine
+    lower. Only slots 1 and 4 of a bay are lower berths, so cross-checking
+    would refuse to place **three berths in four** for no reason. Filed as the
+    L6 → L2 request: with the default distinguishable, the cross-check becomes
+    both possible and worth having. */
+export function baySlot(
+  berthNo: string | null,
+  isChairCar: boolean,
+): { bay: number; slot: number } | null {
+  if (isChairCar || !berthNo || !/^\d+$/.test(berthNo)) return null
+  const n = Number(berthNo)
+  if (n < 1) return null
+  return {
+    bay: Math.floor((n - 1) / BERTHS_PER_BAY) + 1,
+    slot: ((n - 1) % BERTHS_PER_BAY) + 1,
+  }
+}
+
+/** One berth the family holds, and where it sits. `bay`/`slot` are null when
+    the numbering cannot place it — the berth still exists and still counts, it
+    is just not on the map. */
+export interface GroupBerth {
+  /** As printed on the ticket. Empty for a confirmed seat with no number. */
+  berth_no: string
+  bay: number | null
+  slot: number | null
+}
+
+/** One coach of a family trip's coach map (docs/04 C: "link PNRs → see
+    everyone on one coach map", design 19b's `A2 Coach` strip). */
+export interface GroupCoach {
+  /** Coach code as printed on the ticket, e.g. "A2". */
+  coach: string
+  train_no: string
+  journey_date: string | null
+  /** Every berth the family holds here, in the order they were linked. */
+  berths: GroupBerth[]
+}
+
+/** One row of the map: a bay, and its slots in ticket order. */
+export interface GroupBayRow {
+  bay: number
+  /** Length `BERTHS_PER_BAY`. `null` where the family holds nothing. */
+  slots: (GroupBerth | null)[]
+}
+
+/** What the family occupies, coach by coach — the data behind design 19b's map.
+
+    It holds the family's own berths and nothing else. The rest of the coach
+    (who else is in it, which berths are free) is not in this app by design:
+    `match_cards` exposes no berth numbers and rule 13 keeps it that way, so
+    inventing neighbour berths would put a stranger on a "who is sitting where"
+    screen. What the map *does* draw is the family's berths at the positions
+    their own numbers give them — which is what lets the screen answer the
+    question it is named after ("Seat everyone together"): same bay, or
+    opposite ends of the coach.
+
+    Coaches are keyed by train + date too, because "A2 on 12951" and "A2 on
+    12952" are not the same place; a family on two trains gets two A2s.
+    Ordered biggest-family-first so the strip opens where most of them are,
+    with link order breaking a tie. */
+export function groupCoachMap(group: GroupTrip): { coaches: GroupCoach[]; unseated: number } {
+  const coaches: GroupCoach[] = []
+  const index = new Map<string, GroupCoach>()
+  let unseated = 0
+  for (const trip of memberTrips(group)) {
+    for (const passenger of trip.passengers) {
+      /* No coach means no seat yet: waitlisted or RAC, or a child travelling
+         without a berth (docs/04 C — in the group, never offered). They are
+         counted, never placed. */
+      if (!passenger.coach) {
+        unseated += 1
+        continue
+      }
+      const key = `${trip.train_no}|${trip.journey_date ?? ''}|${passenger.coach}`
+      let coach = index.get(key)
+      if (!coach) {
+        coach = {
+          coach: passenger.coach,
+          train_no: trip.train_no,
+          journey_date: trip.journey_date,
+          berths: [],
+        }
+        index.set(key, coach)
+        coaches.push(coach)
+      }
+      /* A berth number is what makes a seat a seat. A confirmed passenger with
+         a coach but no number is unusual (chair car, some quotas), so the
+         member still gets a cell — it just has nothing to print and no
+         position to print it at. */
+      const placed = baySlot(passenger.berth_no, trip.is_chair_car)
+      coach.berths.push({
+        berth_no: passenger.berth_no ?? '',
+        bay: placed?.bay ?? null,
+        slot: placed?.slot ?? null,
+      })
+    }
+  }
+  coaches.sort((a, b) => b.berths.length - a.berths.length)
+  return { coaches, unseated }
+}
+
+/** The map's rows: one per bay the family is seated in, smallest bay first,
+    each carrying the bay's slots with the family's berths in place.
+
+    The empty slots are the load-bearing part of rule 13, and they must stay
+    empty. A slot is a *position the coach's own numbering put there* — this
+    app has never seen who, if anyone, holds it, and rule 13 forbids showing
+    another passenger's berth number before payment anyway. So an empty slot
+    never gains a number or a name; it is a shape, not a seat. Adding the
+    berth number back (it is derivable — slot 3 of bay 2 is berth 11) would
+    publish a stranger's berth. `tests/groups.test.ts` pins the digitless
+    empty cell. */
+export function groupBayRows(coach: GroupCoach): GroupBayRow[] {
+  const rows = new Map<number, (GroupBerth | null)[]>()
+  for (const berth of coach.berths) {
+    if (berth.bay === null || berth.slot === null) continue
+    let slots = rows.get(berth.bay)
+    if (!slots) {
+      slots = Array.from({ length: BERTHS_PER_BAY }, () => null)
+      rows.set(berth.bay, slots)
+    }
+    slots[berth.slot - 1] = berth
+  }
+  return [...rows.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([bay, slots]) => ({ bay, slots }))
+}
+
+/** Berths in this coach the numbering cannot place: a chair-car seat, or a
+    confirmed seat with no number. They are seated, so they must never be drawn
+    in the seatless row — that row means "no seat yet", and these people have
+    one. They simply are not on the map. */
+export function groupUnplacedBerths(coach: GroupCoach): GroupBerth[] {
+  return coach.berths.filter((berth) => berth.bay === null)
+}
+
 /** "3 of 4 together": the biggest cluster of passengers sharing train + date
     + coach (docs/01, docs/04 C), counting **people**, not tickets. Design 5a
     shows Mom + Dad in A2 and Riya + You in B1 as "2 of 4 seated together", and
