@@ -1,5 +1,5 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
-import { AppFooter, type RouteChrome } from '@/components/app-shell'
+import { type RouteChrome } from '@/components/app-shell'
 import { TicketCard } from '@/components/ticket-card'
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
@@ -12,7 +12,10 @@ import { getTrip } from '@/lib/store'
    the two exact berths (rule 13: revealed only after payment). Nothing here
    is fabricated — unknown berths render masked ("Berth ••"), never guessed.
    Design 9c draws this as a kept ticket: green header, the berth pair, an
-   explicit "works without network" badge, then the tear and the stub. */
+   explicit "works without network" badge, then the tear and the stub.
+   The stub itself carries rule 11's footer line, so this screen renders no
+   separate AppFooter — design 9c shows nothing below the ticket but the
+   actions, and the same two sentences twice reads like a printing error. */
 export const Route = createFileRoute('/swaps/$id/summary')({
   staticData: { chrome: 'plain' } satisfies RouteChrome,
   component: SummaryScreen,
@@ -64,13 +67,14 @@ function SummaryScreen() {
         offlineLabel={t('summary.offlinePill')}
         stubTitle={t('footer.line1')}
         stubBody={t('footer.line2')}
-      >
-        {locked ? (
-          <p className="mt-3 text-center text-caption text-muted">
-            {t('summary.met', { name: locked.acceptor_name })} · {type(locked.acceptor_berth_type)}
-          </p>
-        ) : null}
-      </TicketCard>
+      />
+      {locked ? (
+        /* Design 9c's ticket body ends at the offline pill — this line sits
+           below the ticket, where it does not read as part of the print. */
+        <p className="mt-3 text-center text-caption text-muted">
+          {t('summary.met', { name: locked.acceptor_name })} · {type(locked.acceptor_berth_type)}
+        </p>
+      ) : null}
       {berths ? (
         <Button className="mt-4" asChild>
           <Link to="/swaps/$id/meet" params={{ id }}>
@@ -88,7 +92,9 @@ function SummaryScreen() {
           {t('cancelSwap.title')}
         </Link>
       </Button>
-      <AppFooter />
+      {/* No AppFooter here: the stub above already prints both footer lines
+          verbatim (rule 11), and design 9c shows nothing beneath the ticket's
+          actions. */}
     </div>
   )
 }

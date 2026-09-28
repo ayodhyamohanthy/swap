@@ -1,5 +1,6 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
+import { CheckCheck, Send, ShieldCheck } from 'lucide-react'
 import { AppFooter, type RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
@@ -10,7 +11,7 @@ import { enqueue, flush, pending } from '@/lib/outbox'
 import { trackEvent } from '@/lib/analytics'
 import { useOnline } from '@/lib/use-online'
 import { demoRequest } from '@/lib/demo-swap'
-import { acceptedOffer, getRequest, offersFor } from '@/lib/requests'
+import { acceptedOffer, getRequest, offersFor, revealedBerths } from '@/lib/requests'
 import { getSupabase } from '@/lib/supabase'
 import { fileReport, blockUser } from '@/lib/safety'
 import { getOrCreateChat, fetchMessages, sendMessage, isValidUuid } from '@/lib/chat-sync'
@@ -21,6 +22,8 @@ interface Msg {
   text: string
   hidden: boolean
   queued?: boolean
+  /** Send time (epoch ms) — design 4b stamps every bubble. */
+  at?: number
 }
 /* Locked-swap chat (docs/04 A12): bubbles + quick replies + guard + report. */
 export const Route = createFileRoute('/chat/$id')({
@@ -32,10 +35,17 @@ const QUICK_FALLBACK: Record<string, string> = {
   'chat.quickDoor': 'Meet me near the coach door',
   'chat.quickMet': "I've met them",
 }
+/** Design 4b stamps every bubble: "9:40 AM" style, viewer's locale. */
+function stamp(at?: number): string {
+  if (!at) return ''
+  return new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+}
 function ChatScreen() {
   const { id } = Route.useParams()
   const { t } = useI18n()
   const req = demoRequest(id)
+  /* Post-payment only (rule 13): the header line names where to find them. */
+  const berths = revealedBerths(id)
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [draft, setDraft] = useState('')
   const [warn, setWarn] = useState<string | null>(null)
@@ -72,6 +82,7 @@ function ChatScreen() {
                   text: m.text,
                   hidden: m.hidden,
                   queued: false,
+                  at: m.createdAt ? (Date.parse(m.createdAt) || undefined) : undefined,
                 })),
               )
             }
@@ -118,13 +129,16 @@ function ChatScreen() {
     setSentAt((s) => [...s, Date.now()])
     if (!online) {
       enqueue(id, clean)
-      setMsgs((m) => [...m, { id: m.length + 1, mine: true, text: clean, hidden: false, queued: true }])
+      setMsgs((m) => [
+        ...m,
+        { id: m.length + 1, mine: true, text: clean, hidden: false, queued: true, at: Date.now() },
+      ])
       setWarn(t('chat.queued'))
       setDraft('')
       return
     }
     const localId = Date.now()
-    setMsgs((m) => [...m, { id: localId, mine: true, text: clean, hidden: g.flagged }])
+    setMsgs((m) => [...m, { id: localId, mine: true, text: clean, hidden: g.flagged, at: localId }])
     setWarn(g.flagged ? t('chat.cashWarning') : null)
     if (g.flagged) trackEvent('message_flagged', { reasons: g.reasons.join(',') })
     setDraft('')
@@ -135,13 +149,35 @@ function ChatScreen() {
   return (
     <div>
       <h1 className="text-title text-ink">{t('chat.title', { name: req.acceptorName })}</h1>
+      {berths?.coach && berths.theirsNo ? (
+        /* Design 4b carries the person's name and where they are sitting in
+           the bar; here it sits under the title. Rule 13 allows coach + berth
+           because a chat only exists once the swap is paid and locked. */
+        <p className="mt-1 text-body text-muted">
+          {t('trip.coach', { coach: berths.coach })} · {t('trip.berth', { no: berths.theirsNo })}
+        </p>
+      ) : null}
       <div className="mt-3 flex flex-col gap-2" aria-live="polite">
         {msgs.map((m) => (
           <p key={m.id} className={m.mine
-            ? 'max-w-[85%] self-end rounded-card rounded-br-sm bg-primary px-3 py-2 text-body text-primary-ink'
+            /* Design 4b: the sent bubble is the soft green (bg-wash) with ink
+               text and green ticks — the app's dark green is for solid CTAs. */
+            ? 'max-w-[85%] self-end rounded-card rounded-br-sm bg-wash px-3 py-2 text-body text-ink'
             : 'max-w-[85%] self-start rounded-card rounded-bl-sm border border-line bg-card px-3 py-2 text-body text-ink'}>
-            {m.hidden ? t('chat.hidden') : m.text}
-            {m.queued ? <span className="mt-1 block text-caption opacity-80">✓ {t('chat.queuedShort')}</span> : null}
+            <span className="block">{m.hidden ? t('chat.hidden') : m.text}</span>
+            {m.queued || m.at ? (
+              /* Design 4b stamps each bubble and ticks the ones that went out. */
+              <span className={`mt-1 flex items-center gap-1 text-caption ${m.mine ? 'justify-end text-muted' : 'text-muted'}`}>
+                {m.queued ? (
+                  t('chat.queuedShort')
+                ) : (
+                  <>
+                    {m.mine ? <CheckCheck aria-hidden className="size-3.5 text-primary" /> : null}
+                    {stamp(m.at)}
+                  </>
+                )}
+              </span>
+            ) : null}
           </p>
         ))}
       </div>
@@ -149,13 +185,17 @@ function ChatScreen() {
       <div className="chip-row mt-3">
         {QUICK_REPLIES.map((k) => (
           <button key={k} type="button" onClick={() => send(t(k as never) || QUICK_FALLBACK[k])}
-            className="min-h-12 shrink-0 rounded-full border border-primary px-3 font-semibold text-primary">{t(k as never) || QUICK_FALLBACK[k]}</button>
+            /* Design 4b draws the quick replies as white pills, not green. */
+            className="min-h-12 shrink-0 rounded-full border border-line bg-card px-3 text-ink">{t(k as never) || QUICK_FALLBACK[k]}</button>
         ))}
       </div>
-      <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); send(draft) }}>
+      <form className="mt-3 flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); send(draft) }}>
         <Input value={draft} onChange={(e) => setDraft(e.target.value)}
           placeholder={t('chat.placeholder')} aria-label={t('chat.placeholder')} />
-        <Button type="submit" size="sm">{t('chat.send')}</Button>
+        {/* Design 4b's round send control at the right of the field. */}
+        <Button type="submit" size="icon" className="shrink-0 rounded-full" aria-label={t('chat.send')}>
+          <Send aria-hidden className="size-5" />
+        </Button>
       </form>
       <Card className="mt-4">
         <p className="font-head font-bold text-ink">{t('chat.found')}</p>
@@ -171,7 +211,7 @@ function ChatScreen() {
         </div>
       </Card>
       <Button
-        variant="ghost"
+        variant="outline"
         className="mt-2"
         type="button"
         onClick={() => {
@@ -201,6 +241,7 @@ function ChatScreen() {
           })
         }}
       >
+        <ShieldCheck aria-hidden className="size-4" />
         {reported ? t('chat.reported') : t('chat.report')}
       </Button>
       <AppFooter />

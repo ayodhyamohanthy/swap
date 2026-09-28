@@ -2,7 +2,7 @@ import { Link, Navigate, createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { AppFooter, type RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
-import { Card, CardBody, CardTitle } from '@/components/ui/card'
+import { Card, CardTitle } from '@/components/ui/card'
 import { useI18n } from '@/lib/i18n'
 import { acceptedOffer, getRequest, offersFor } from '@/lib/requests'
 import { rateTrip } from '@/lib/store'
@@ -38,6 +38,20 @@ function RateScreen() {
       else next.add(key)
       return next
     })
+  }
+  function save() {
+    /* Stars land on the other traveller's trip and nudge their future
+       match scores (docs/08). No money, no names attached. */
+    try {
+      const req = getRequest(id)
+      const offer = req
+        ? offersFor(req.id).find((o) => o.id === req.locked_offer_id) ?? acceptedOffer(req.id)
+        : undefined
+      if (offer?.acceptor_trip_id) rateTrip(offer.acceptor_trip_id, stars)
+    } catch {
+      /* A rating must never block the flow — it is advisory only. */
+    }
+    setDone(true)
   }
   if (done) {
     return (
@@ -89,26 +103,14 @@ function RateScreen() {
           </button>
         ))}
       </div>
-      <Button
-        className="mt-4"
-        onClick={() => {
-          /* Stars land on the other traveller's trip and nudge their future
-             match scores (docs/08). No money, no names attached. */
-          try {
-            const req = getRequest(id)
-            const offer = req
-              ? offersFor(req.id).find((o) => o.id === req.locked_offer_id) ?? acceptedOffer(req.id)
-              : undefined
-            if (offer?.acceptor_trip_id) rateTrip(offer.acceptor_trip_id, stars)
-          } catch {
-            /* A rating must never block the flow — it is advisory only. */
-          }
-          setDone(true)
-        }}
-      >
+      <Button className="mt-4" onClick={save}>
         {t('rating.done')}
       </Button>
-      <CardBody className="mt-2 text-center text-caption text-muted">{t('rating.submit')}</CardBody>
+      {/* Design 13c draws Done and Submit as two buttons; as a grey caption
+          beneath the primary, Submit read like a disabled control. Both save. */}
+      <Button className="mt-2" variant="neutral" onClick={save}>
+        {t('rating.submit')}
+      </Button>
       <AppFooter />
     </div>
   )

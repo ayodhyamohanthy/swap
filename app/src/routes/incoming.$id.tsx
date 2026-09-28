@@ -1,5 +1,5 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
-import { Coins, ShieldCheck } from 'lucide-react'
+import { Clock, Coins, ShieldCheck } from 'lucide-react'
 import { AppFooter, type RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
@@ -71,25 +71,45 @@ function IncomingScreen() {
 
   return (
     <div>
-      <h1 className="text-title text-ink">{t('incoming.title')}</h1>
-      <p className="mt-1 text-body font-semibold text-ink">
-        {t('incoming.giveGet', {
-          yours: type(incoming.give_berth),
-          theirs: type(incoming.get_berth),
-        })}
-      </p>
+      <h1 className="text-title text-ink">
+        {/* Design 19c retitles the screen the moment they accept. */}
+        {state === 'accepted' ? t('swaps.waitingPayment') : t('incoming.title')}
+      </h1>
 
       <Card className="mt-4">
         <span className="flex size-12 items-center justify-center rounded-full bg-wash font-head text-title font-bold text-primary">
           {incoming.requester_name.slice(0, 1)}
         </span>
-        <CardTitle className="mt-2">{incoming.requester_name}</CardTitle>
+        <CardTitle className="mt-2">
+          {incoming.requester_name}
+          {incoming.requester_coach ? (
+            /* Design 4a leads with the coach beside the first name — rule 13
+               allows name, class, coach and berth type, and the acceptor is
+               deciding whether to walk over to someone. */
+            <span className="font-body font-normal text-muted">
+              {' · '}
+              {t('trip.coach', { coach: incoming.requester_coach })}
+            </span>
+          ) : null}
+        </CardTitle>
         <CardBody>
           {t('incoming.reason', { reason: t(incoming.reason_key ?? 'request.reasons.none') })}
         </CardBody>
-        <p className="mt-2 flex items-center gap-2 font-head text-body font-bold text-primary">
-          <Coins aria-hidden className="size-5" />
-          {t('incoming.earn')}
+        {/* docs/09's accept card carries both halves of the trade; design 4a
+            draws them as a bordered inner box inside the card rather than a
+            line sitting under the page title. */}
+        <div className="mt-3 rounded-btn border border-line px-3 py-2 text-body text-ink">
+          {t('incoming.giveGet', {
+            yours: type(incoming.give_berth),
+            theirs: type(incoming.get_berth),
+          })}
+        </div>
+        <p className="mt-3">
+          {/* Design 4a's credit line is a soft pill, not bare bold text. */}
+          <span className="inline-flex items-center gap-2 rounded-full bg-accent-soft px-3 py-1 font-head text-body font-bold text-primary">
+            <Coins aria-hidden className="size-5" />
+            {t('incoming.earn')}
+          </span>
         </p>
         <p className="mt-2 flex gap-2 text-caption text-muted">
           <ShieldCheck aria-hidden className="size-4 shrink-0" />
@@ -114,7 +134,13 @@ function IncomingScreen() {
 
       {state === 'accepted' ? (
         <Card className="mt-4 border-accent/40 bg-accent-soft">
-          <CardTitle>{t('incoming.accepted')}</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            {/* Design 19c's waiting state is a clock on a soft amber disc. */}
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent-soft">
+              <Clock aria-hidden className="size-5 text-accent" />
+            </span>
+            {t('incoming.accepted')}
+          </CardTitle>
           <CardBody className="text-ink">
             {t('incoming.waiting', { name: incoming.requester_name })}
           </CardBody>
