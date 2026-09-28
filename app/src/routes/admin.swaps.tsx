@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
 import { Field, Input } from '@/components/ui/input'
 import { Pill } from '@/components/ui/pill'
-import { downloadCsv, runAdminAction, swapsToCsv, type AdminSwapRow } from '@/lib/admin'
+import { adminNoticeKey, downloadCsv, runAdminAction, swapsToCsv, type AdminSwapRow } from '@/lib/admin'
 import { applyResolution, voidSwap } from '@/lib/settle'
 import { resolveConfirmations } from '@/lib/outcomes'
 import { useI18n } from '@/lib/i18n'
@@ -43,14 +43,17 @@ function AdminSwaps() {
       reason: extra.reason,
       requestId: row.id,
     })
-    if (result.demo) {
+    /* No backend: settle the local swap through the same rules (settle.ts) so
+       the demo still walks end to end. A backend that REFUSED the action
+       settles nothing here — keeping those two apart is the whole point. */
+    if (result.outcome === 'device') {
       if (action === 'move_to_credit') voidSwap(row.id)
       else applyResolution(row.id, resolveConfirmations('swapped', 'swapped'))
     }
     setBusy(null)
     setReasonFor(null)
     setReason('')
-    setNotice(result.demo ? t('admin.actedDemo') : t('admin.acted'))
+    setNotice(t(adminNoticeKey(result, 'admin.acted')))
   }
 
   const rows: AdminSwapRow[] = requests.map((request) => {

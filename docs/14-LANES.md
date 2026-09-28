@@ -9,9 +9,9 @@
 | L2 | Trips + PNR | OpenCode/Muse Spark | done. Trips/add/berth/WL/RAC/CAN/quota screens verified vs designs; multi-passenger SMS fill + P-label coach fix |
 | L3 | Requests + matching | WorkBuddy/Claude | done. Daily caps wired, acceptor Settings filters now applied on the incoming path, connecting-only journeys no longer match |
 | L4 | Payments (Razorpay/PayPal/credit) | WorkBuddy/Claude | done. Rule 2 now enforced on the local path: a group-covered swap can no longer be charged a second ₹99 |
-| L5 | Swaps + chat + safety | OpenCode/Muse Spark | active: 2026-09-28T16:55Z | swaps detail/confirm/chat/outbox audit |
+| L5 | Swaps + chat + safety | OpenCode/Muse Spark | active: 2026-09-28T17:40Z | chat-guard Hindi/spaced-evasion hardening (safety-eval corpus) |
 | L6 | Groups + onboard | WorkBuddy/Claude | done. `groupTogetherCount` now reports the biggest same-train/date/coach cluster instead of whichever trip was linked first; GROUP_MAX_SWAPS audited — consistent at all five sites |
-| L7 | Admin | — | free | |
+| L7 | Admin | WorkBuddy/Claude | done. A refused server action is no longer reported as a demo success (and no longer writes an audit row for something that never happened); "Credit added." only when the server added it; Overview "today" is the operator's local day, not UTC |
 | L8 | DB + schema | — | free | announce before edit |
 | L9 | Infra + credits | — | free | |
 | L10 | i18n (single writer) | WorkBuddy/Claude | done. Added `matches.cappedToday` (en+hi) for L3's send cap |
@@ -71,6 +71,21 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
 1. L1: real app icons (current `icon-192/512` are placeholder PNGs), `screenshots/` for install UI, manifest `id/shortcuts/screenshots`.
 2. L1: Cloudflare deploy run — `npx wrangler deploy` (keyless; secrets later).
 3. L2–L7: design parity pass vs `designs/01-29.jpg` (`docs/05` mapping).
-4. L7: admin CSV export already exists — verify against `designs/15-18,23,24`.
+4. L7: admin **design parity** vs `designs/15-18,23,24`. The CSV exports are
+   structurally sound — escaping, masked last4 only, trailing newline, all
+   tested — but they do not carry what the design tables show.
+   `usersToCsv` exports `id, first_name, last_initial, created_at, blocked,
+   reported` where design 16 shows Name / Joined / **Trips** / **Swaps** /
+   **Credit** / Status, so Trips, Swaps and Credit are missing from the export
+   *and* from `AdminUserRow`. `admin.users.tsx` also renders exactly one row
+   (the signed-in account, or `local-device`) with no search box and none of
+   the All / Active today / Reported / Blocked chips design 16 shows.
+   Overview (design 23) has six tiles — PNRs added, Requests sent,
+   **Accepted**, Swaps done, **Money in**, Credit given — where `buildOverview`
+   returns four counts plus a wallet balance: **Accepted** (offers accepted)
+   and **Money in** (rupees received, not a count) are missing entirely, and
+   "Credit in circulation" is the outstanding balance, a different metric from
+   the design's "Credit given". Needs new copy in both locales → open L10 as
+   single writer first.
 5. L9: Azure burn-down dry-runs (`app/azure/`), PostHog/Sentry key plumbing (env only).
 6. L8: apply `app/azure/load/get-matches.spec-part*.sql` as one migration after review.

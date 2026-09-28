@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { Field, Input } from '@/components/ui/input'
 import { Pill } from '@/components/ui/pill'
-import { creditsToCsv, downloadCsv, runAdminAction, type AdminCreditRow } from '@/lib/admin'
+import { adminNoticeKey, creditsToCsv, downloadCsv, runAdminAction, type AdminCreditRow } from '@/lib/admin'
 import { useI18n } from '@/lib/i18n'
 import { formatRupees } from '@/lib/money'
 import { useAppState } from '@/lib/use-store'
@@ -75,8 +75,14 @@ function AdminCredits() {
     })
     setBusy(false)
     setError(null)
-    setSaved(true)
-    setNotice(result.demo ? t('admin.actedDemo') : t('admin.acted'))
+    /* "Credit added." only when the server actually added it. The device log
+       records the tap but cannot move the local wallet: `credit()` in
+       lib/store.ts accepts only the two fixed rule amounts
+       (`CREDIT_AMOUNTS`), and an admin adjustment is by definition an
+       arbitrary one. Claiming success here was the screen lying about a
+       ledger sitting two cards above it. */
+    setSaved(result.outcome === 'applied')
+    setNotice(t(adminNoticeKey(result, 'admin.acted')))
     setAmount('')
     setReason('')
   }

@@ -237,9 +237,46 @@ describe('console actions fall back to the device log without a backend', () => 
         resolution: 'voided',
         requestId: 'req-test',
       })
-      expect(result).toEqual({ persisted: false, demo: true })
+      expect(result).toEqual({ outcome: 'device', persisted: false, demo: true })
     }
     const logged = activityLog().filter((row) => row.action === 'admin_action')
     expect(logged).toHaveLength(6)
+  })
+
+  it('records exactly one admin_action event per tap, never two', async () => {
+    const { runAdminAction } = await import('@/lib/admin')
+    const { readEvents, resetAnalyticsForTests } = await import('@/lib/analytics')
+    resetAnalyticsForTests()
+    await runAdminAction('block_user', { target: 'local-device', reason: 'test' })
+    expect(readEvents().filter((event) => event.event === 'admin_action')).toHaveLength(1)
+  })
+
+  /* The bug this pins: a configured backend that REFUSED an action was
+     reported as a demo, so the console said the server would "apply it when
+     connected" (nothing replays a device log) and wrote an admin_action row
+     for a block or a credit move that never happened. */
+  it('keeps "the server did it", "logged here" and "it failed" apart', async () => {
+    const { adminNoticeKey } = await import('@/lib/admin')
+    expect(adminNoticeKey({ outcome: 'applied', persisted: true, demo: false }, 'admin.blocked')).toBe('admin.blocked')
+    expect(adminNoticeKey({ outcome: 'device', persisted: false, demo: true }, 'admin.blocked')).toBe('admin.actedDemo')
+    expect(adminNoticeKey({ outcome: 'failed', persisted: false, demo: false }, 'admin.blocked')).toBe('admin.actedFailed')
+  })
+})
+
+describe('buildOverview counts the local day, not the UTC day', () => {
+  function rowAt(when: Date) {
+    return { ...logActivity('pnr_added', { train_no: '12951' }), created_at: when.toISOString() }
+  }
+
+  it('starts the day at local midnight', () => {
+    /* Built from local wall-clock, so this asserts the same thing in any zone
+       — but it only *catches* the old UTC comparison at a nonzero offset,
+       which is where the launch market (IST, +5:30) lives. */
+    const justAfter = new Date()
+    justAfter.setHours(0, 1, 0, 0)
+    const justBefore = new Date(justAfter.getTime() - 5 * 60 * 1000)
+
+    expect(buildOverview({ activity: [rowAt(justAfter)], walletTotalPaise: 0 }, justAfter.getTime()).pnrsToday).toBe(1)
+    expect(buildOverview({ activity: [rowAt(justBefore)], walletTotalPaise: 0 }, justAfter.getTime()).pnrsToday).toBe(0)
   })
 })

@@ -739,6 +739,7 @@
     "resolveConfirm": "Resolve: swapped",
     "reasonPh": "Reason — required for credit moves",
     "acted": "Done.",
-    "actedDemo": "Logged on this device. The server applies it when connected."
+    "actedDemo": "Logged on this device. The server applies it when connected.",
+    "actedFailed": "That did not go through. Nothing was changed."
   }
 }

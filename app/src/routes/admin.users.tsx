@@ -4,7 +4,7 @@ import type { RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
 import { Pill } from '@/components/ui/pill'
-import { downloadCsv, runAdminAction, usersToCsv, type AdminUserRow } from '@/lib/admin'
+import { adminNoticeKey, downloadCsv, runAdminAction, usersToCsv, type AdminUserRow } from '@/lib/admin'
 import { useI18n } from '@/lib/i18n'
 import { useAppState, useCreditPaise } from '@/lib/use-store'
 
@@ -30,8 +30,8 @@ function AdminUsers() {
     setBusy(id)
     const result = await runAdminAction('block_user', { target: id, reason: 'admin console' })
     setBusy(null)
-    if (!result.demo) setBlocked((prev) => new Set(prev).add(id))
-    setNotice(result.demo ? t('admin.actedDemo') : t('admin.blocked'))
+    if (result.outcome === 'applied') setBlocked((prev) => new Set(prev).add(id))
+    setNotice(t(adminNoticeKey(result, 'admin.blocked')))
   }
 
   /* One row for the signed-in account, or a device-only placeholder. */

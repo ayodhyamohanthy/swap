@@ -4,7 +4,7 @@ import type { RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
 import { Pill } from '@/components/ui/pill'
-import { activityToCsv, downloadCsv, runAdminAction } from '@/lib/admin'
+import { activityToCsv, adminNoticeKey, downloadCsv, runAdminAction } from '@/lib/admin'
 import { useI18n } from '@/lib/i18n'
 import { useAppState } from '@/lib/use-store'
 
@@ -32,8 +32,8 @@ function AdminReports() {
     setBusy(id)
     const result = await runAdminAction('close_report', { target: id })
     setBusy(null)
-    if (!result.demo) setClosed((prev) => new Set(prev).add(id))
-    setNotice(result.demo ? t('admin.actedDemo') : t('admin.closed'))
+    if (result.outcome === 'applied') setClosed((prev) => new Set(prev).add(id))
+    setNotice(t(adminNoticeKey(result, 'admin.closed')))
   }
 
   return (

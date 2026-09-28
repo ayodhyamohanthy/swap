@@ -6,6 +6,8 @@
 
 import { logActivity, type ActivityRow } from './store'
 import { trackEvent } from './analytics'
+import { isSupabaseConfigured } from './supabase'
+import type { MessageKey } from './i18n'
 import {
   adminAdjustCredit,
   adminBlockUser,
@@ -174,14 +176,43 @@ const DEMO_ACTION: Record<ConsoleAdminAction, string> = {
 }
 
 /**
+ * Where a console action actually landed (docs/04-D).
+ *   `applied` — the server ran it. The only outcome that means "it happened".
+ *   `device`  — no backend is configured, so the tap is logged on this device.
+ *   `failed`  — a backend IS configured and refused it. Nothing happened and
+ *               nothing will: the server never replays a device log.
+ */
+export type AdminActionResult =
+  | { outcome: 'applied'; persisted: true; demo: false }
+  | { outcome: 'device'; persisted: false; demo: true }
+  | { outcome: 'failed'; persisted: false; demo: false }
+
+/** The notice to show for a result: the caller's success copy when the server
+    really ran it, otherwise "logged on this device" or "did not go through".
+    One definition, so the four consoles cannot drift apart on it. */
+export function adminNoticeKey(result: AdminActionResult, success: MessageKey): MessageKey {
+  if (result.outcome === 'applied') return success
+  return result.outcome === 'device' ? 'admin.actedDemo' : 'admin.actedFailed'
+}
+
+/**
  * Run a console action against the server when a backend is configured;
  * otherwise log it on this device so nothing is ever silently dropped
- * (docs/04-D). Returns where the action landed.
+ * (docs/04-D).
+ *
+ * The device fallback is gated on there being NO backend. It used to catch
+ * every error, so a configured backend that *refused* an action (not signed
+ * in, `has_role` said no, RLS rejected the write, network down) was reported
+ * as a demo: the console said "Logged on this device. The server applies it
+ * when connected." — which is false, because nothing replays that log — and
+ * wrote an `admin_action` row claiming a block or a credit move that never
+ * happened. The activity log is the system of record, so a fabricated row is
+ * worse than an error.
  */
 export async function runAdminAction(
   action: ConsoleAdminAction,
   input: ConsoleAdminInput,
-): Promise<{ persisted: boolean; demo: boolean }> {
+): Promise<AdminActionResult> {
   const fns = {
     block_user: adminBlockUser,
     move_to_credit: adminMoveToCredit,
@@ -192,12 +223,18 @@ export async function runAdminAction(
   } as const
   try {
     const result = await fns[action]({ data: input })
-    trackEvent('admin_action', { action: DEMO_ACTION[action], persisted: result.persisted })
     if (!result.persisted) throw new Error('admin_not_persisted')
-    return { persisted: true, demo: false }
+    /* Tracked once, on the way out — the old code tracked here and again in
+       the fallback, so every fallback counted the tap twice. */
+    trackEvent('admin_action', { action: DEMO_ACTION[action], persisted: true })
+    return { outcome: 'applied', persisted: true, demo: false }
   } catch {
+    if (isSupabaseConfigured()) {
+      trackEvent('admin_action', { action: DEMO_ACTION[action], persisted: false })
+      return { outcome: 'failed', persisted: false, demo: false }
+    }
     logDemoAdminAction({ action: DEMO_ACTION[action], target: input.target, reason: input.reason })
-    return { persisted: false, demo: true }
+    return { outcome: 'device', persisted: false, demo: true }
   }
 }
 
@@ -215,13 +252,19 @@ export interface AdminOverview {
   busiestTrains: Array<{ train_no: string; count: number }>
 }
 
+/* The console's "today" is the operator's LOCAL day, matching `dayKey()` in
+   lib/requests.ts that the daily abuse limits use. This compared UTC calendar
+   days, which is the wrong day for the first 5h30m of every IST date — the
+   only market we launch in (rule 14) — so the Overview tiles said "PNRs added
+   today" while showing yesterday's activity, and anything added between
+   midnight and 05:30 IST was attributed to the previous day. */
 function isToday(iso: string, nowMs: number): boolean {
   const day = new Date(iso)
   const now = new Date(nowMs)
   return (
-    day.getUTCFullYear() === now.getUTCFullYear() &&
-    day.getUTCMonth() === now.getUTCMonth() &&
-    day.getUTCDate() === now.getUTCDate()
+    day.getFullYear() === now.getFullYear() &&
+    day.getMonth() === now.getMonth() &&
+    day.getDate() === now.getDate()
   )
 }
 
