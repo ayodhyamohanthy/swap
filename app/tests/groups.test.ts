@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   createGroup,
   getGroup,
+  groupForTrip,
+  groupJourney,
   groupTogetherCount,
   linkTrip,
   listGroups,
@@ -23,6 +25,7 @@ import {
   sendRequest,
 } from '@/lib/requests'
 import {
+  activityLog,
   addTrip,
   credit,
   listPayments,
@@ -271,5 +274,234 @@ describe('unused group cover converts to credit (docs/01, rule 6)', () => {
     /* Partially used bundles are spent, never converted. */
     expect(isUnusedGroupCover(after, DAY, 1)).toBe(false)
     expect(isUnusedGroupCover(after, DAY, 3)).toBe(false)
+  })
+})
+
+describe('"x of y together" counts people, not tickets (designs 5a, 19a)', () => {
+  const DAY = '2026-11-12'
+  let n = 0
+  /** One PNR, which may hold several passengers — design 19a's "PNR ••• 4821,
+      2 people · A2". A null coach means no berth allotted yet (WL/RAC) or a
+      child travelling without one. */
+  async function ticket(
+    seats: Array<{ coach: string | null; berth?: string; child?: boolean }>,
+  ): Promise<string> {
+    n += 1
+    const trip = await addTrip({
+      pnr: `45127896${String(50 + n).padStart(2, '0')}`,
+      train_no: '12951',
+      journey_date: DAY,
+      class: '3A',
+      from_code: 'MMCT',
+      to_code: 'NDLS',
+      passengers: seats.map((seat) => ({
+        coach: seat.coach,
+        berth_no: seat.berth ?? null,
+        berth_type: seat.coach ? ('LB' as const) : undefined,
+        status: seat.coach ? ('CNF' as const) : ('WL' as const),
+        is_child_no_berth: seat.child === true,
+      })),
+    })
+    return trip.id
+  }
+
+  beforeEach(() => {
+    window.localStorage.clear()
+    resetStore()
+    resetGroups()
+    n = 0
+  })
+
+  it('a two-person ticket counts as two people', async () => {
+    const pair = await ticket([{ coach: 'A2', berth: '11' }, { coach: 'A2', berth: '12' }])
+    const solo = await ticket([{ coach: 'B1', berth: '40' }])
+    /* Counting trips answered "1 of 2": the family is three people, two of
+       whom are together. */
+    expect(groupTogetherCount(createGroup('Sharma family', [pair, solo]))).toEqual({
+      done: 2,
+      total: 3,
+    })
+  })
+
+  it('design 5a: two in A2 and two in B1 reads "2 of 4"', async () => {
+    const parents = await ticket([{ coach: 'A2', berth: '12' }, { coach: 'A2', berth: '14' }])
+    const others = await ticket([{ coach: 'B1', berth: '40' }, { coach: 'B1', berth: '42' }])
+    expect(groupTogetherCount(createGroup('Four across two coaches', [parents, others]))).toEqual({
+      done: 2,
+      total: 4,
+    })
+  })
+
+  it('a child without a berth is a member who is never seated', async () => {
+    /* docs/04 C: "Child without berth → counted in group, never offered." */
+    const withChild = await ticket([{ coach: 'A2', berth: '11' }, { coach: null, child: true }])
+    const other = await ticket([{ coach: 'A2', berth: '12' }])
+    expect(groupTogetherCount(createGroup('Child along', [withChild, other]))).toEqual({
+      done: 2,
+      total: 3,
+    })
+  })
+
+  it('members with no coach are in the total and never in the cluster', async () => {
+    /* The bug this pins: keying the cluster on `coach ?? ''` grouped every
+       unallocated passenger under the same empty key, so two waitlisted
+       travellers read "2 of 2 together". */
+    const wl1 = await ticket([{ coach: null }])
+    const wl2 = await ticket([{ coach: null }])
+    expect(groupTogetherCount(createGroup('Still waitlisted', [wl1, wl2]))).toEqual({
+      done: 0,
+      total: 2,
+    })
+    const cnf = await ticket([{ coach: 'A2', berth: '11' }])
+    const stillOut = await ticket([{ coach: null }])
+    const alsoOut = await ticket([{ coach: null }])
+    expect(groupTogetherCount(createGroup('Partly confirmed', [cnf, stillOut, alsoOut]))).toEqual({
+      done: 1,
+      total: 3,
+    })
+  })
+})
+
+describe('one trip belongs to one family trip', () => {
+  const DAY = '2026-11-12'
+  let n = 0
+  async function member(): Promise<string> {
+    n += 1
+    const trip = await addTrip({
+      pnr: `45127896${String(70 + n).padStart(2, '0')}`,
+      train_no: '12951',
+      journey_date: DAY,
+      class: '3A',
+      from_code: 'MMCT',
+      to_code: 'NDLS',
+      passengers: [{ coach: 'B1', berth_no: String(20 + n), berth_type: 'LB' }],
+    })
+    return trip.id
+  }
+
+  beforeEach(() => {
+    window.localStorage.clear()
+    resetStore()
+    resetGroups()
+    n = 0
+  })
+
+  it('refuses to put one booking in two ₹199 bundles', async () => {
+    /* `group_for_trip()` picks the first group containing the trip, and which
+       one it picks decides whether a member's swap is covered by the ₹199
+       already paid or costs another ₹99. Nothing in the UI asks, so the model
+       refuses the state. */
+    const t1 = await member()
+    const t2 = await member()
+    const first = createGroup('Wedding party', [t1])
+    const second = createGroup('Another cousin group', [t1, t2])
+    expect(second.trip_ids).toEqual([t2])
+    expect(linkTrip(second.id, t1)).toBeUndefined()
+    expect(groupForTrip(t1)?.id).toBe(first.id)
+    /* The audit row counts what was actually linked, not what was asked for. */
+    const row = activityLog().find((r) => r.action === 'group_created' && r.entity_id === second.id)
+    expect(row?.meta).toEqual({ trips: 1 })
+  })
+})
+
+describe('group audit rows use the money constants (docs/08)', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    resetGroups()
+  })
+
+  it('logs GROUP_PRICE_PAISE, not a literal that can drift from it', () => {
+    const group = createGroup('Sharma family', ['t1'])
+    markGroupPaid(group.id)
+    const row = activityLog().find((r) => r.action === 'group_paid' && r.entity_id === group.id)
+    expect(row?.meta).toEqual({ amount_paise: GROUP_PRICE_PAISE })
+  })
+})
+
+describe('the family flow is reachable (docs/05 screens 52-53)', () => {
+  const { readdirSync, readFileSync } = process.getBuiltinModule('node:fs') as typeof import('node:fs')
+  const { join } = process.getBuiltinModule('node:path') as typeof import('node:path')
+  const ROUTES = join(import.meta.dirname, '..', 'src', 'routes')
+
+  /** [file name, source] for every route file, excluding the group routes. */
+  function otherRoutes(): Array<[string, string]> {
+    return readdirSync(ROUTES)
+      .filter((name) => name.endsWith('.tsx') && !name.startsWith('groups.'))
+      .map((name) => [name, readFileSync(join(ROUTES, name), 'utf8')])
+  }
+
+  it('has at least one link into /groups from outside the group screens', () => {
+    /* This feature was unreachable for a long stretch: the only links to
+       /groups/$id sat in the pay screens, i.e. *after* a group payment that
+       nothing could start, and `components/new-group-card` — the create form —
+       was rendered by nobody. A family trip therefore needs an entry point that
+       is not itself inside the flow it opens. */
+    const entries = otherRoutes().filter(([, src]) => /to="\/groups"/.test(src))
+    expect(entries.map(([name]) => name)).toContain('profile.tsx')
+  })
+
+  it('moves with the router instead of reloading the page', () => {
+    for (const name of ['groups.index.tsx', 'groups.$id.tsx', 'groups.$id.plan.tsx']) {
+      const src = readFileSync(join(ROUTES, name), 'utf8')
+      expect(src, name).not.toMatch(/window\.location\.(assign|href|replace)/)
+    }
+  })
+
+  it('shows the three-tab bar on the screens docs/05 gives a tab', () => {
+    /* AGENTS.md 12: three tabs everywhere except setup screens. Design 19a/19b
+       draw the tab bar and docs/05 lists screens 52/53 under Home; screen 34
+       (`/onboard/$tripId`, design 7a) likewise. */
+    for (const name of [
+      'groups.index.tsx',
+      'groups.$id.index.tsx',
+      'groups.$id.plan.tsx',
+      'onboard.$tripId.tsx',
+    ]) {
+      const src = readFileSync(join(ROUTES, name), 'utf8')
+      expect(src, name).toMatch(/chrome: 'tabs', tab: 'home'/)
+    }
+  })
+})
+
+describe('groupJourney (design 19b subtitle)', () => {
+  const DAY = '2026-11-12'
+  let n = 0
+  async function member(train: string, day: string): Promise<string> {
+    n += 1
+    const trip = await addTrip({
+      pnr: `45127896${String(80 + n).padStart(2, '0')}`,
+      train_no: train,
+      train_name: 'Rajdhani',
+      journey_date: day,
+      class: '3A',
+      from_code: 'MMCT',
+      to_code: 'NDLS',
+      passengers: [{ coach: 'B1', berth_no: String(30 + n), berth_type: 'LB' }],
+    })
+    return trip.id
+  }
+
+  beforeEach(() => {
+    window.localStorage.clear()
+    resetStore()
+    resetGroups()
+    n = 0
+  })
+
+  it('names the journey when every ticket shares it, and says nothing when they do not', async () => {
+    const a = await member('12951', DAY)
+    const b = await member('12951', DAY)
+    expect(groupJourney(createGroup('Together', [a, b]))).toEqual({
+      train_no: '12951',
+      train_name: 'Rajdhani',
+      journey_date: DAY,
+    })
+    /* Two trains: there is no single headline, and printing the first trip's
+       would describe 2 of the family as if it were all of them. Fresh PNRs —
+       `a` is already in the group above, and one trip belongs to one family. */
+    const splitA = await member('12951', DAY)
+    const splitB = await member('12952', DAY)
+    expect(groupJourney(createGroup('Split', [splitA, splitB]))).toBeNull()
+    expect(groupJourney(createGroup('Empty', []))).toBeNull()
   })
 })

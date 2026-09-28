@@ -137,6 +137,36 @@ export function markGroupPaid(groupId: string): GroupTrip | undefined {
   return updated
 }
 
+/** Linked trips that still resolve to a local PNR, in link order. */
+function memberTrips(group: GroupTrip): Trip[] {
+  return group.trip_ids
+    .map((id) => listTrips().find((trip) => trip.id === id))
+    .filter((trip): trip is Trip => Boolean(trip))
+}
+
+/** The journey a family trip is about, or null when its linked tickets do not
+    share one train and date. Designs 19a and 19b both headline the group with
+    "12752 Rajdhani · Fri 12 Jun"; a family split across two trains has no
+    single journey to name, so callers render nothing rather than describing
+    only whichever trip was linked first. */
+export function groupJourney(
+  group: GroupTrip,
+): { train_no: string; train_name: string; journey_date: string | null } | null {
+  const trips = memberTrips(group)
+  const first = trips[0]
+  if (!first) return null
+  const oneJourney = trips.every(
+    (trip) => trip.train_no === first.train_no && trip.journey_date === first.journey_date,
+  )
+  return oneJourney
+    ? {
+        train_no: first.train_no,
+        train_name: first.train_name,
+        journey_date: first.journey_date,
+      }
+    : null
+}
+
 /** "3 of 4 together": the biggest cluster of passengers sharing train + date
     + coach (docs/01, docs/04 C), counting **people**, not tickets. Design 5a
     shows Mom + Dad in A2 and Riya + You in B1 as "2 of 4 seated together", and
@@ -159,9 +189,7 @@ export function markGroupPaid(groupId: string): GroupTrip | undefined {
     how many of the family are actually seated together. They are allowed to
     disagree — do not merge them. */
 export function groupTogetherCount(group: GroupTrip): { done: number; total: number } {
-  const trips: Trip[] = group.trip_ids
-    .map((id) => listTrips().find((trip) => trip.id === id))
-    .filter((trip): trip is Trip => Boolean(trip))
+  const trips = memberTrips(group)
   const seats = trips.flatMap((trip) => trip.passengers)
   if (seats.length === 0) return { done: 0, total: 0 }
   const clusters = new Map<string, number>()

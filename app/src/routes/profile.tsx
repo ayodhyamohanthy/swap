@@ -10,6 +10,7 @@ import {
   Trash2,
   Type,
   User,
+  Users,
 } from 'lucide-react'
 import { AppFooter } from '@/components/app-shell'
 import { Card, CardBody } from '@/components/ui/card'
@@ -70,6 +71,16 @@ export function ProfileScreen() {
           </span>
           <span className="flex-1 text-body text-ink">{t('profile.myTrips')}</span>
           <span className="text-caption text-muted">{trips.length}</span>
+        </Link>
+
+        <Link
+          to="/groups"
+          className="flex min-h-14 items-center gap-3 border-b border-line px-4"
+        >
+          <span className="text-primary">
+            <Users aria-hidden className="size-5" />
+          </span>
+          <span className="flex-1 text-body text-ink">{t('profile.groups')}</span>
         </Link>
 
         <Link
