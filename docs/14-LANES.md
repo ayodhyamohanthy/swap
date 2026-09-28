@@ -13,7 +13,7 @@
 | L6 | Groups + onboard | WorkBuddy/Claude | done. `groupTogetherCount` now reports the biggest same-train/date/coach cluster instead of whichever trip was linked first; GROUP_MAX_SWAPS audited — consistent at all five sites |
 | L7 | Admin | WorkBuddy/Claude | done. A refused server action is no longer reported as a demo success (and no longer writes an audit row for something that never happened); "Credit added." only when the server added it; Overview "today" is the operator's local day, not UTC |
 | L8 | DB + schema | — | free | announce before edit |
-| L9 | Infra + credits | — | free | |
+| L9 | Infra + credits | WorkBuddy/Claude | done. Pinned the vitest pool in `app/vitest.config.ts` so the documented green gate works again — `npm run test` is now 31 files / 421 tests green, no flags |
 | L10 | i18n (single writer) | WorkBuddy/Claude | done. Added `matches.cappedToday` (en+hi) for L3's send cap |
 
 Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
@@ -49,22 +49,25 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
   on the child screens would be the honest fix; left out of L4's commit because
   the group flow branches on `isGroupRequestId` and getting that wrong in a
   route is not caught by any test.
-- 2026-09-28 L3/L6 → L9 (test runner): `npm run test` — the green gate AGENTS.md
-  §0 step 4 requires before every commit — **fails on this machine as
-  configured**, but the suite itself is fine. Default `forks` pool with
-  unbounded workers: `Timeout waiting for worker to respond` on every file,
-  180s, zero tests executed. The cause is too many concurrent jsdom boots under
-  load, not our code (`tests/setup.ts` is 17 trivial lines). **Working command:
-  `npx vitest run --pool=forks --maxWorkers=4` — 31 files / 412 tests green in
-  ~3m52s.** Two traps found the hard way: `--pool=threads` with parallel files
-  **silently loses ~22 of 31 files**, which is worse than failing because the
-  gate *looks* green — always check the "Test Files N passed" count against 31;
-  and `--no-file-parallelism` runs but pays ~53s of environment setup per file
-  (~27 min). The fix belongs in **`app/vitest.config.ts`** (a dedicated file —
-  it is *not* `vite.config.ts`, which has no `test` block). That file is absent
-  from the docs/13 §1 ownership map, so nobody owns it, which is why the gate
-  has stayed broken. Please set `maxWorkers` there so `npm run test` works
-  again.
+- 2026-09-28 L3/L6 → L9 (test runner): **done, L9, 2026-09-28.** `npm run test`
+  — the green gate AGENTS.md §0 step 4 requires before every commit — did not
+  run on this machine as configured, though the suite itself was fine. Default
+  `forks` pool with unbounded workers: `Timeout waiting for worker to respond`
+  on every file, 180s, zero tests executed. The cause is ~50s of jsdom
+  construction per file (`tests/setup.ts` is 17 trivial lines) multiplied by
+  too many concurrent worker boots, not our code. `pool: 'forks'` +
+  `maxWorkers: 4` is now pinned in **`app/vitest.config.ts`** — note that is a
+  dedicated file, *not* `vite.config.ts`, which has no `test` block — and
+  `npm run test` is green with no flags (31 files / 421 tests, ~4m).
+  Two traps, both still worth knowing: `--pool=threads` with parallel files
+  **silently loses ~22 of 31 files** while reporting success, so always check
+  the "Test Files N passed" count; and `--no-file-parallelism` runs but pays
+  the per-file cost serially (~27 min).
+  **Follow-up:** `app/vitest.config.ts` is in no lane's ownership map (docs/13
+  §1 lists `package.json`, `routeTree.gen.ts` and `app/vite.config.ts` as the
+  shared files, but not this one). It should be added there — an unowned shared
+  config is exactly how the gate stayed broken long enough for three lanes to
+  file the same complaint.
 
 ## Backlog (unclaimed, ready to pull)
 
