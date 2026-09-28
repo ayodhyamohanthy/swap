@@ -12,7 +12,7 @@ import {
   getRequestsServerSnapshot,
   getRequestsSnapshot,
   subscribe as subscribeRequests,
-  unreadUpdates,
+  unreadUpdatesFor,
   type RequestsState,
   type SwapOffer,
   type SwapRequest,
@@ -91,9 +91,15 @@ export function useRequestOffers(requestId: string): SwapOffer[] {
 }
 
 /** Unread updates for the Swaps-tab badge and the Updates list. Re-renders
-    when requests, trips, wallet or seen-flags change. */
+    when requests, trips, wallet or seen-flags change.
+
+    Both snapshots are used, not just subscribed to. Calling `unreadUpdates()`
+    here instead would read the live stores — which the client populates from
+    `localStorage` before React hydrates — while the server rendered from an
+    empty state, so the badge appeared on the client only and React regenerated
+    the entire tree on every page load. See `unreadUpdatesFor`. */
 export function useUnreadUpdates(): UpdateRow[] {
-  useAppState()
-  useRequestsState()
-  return unreadUpdates()
+  const app = useAppState()
+  const requests = useRequestsState()
+  return unreadUpdatesFor(app, requests, Date.now())
 }

@@ -16,7 +16,7 @@ import { needsCreditReminder } from './jobs'
 import { trackEvent } from './analytics'
 import { GROUP_MAX_SWAPS } from './money'
 import { getGroup, groupForTrip } from './groups'
-import { logActivity, listTrips, getTrip, getSnapshot, isSeen, markSeen, paymentFor, settings, tripRating, type Trip } from './store'
+import { logActivity, listTrips, getTrip, getSnapshot, isSeen, markSeen, paymentFor, settings, tripRating, type AppState, type Trip } from './store'
 
 export type RequestStatus =
   | 'draft'
@@ -778,8 +778,17 @@ export interface UpdateRow {
   days_left?: number | null
 }
 
-export function updates(): UpdateRow[] {
-  const state = ensureLoaded()
+/* Pure: `updates` is a function of exactly three inputs — the requests state,
+   the app state (trips + wallet) and the clock. It reads no module state of its
+   own, which is the property that lets a component derive it from the snapshots
+   its subscription returns (see `unreadUpdatesFor`) rather than from the live
+   store. `at` is a parameter rather than an internal `Date.now()` so the same
+   inputs always give the same rows. */
+function updatesFrom(
+  state: RequestsState,
+  app: Pick<AppState, 'trips' | 'wallet'>,
+  at: number,
+): UpdateRow[] {
   const rows: UpdateRow[] = []
   for (const offer of state.offers) {
     const request = state.requests.find((row) => row.id === offer.request_id)
@@ -819,7 +828,7 @@ export function updates(): UpdateRow[] {
         kind: 'incoming_waiting',
         request_id: null,
         trip_id: tripId,
-        created_at: now(),
+        created_at: new Date(at).toISOString(),
       })
     } else if (response === 'declined') {
       rows.push({
@@ -827,7 +836,7 @@ export function updates(): UpdateRow[] {
         kind: 'incoming_declined',
         request_id: null,
         trip_id: tripId,
-        created_at: now(),
+        created_at: new Date(at).toISOString(),
       })
     } else if (response === 'faster') {
       rows.push({
@@ -835,12 +844,12 @@ export function updates(): UpdateRow[] {
         kind: 'incoming_faster',
         request_id: null,
         trip_id: tripId,
-        created_at: now(),
+        created_at: new Date(at).toISOString(),
       })
     }
   }
   /* Chart is out (docs/04 growth loop): one row per trip whose chart flipped. */
-  for (const trip of listTrips()) {
+  for (const trip of app.trips) {
     if (!trip.chart_prepared) continue
     rows.push({
       id: `u_chart_${trip.id}`,
@@ -851,8 +860,7 @@ export function updates(): UpdateRow[] {
     })
   }
   /* Credit added + expiring (docs/04 notifications, rule 4: 12-month life). */
-  const at = Date.now()
-  for (const tx of getSnapshot().wallet) {
+  for (const tx of app.wallet) {
     if (tx.amount_paise <= 0) continue
     if (tx.kind === 'acceptor_credit' || tx.kind === 'swap_to_credit' || tx.kind === 'admin_adjust') {
       rows.push({
@@ -893,6 +901,11 @@ export function updates(): UpdateRow[] {
   return rows.sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
 }
 
+/** Every update, read from the live stores. For imperative callers. */
+export function updates(): UpdateRow[] {
+  return updatesFrom(ensureLoaded(), getSnapshot(), Date.now())
+}
+
 /* ---- Updates read-state (docs/05 #20): every row id above is stable across
    calls, so "read" survives reloads in the same `seen` map as onboarding. */
 
@@ -922,5 +935,32 @@ export function markAllUpdatesRead(): number {
 
 /** Updates the traveller has not opened yet, newest first. */
 export function unreadUpdates(): UpdateRow[] {
-  return updates().filter((row) => !isUpdateRead(row.id))
+  return unreadUpdatesFor(getSnapshot(), ensureLoaded(), Date.now())
+}
+
+/**
+ * The same rows, but derived from snapshots the caller already holds.
+ *
+ * This exists because the render path must not read the live stores. The store
+ * hydrates from `localStorage` at module load, so by the time React hydrates a
+ * component the live state is already populated — while `getServerSnapshot()`
+ * deliberately returns an empty state so the first client render matches the
+ * server's HTML. A render that calls `unreadUpdates()` therefore renders real
+ * data where the server rendered none, and React throws the whole tree away:
+ *
+ *   Error: Hydration failed because the server rendered HTML didn't match the
+ *   client.  + aria-label="Swaps, 2 new"  - aria-label="Swaps"
+ *
+ * Passing the snapshots in keeps the two sides equal by construction, and the
+ * subscription's post-hydration re-render then swaps in the real count — which
+ * is the designed behaviour, not a workaround.
+ */
+export function unreadUpdatesFor(
+  app: Pick<AppState, 'trips' | 'wallet' | 'seen'>,
+  requests: RequestsState,
+  at: number,
+): UpdateRow[] {
+  return updatesFrom(requests, app, at).filter(
+    (row) => app.seen[updateSeenKey(row.id)] !== true,
+  )
 }

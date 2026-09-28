@@ -537,6 +537,89 @@ describe('updates read-state (docs/05 #20)', () => {
   })
 })
 
+/* The Swaps-tab badge lives in the shell, and the shell is the only thing the
+   server renders — route content is client-rendered (TanStack Start renders an
+   empty Suspense boundary in <main>). So the badge's value during the client's
+   *first* render has to equal what the server wrote into the HTML. The server
+   renders from `getServerSnapshot()` (an empty state), but the live stores are
+   already populated from localStorage by the time React hydrates — so a render
+   that reads the live store instead of the snapshot writes a count the server
+   never wrote, and React throws the whole tree away:
+
+     Error: Hydration failed because the server rendered HTML didn't match the
+     client.   + aria-label="Swaps, 2 new"   - aria-label="Swaps"
+
+   These pin the property that makes that impossible: `unreadUpdatesFor` is a
+   function of its arguments and nothing else. The live stores are deliberately
+   populated first in each case, so a regression that reaches back for module
+   state fails the assertion rather than passing on empty data. */
+describe('unreadUpdatesFor derives from its arguments, not from live state', () => {
+  beforeEach(() => {
+    resetStore()
+    resetRequests()
+  })
+
+  /** Drive the live stores until there is genuinely something unread. */
+  async function withUnreadUpdates() {
+    const { mine } = await seed()
+    const request = createRequest({ trip_id: mine.id, choices: ['UB'] })
+    sendRequest(request.id)
+    acceptOffer(offersFor(request.id)[0].id)
+  }
+
+  it('returns nothing for the server snapshots even when the device has unread updates', async () => {
+    const { getRequestsSnapshot, unreadUpdates, unreadUpdatesFor } = await import('@/lib/requests')
+    const { getSnapshot } = await import('@/lib/store')
+
+    /* The empty state the server would render... */
+    const serverApp = getSnapshot()
+    const serverRequests = getRequestsSnapshot()
+
+    /* ...and then a device that has plenty to show. */
+    await withUnreadUpdates()
+    expect(unreadUpdates().length).toBeGreaterThan(0)
+
+    /* TEMP DIAGNOSTIC */
+    console.log('DIAG offers:', serverRequests.offers.length,
+      'reqs:', serverRequests.requests.length,
+      'serverSeen:', JSON.stringify(serverApp.seen),
+      'liveSeen:', JSON.stringify(getSnapshot().seen),
+      'serverRequests===live:', serverRequests === getRequestsSnapshot())
+    /* The server render must still see nothing. */
+    expect(unreadUpdatesFor(serverApp, serverRequests, Date.now())).toEqual([])
+  })
+
+  it('agrees with unreadUpdates() when handed the live snapshots', async () => {
+    const { getRequestsSnapshot, unreadUpdates, unreadUpdatesFor } = await import('@/lib/requests')
+    const { getSnapshot } = await import('@/lib/store')
+    await withUnreadUpdates()
+
+    const at = Date.now()
+    const ids = (rows: Array<{ id: string }>) => rows.map((row) => row.id).sort()
+    expect(ids(unreadUpdatesFor(getSnapshot(), getRequestsSnapshot(), at))).toEqual(ids(unreadUpdates()))
+  })
+
+  it('takes read-state from the snapshot it is given, not from the live seen map', async () => {
+    const { getRequestsSnapshot, markAllUpdatesRead, unreadUpdates, unreadUpdatesFor } = await import('@/lib/requests')
+    const { getSnapshot } = await import('@/lib/store')
+    await withUnreadUpdates()
+
+    const app = getSnapshot()
+    const requests = getRequestsSnapshot()
+    const before = unreadUpdatesFor(app, requests, Date.now())
+    expect(before.length).toBeGreaterThan(0)
+
+    /* Read everything in the live store. `app` keeps the older `seen` map,
+       because every commit replaces the snapshot object instead of mutating it
+       — which is what lets a component hold a consistent snapshot across a
+       render. */
+    markAllUpdatesRead()
+    expect(unreadUpdates()).toEqual([])
+    expect(unreadUpdatesFor(app, requests, Date.now()).map((row) => row.id).sort())
+      .toEqual(before.map((row) => row.id).sort())
+  })
+})
+
 describe('keep-together fit counts real CNF berths (docs/08)', () => {
   beforeEach(() => {
     resetStore()
