@@ -128,6 +128,7 @@ function CreditState() {
       <Card className="mt-4">
         <CardBody className="font-semibold text-ink">{t('outcome.creditReady')}</CardBody>
         <CardBody>{t('confirm.creditAdded')}</CardBody>
+        <CardBody>{t('outcome.creditValid')}</CardBody>
       </Card>
       <Button className="mt-4" asChild>
         <Link to="/swaps">{t('outcome.seeRequests')}</Link>
