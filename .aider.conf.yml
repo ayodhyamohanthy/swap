@@ -1,3 +1,5 @@
-# Aider — SeatSwap: read AGENTS.md, then docs/01–12 in order. Follow docs/11-COLLAB.md
-+ docs/12-INFRA-CREDITS.md (Cloudflare $10k prod, Supabase DB, no WorkOS, Azure
-$200 burn-down only exp Dec 16 2026). Never git add -A. Green rule.
+# Aider — SeatSwap: read agents.md, then docs/01–14. MANDATORY
+# docs/13-COLLAB-CONTRACT.md: claim ONE lane in docs/14-LANES.md, touch only
+# that lane's files, cross-lane needs become `request:` lines. Green rule:
+# typecheck + test + build. Only student/startup-credit or free products.
+# No paid dependency, SMS or paid OTP. Never git add -A.

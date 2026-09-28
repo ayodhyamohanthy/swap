@@ -1,5 +1,8 @@
-# SeatSwap — all AI agents, all models: read AGENTS.md, then docs/01–12 in order.
-designs/*.jpg is visual reference (AGENTS.md wins on conflict). Follow
-docs/11-COLLAB.md (pull --rebase, hot-file check, one topic/commit, green rule)
-and docs/12-INFRA-CREDITS.md (Cloudflare $10k prod, Supabase DB, no WorkOS,
-Azure $200 burn-down only, exp Dec 16 2026). Never git add -A.
+# SeatSwap — all agents, all models: read agents.md, then docs/01–14 in order.
+designs/*.jpg is visual reference (agents.md wins on conflict).
+MANDATORY: docs/13-COLLAB-CONTRACT.md — claim ONE lane in docs/14-LANES.md
+before editing; touch only that lane's files; a cross-lane need becomes a
+`request:` line, never an edit. Session start: git pull --rebase, git status
+--short, hot-file check. Green rule: typecheck + test + build before commit.
+Only student/startup-credit or free products; never add a paid dependency,
+SMS or paid OTP. Never git add -A.

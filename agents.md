@@ -1,9 +1,11 @@
 # AGENTS.md — SeatSwap build rules for AI coding agents (ALL models: Codex, Claude, Gemini, Copilot, Cursor, Windsurf, Aider, Muse Spark)
 
-Read this file first, then `docs/01-PRD.md` … `docs/12-INFRA-CREDITS.md` in order.
+Read this file first, then `docs/01-PRD.md` … `docs/14-LANES.md` in order.
 The screen images in `designs/` are the visual reference for layout and wording.
 Multiple agents work in this repo at once: `docs/11-COLLAB.md` is mandatory.
 Infra + credits: `docs/12-INFRA-CREDITS.md` + `app/azure/README.md` are mandatory.
+Collaboration: `docs/13-COLLAB-CONTRACT.md` (one lane per agent) +
+`docs/14-LANES.md` (live claims) are mandatory — claim a lane before editing.
 Tool pointers: `CLAUDE.md`, `GEMINI.md`, `CODEX.md`, `.cursorrules`, `.windsurfrules`, `.muserules`, `.github/muse-instructions.md`, `.aider.conf.yml`.
 
 ## Product in one line
