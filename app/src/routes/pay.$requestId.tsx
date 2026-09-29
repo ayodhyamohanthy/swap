@@ -207,7 +207,7 @@ export function PayScreen() {
             <b className="block font-head text-body text-ink">
               {t('pay.haveCredit', { amount: Math.round(credit / 100) })}
             </b>
-            <span className="block text-caption text-muted">
+            <span className="block text-note text-muted">
               {t('pay.reduceBy', { amount: quote.creditUsed / 100 })}
             </span>
           </span>
@@ -224,7 +224,7 @@ export function PayScreen() {
         <b className="font-head text-section font-bold text-ink">
           {t('pay.youPay', { amount: quote.due / 100 })}
         </b>
-        <span className="text-caption text-ink">
+        <span className="text-note text-ink">
           {isGroup ? t('pay.groupUnder') : t('pay.under')}
         </span>
       </div>

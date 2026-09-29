@@ -130,3 +130,47 @@ vendor pages are truth.
 Guardrails: credits are org slugs (`skipwait`, `mayodhya`), never user
 keys — DSNs/tokens as env only. Analytics meta = ids + amounts, never PNR.
 
+## 8. Turning the PostHog credit on (built 2026-09-30, L9)
+
+`lib/posthog.ts` forwards the events `lib/analytics.ts` has been recording on
+-device since day one. Two conditions, **both** required, and neither is on by
+default:
+
+1. `VITE_POSTHOG_KEY` set in `wrangler.toml` `[vars]` — the project token
+   (`phc_…`). It is a **public var, not a secret**: browser capture posts to a
+   public write-only ingest endpoint, so the value belongs in the shipped
+   bundle in the same way the Supabase anon key does. The old `POSTHOG_KEY`
+   entry in the secrets block was misleading — a `wrangler secret` of that
+   name would never reach the browser code that reads it, so the forwarder
+   would sit inert and look configured.
+2. The traveller turns on **Settings → Share anonymous usage data**. Absent
+   means off; there is no configuration that enables this for everyone. A
+   credit is not a mandate.
+
+Until both, `posthogKey()` is `''` and nothing is queued or sent. The bundle
+is not byte-for-byte unchanged — the forwarder's own code is in it, ~2 KB with no
+SDK — so the honest claim is behavioural, not byte-level: no request is made and
+no event leaves the device.
+
+**What can leave:** the 23 event names, a random per-install uuid as
+`distinct_id`, and allow-listed meta (`train_no`, `class`, amounts, counts,
+fixed enums). **What cannot:** PNR, name, phone, email, ticket photo, and any
+free text — enforced by `scrub()`'s key allow-list plus a value check, both
+mutation-checked. Replay and session recording are off and should stay off
+(§7: not credit-eligible). `admin_action` / `user_blocked` are never sent —
+they are staff behaviour with an operator's reason attached, not product usage.
+
+**Identity is a random localStorage uuid, not the Supabase auth id**, so
+clearing site data separates the two and a shared device does not join two
+people's records. The cost: signed-out and signed-in activity for the same
+person are not linked.
+
+Two things to know if you extend it:
+- Vite replaces `import.meta.env.VITE_X` **textually**. A lookup by name
+  (`readEnv('VITE_POSTHOG_KEY')`) typechecks, tests and builds, then returns
+  `undefined` in production. Found by grepping the built asset for the literal
+  `VITE_POSTHOG_KEY`; pinned by a test.
+- Rows are removed from the queue only on a successful send, so an offline
+  device accumulates rather than losing its funnel.
+
+

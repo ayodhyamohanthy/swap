@@ -40,10 +40,30 @@ not_found_handling = "single-page-application"
 # VITE_SUPABASE_ANON_KEY = "eyJ..."
 # VITE_VAPID_PUBLIC_KEY = "B..."
 
+# PostHog (docs/12 §7 — the ONE analytics backend). NOT a secret: browser
+# capture posts to a public, write-only ingest endpoint with a project token
+# (`phc_…`), which is the same class of value as the Supabase anon key above.
+# It goes here as a public var, not in the secrets block below — and the
+# difference matters: `lib/posthog.ts` reads it from the BROWSER bundle via
+# `import.meta.env.VITE_POSTHOG_KEY`, so a `wrangler secret` of the same name
+# would never reach the code that needs it. Until this is set, forwarding is
+# inert by design (`posthogKey()` is '' and nothing is queued or sent).
+# The traveller also has to opt in: Settings → Share anonymous usage data.
+# VITE_POSTHOG_KEY = "phc_..."
+# VITE_POSTHOG_HOST = "https://us.i.posthog.com"  # EU/self-hosted only
+
 # Secrets (wrangler secret put — never in this file):
 # RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET / RAZORPAY_WEBHOOK_SECRET
 # PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET / PAYPAL_WEBHOOK_ID
-# VAPID_PRIVATE_KEY, POSTHOG_KEY, SENTRY_DSN
+# VAPID_PRIVATE_KEY
+# SENTRY_DSN
+#
+# `POSTHOG_KEY` is deliberately NOT here. It was listed in this block before
+# the forwarder existed, which read as "put this secret in and analytics start";
+# the forwarder instead needs the public VITE_ var above. A server-side proxy
+# (which would want a secret) was considered and not built: this deploy is
+# static assets with no worker entry, and a proxy is not needed for a
+# write-only public token.
 
 # Cron for app/src/server/jobs.ts (enable when secrets land):
 # [[triggers.crons]] crons = ["*/15 * * * *"]

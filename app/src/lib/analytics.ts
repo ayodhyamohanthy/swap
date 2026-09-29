@@ -1,7 +1,11 @@
 /* SeatSwap analytics events (docs/08). Names match activity_log actions
    plus share_clicked(platform), install_prompt_accepted, first_screen_viewed,
-   swap_done_viewed. Dev: console.debug only. Prod: no network — caller forwards
-   to the server log endpoint when it exists; by default events stay on-device. */
+   swap_done_viewed. Dev: console.debug only. Prod: events stay on-device unless
+   the traveller opts in, in which case `lib/posthog.ts` forwards them to
+   PostHog (docs/12 §7). Either way the local ring buffer is written first, so
+   turning forwarding on can never lose a metric. */
+
+import { enqueue } from './posthog'
 
 export const ANALYTICS_EVENTS = [
   'sign_in', 'pnr_added', 'request_sent', 'offer_accepted', 'offer_declined',
@@ -37,10 +41,19 @@ function isDev(): boolean {
   }
 }
 
-/** Debug in dev, silent no-network no-op in prod (docs/08 low cost). */
+/** Debug in dev, silent no-network no-op in prod unless the traveller opts in
+ *  (docs/08 low cost, docs/12 §7). The forwarder is best-effort and must never
+ *  be able to break the call it is observing, so it is wrapped: `trackEvent` is
+ *  called from state transitions, and a throw here would roll back a swap. */
 export function trackEvent(event: AnalyticsEvent, meta: AnalyticsPayload['meta'] = {}): void {
   if (isDev()) console.debug(`[analytics] ${event}`, meta)
-  appendEvent({ event, ts: Date.now(), meta })
+  const row: LoggedEvent = { event, ts: Date.now(), meta }
+  appendEvent(row)
+  try {
+    enqueue(row)
+  } catch {
+    /* Queueing is analytics, not product: swallow and carry on. */
+  }
 }
 
 export function isAnalyticsEvent(value: unknown): value is AnalyticsEvent {

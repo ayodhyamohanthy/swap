@@ -20,7 +20,10 @@ export function Pill({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-caption font-semibold',
+        /* `text-note`, not the 12px step: pills carry statuses and money CTAs
+           ("Someone said yes. Pay ₹99 to lock it."), and docs/07 §Responsive
+           floors copy a passenger decides on at 14px. */
+        'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-note font-semibold',
         tones[tone],
         className,
       )}

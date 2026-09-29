@@ -334,7 +334,7 @@ export function SwapsScreen() {
           {openTrips.length === 0 ? (
             <p className="mt-1 text-caption text-muted">{t('swaps.noneOpen')}</p>
           ) : null}
-          <p className="mt-2 text-caption text-muted">{t('trip.noReward')}</p>
+          <p className="mt-2 text-note text-muted">{t('trip.noReward')}</p>
         </section>
       ) : null}
 
@@ -355,7 +355,9 @@ export function SwapsScreen() {
               <dd className="font-head text-title font-bold text-primary">₹{PRICE_PAISE / 100}</dd>
             </div>
           </dl>
-          <ul className="mt-3 space-y-2 text-caption text-muted">
+          {/* Rule 1/2/4/6 copy — a passenger decides on it, so it is at the
+              14px floor of docs/07 §Responsive, not at caption size. */}
+          <ul className="mt-3 space-y-2 text-note text-muted">
             <li>{t('swaps.onlyAfter')}</li>
             <li>{t('swaps.noSwap')}</li>
             <li>{t('swaps.creditRule')}</li>

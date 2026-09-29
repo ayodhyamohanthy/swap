@@ -100,10 +100,10 @@ function HomeScreen() {
               <Gift aria-hidden className="size-6 shrink-0 text-accent" />
               <span className="flex-1">
                 <b className="block font-head text-section text-ink">{t('home.welcomeBack')}</b>
-                <span className="block text-caption text-ink">
+                <span className="block text-note text-ink">
                   {t('home.creditLine', { amount: Math.round(creditPaise / 100) })}
                 </span>
-                <span className="block text-caption text-muted">{t('home.creditNever')}</span>
+                <span className="block text-note text-muted">{t('home.creditNever')}</span>
               </span>
             </Card>
           ) : null}
@@ -133,7 +133,7 @@ function HomeScreen() {
                 <b className="block font-head text-section text-ink">
                   {t('home.creditLine', { amount: Math.round(creditPaise / 100) })}
                 </b>
-                <span className="block text-caption text-muted">{t('home.creditNever')}</span>
+                <span className="block text-note text-muted">{t('home.creditNever')}</span>
               </span>
               <ChevronRight aria-hidden className="size-5 shrink-0 text-muted" />
             </Link>

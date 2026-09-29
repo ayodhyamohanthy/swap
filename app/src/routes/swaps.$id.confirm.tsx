@@ -16,7 +16,7 @@ import { listTrips } from '@/lib/store'
    possible / We changed our mind") plus the railway-berth case. Together the
    two screens keep the full answer set docs/09 lists for Did-you-swap. */
 export const Route = createFileRoute('/swaps/$id/confirm')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'swaps' } satisfies RouteChrome,
   component: ConfirmScreen,
 })
 

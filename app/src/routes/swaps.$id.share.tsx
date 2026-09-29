@@ -14,7 +14,7 @@ import { getTrip } from '@/lib/store'
    a card with no private details plus the same anywhere-share sheet as the
    coach invite. The link never contains a PNR or name (privacy rule 13). */
 export const Route = createFileRoute('/swaps/$id/share')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'swaps' } satisfies RouteChrome,
   component: ShareCardScreen,
 })
 type Platform = 'whatsapp' | 'instagram' | 'facebook' | 'telegram' | 'sms'

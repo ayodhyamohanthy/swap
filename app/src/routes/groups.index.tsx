@@ -64,16 +64,21 @@ function GroupsListScreen() {
                 </span>
                 <span className="min-w-0 flex-1">
                   <b className="block truncate font-head text-section text-ink">{group.name}</b>
-                  <small className="block text-caption text-muted">
+                  {/* The three lines under a group name are one stack: "how many
+                      trips", "how far through", "paid". The last is the money
+                      one ("Group plan paid. Up to 3 swaps covered."), and
+                      docs/07 §Responsive floors decision copy at 14px — so the
+                      whole stack sits at `text-note` rather than the 12px step. */}
+                  <small className="block text-note text-muted">
                     {t('groups.linked', { n: group.trip_ids.length })}
                   </small>
                   {total > 0 ? (
-                    <small className="block text-caption text-primary">
+                    <small className="block text-note text-primary">
                       {t('groups.partial', { done, total })}
                     </small>
                   ) : null}
                   {group.paid ? (
-                    <small className="block text-caption text-muted">{t('groups.paid')}</small>
+                    <small className="block text-note text-muted">{t('groups.paid')}</small>
                   ) : null}
                 </span>
               </Link>
@@ -159,7 +164,7 @@ function NewGroupForm({
         <Plus aria-hidden className="size-5" />
         {t('groups.create')}
       </Button>
-      <p className="mt-2 text-caption text-muted">{t('groups.pay199')}</p>
+      <p className="mt-2 text-note text-muted">{t('groups.pay199')}</p>
     </div>
   )
 }

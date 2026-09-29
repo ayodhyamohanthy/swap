@@ -14,7 +14,7 @@ import { usePaymentFor } from '@/lib/use-store'
    payment row that actually exists, then the berth numbers are revealed and
    chat opens. Nothing here renders until the payment says `paid`. */
 export const Route = createFileRoute('/pay/$requestId/done')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'swaps' } satisfies RouteChrome,
   component: DoneScreen,
 })
 

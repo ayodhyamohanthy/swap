@@ -9,7 +9,7 @@ import { useI18n } from '@/lib/i18n'
    told their money is held safely. No lawyer-style wording anywhere. */
 
 export const Route = createFileRoute('/profile/help')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'profile' } satisfies RouteChrome,
   component: HelpScreen,
 })
 

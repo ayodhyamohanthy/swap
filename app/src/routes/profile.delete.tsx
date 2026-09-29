@@ -17,7 +17,7 @@ import { resetStore } from '@/lib/store'
    Deleting is irreversible, so the destructive button asks first. */
 
 export const Route = createFileRoute('/profile/delete')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'profile', back: true } satisfies RouteChrome,
   component: DeleteAccountScreen,
 })
 
