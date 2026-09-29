@@ -17,6 +17,7 @@ import { Card, CardBody } from '@/components/ui/card'
 import { Field, Input } from '@/components/ui/input'
 import {
   ACTIVITY_CATEGORIES,
+  ACTIVITY_TONE_CLASS,
   activityActions,
   activityCategory,
   activityDetails,
@@ -29,7 +30,6 @@ import {
   filterActivity,
   uncategorisedActions,
   type ActivityCategory,
-  type ActivityTone,
 } from '@/lib/admin'
 import { actorRoleLabel, useI18n, type MessageKey } from '@/lib/i18n'
 import { useAppState } from '@/lib/use-store'
@@ -91,21 +91,7 @@ const CATEGORY_ICON: Record<ActivityCategory, LucideIcon> = {
 }
 
 /**
- * The tint per tone.
- *
- * Four semantic tokens, no raw hex and no new colours (AGENTS.md: "semantic
- * Tailwind tokens only"). `neutral` uses `bg-background`, which is the page
- * colour, so on a white row it reads as a quiet grey chip without introducing
- * a fifth token for "grey".
- */
-const TONE_CLASS: Record<ActivityTone, string> = {
-  good: 'bg-wash text-primary',
-  warn: 'bg-accent-soft text-accent',
-  bad: 'bg-danger-soft text-danger',
-  neutral: 'bg-background text-muted',
-}
-
-/* Design 15's five columns are Time / User / Action / Train / Details. Two of
+ * Design 15's five columns are Time / User / Action / Train / Details. Two of
    them are not drawn, for one shared reason — `ActivityRow` has no name field,
    the same missing-peer-row blocker as `admin.users.tsx` and `get_matches()`:
 
@@ -253,7 +239,7 @@ function AdminActivity() {
                       changes, so the fill order changes with it. */}
                   <span
                     aria-hidden
-                    className={`col-start-1 row-span-2 row-start-1 flex size-8 shrink-0 items-center justify-center rounded-lg lg:col-start-2 lg:row-span-1 ${TONE_CLASS[tone]}`}
+                    className={`col-start-1 row-span-2 row-start-1 flex size-8 shrink-0 items-center justify-center rounded-lg lg:col-start-2 lg:row-span-1 ${ACTIVITY_TONE_CLASS[tone]}`}
                   >
                     <Icon className="size-4" />
                   </span>

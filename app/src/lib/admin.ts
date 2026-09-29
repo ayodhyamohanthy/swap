@@ -236,6 +236,99 @@ export function acceptorName(request: SwapRequest, offers: SwapOffer[]): string 
   return forRequest.find((offer) => offer.status === 'accepted')?.acceptor_name ?? null
 }
 
+/* ------------------------------------------------------------------ *
+ * The swap's own history (design 17's Swap detail panel)              *
+ * ------------------------------------------------------------------ */
+
+/**
+ * One step of a swap, ready to render.
+ *
+ * `label` is a catalogue key rather than a sentence: `admin.act.*` already
+ * names every one of these actions in both languages, so the timeline reuses
+ * the activity log's vocabulary instead of adding a second set of words for
+ * the same eight events — the same call `PAYMENT_STATE_LABEL` makes.
+ *
+ * `details` comes from `activityDetails`, so a step inherits its mask: only
+ * four characters of anything logged under `last4` can reach the screen
+ * (rule 13).
+ */
+export interface SwapTimelineEntry {
+  /** The log row's own id — a stable key, and what keeps two steps written in
+      the same second in a fixed, testable order. */
+  id: string
+  /** The raw action, for the tooltip and for grepping the log against code. */
+  action: string
+  label: MessageKey
+  details: string
+  /** ISO timestamp, verbatim: the screen formats it, the data stays exact. */
+  at: string
+  tone: ActivityTone
+}
+
+/**
+ * The payment ids that belong to one request.
+ *
+ * Design 17's timeline is the one place the two ids have to be joined, and the
+ * join only exists on `PaymentRow.request_id` — the payment's *activity* rows
+ * carry the payment id, not the request id. Kept here rather than inline in the
+ * route so the join is testable without a browser.
+ */
+export function paymentIdsFor(payments: PaymentRow[], requestId: string): string[] {
+  return payments.filter((payment) => payment.request_id === requestId).map((payment) => payment.id)
+}
+
+/**
+ * The history of one swap, oldest first.
+ *
+ * Two sources, because a swap's lifecycle and its money are logged as different
+ * entities: every request transition (`request_sent`, `offer_accepted`,
+ * `swap_locked`, `confirmation`, `swap_confirmed`, `someone_faster`, …) writes
+ * `{ type: 'swap_request', id }`, while the payment rows write
+ * `{ type: 'payment', id }` and name their request only through
+ * `PaymentRow.request_id` (see `paymentIdsFor`). Matching on the request id
+ * alone would produce a timeline that jumps from "accepted" to "done" with no
+ * payment in it — the step an operator is most often asked about, and the one
+ * design 17 draws as a step of its own.
+ *
+ * Ascending, which is the opposite of the activity log's newest-first order, on
+ * purpose: a log answers "what just happened" and is read from the top, a
+ * timeline answers "how did this end up here" and can only be read forwards.
+ */
+export function swapTimeline(
+  activity: ActivityRow[],
+  requestId: string,
+  paymentIds: readonly string[] = [],
+): SwapTimelineEntry[] {
+  const payments = new Set(paymentIds)
+  return activity
+    .filter(
+      (row) =>
+        (row.entity === 'swap_request' && row.entity_id === requestId) ||
+        (row.entity === 'payment' && row.entity_id !== null && payments.has(row.entity_id)),
+    )
+    .map((row) => ({
+      id: row.id,
+      action: row.action,
+      label: activityLabelKey(row.action),
+      details: activityDetails(row),
+      at: row.created_at,
+      tone: activityTone(row.action),
+    }))
+    .sort((a, b) => stepTime(a.at) - stepTime(b.at) || a.id.localeCompare(b.id))
+}
+
+/**
+ * A step's timestamp in milliseconds.
+ *
+ * An unparseable stamp sorts to the top (0) rather than to `NaN`: comparing two
+ * `NaN`s returns false both ways, which would leave such a step wherever the
+ * sort happened to drop it instead of in a defined place.
+ */
+function stepTime(iso: string): number {
+  const parsed = Date.parse(iso)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
 //__PART2__
 /* ------------------------------------------------------------------ *
  * Payments (design 18)                                                *
@@ -1273,6 +1366,25 @@ export function activityTone(action: string): ActivityTone {
 /** Every action the tone map names — exported for the drift guard in tests. */
 export function tonedActions(): string[] {
   return Object.keys(ACTIVITY_TONE_BY_ACTION).sort()
+}
+
+/**
+ * The tint per tone.
+ *
+ * Four semantic tokens, no raw hex and no new colours (AGENTS.md: "semantic
+ * Tailwind tokens only"). `neutral` uses `bg-background`, which is the page
+ * colour, so on a white row it reads as a quiet grey chip without introducing
+ * a fifth token for "grey".
+ *
+ * Lives here because two screens now colour the same tone: the activity log
+ * tints a row's icon with it, and design 17's swap timeline tints each step's
+ * label. Two copies would be two answers to "what colour is a failed payment".
+ */
+export const ACTIVITY_TONE_CLASS: Record<ActivityTone, string> = {
+  good: 'bg-wash text-primary',
+  warn: 'bg-accent-soft text-accent',
+  bad: 'bg-danger-soft text-danger',
+  neutral: 'bg-background text-muted',
 }
 
 /**
