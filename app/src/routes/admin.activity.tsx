@@ -346,7 +346,7 @@ function AdminActivity() {
                             <li key={entry.id} className="flex items-start gap-2.5">
                               <span
                                 aria-hidden
-                                className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg ${TONE_CLASS[tone]}`}
+                                className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg ${ACTIVITY_TONE_CLASS[tone]}`}
                               >
                                 <Icon className="size-3.5" />
                               </span>
