@@ -5,7 +5,7 @@
    that could hold a plaintext PNR. */
 /* node: modules come via getBuiltinModule — a static `import 'node:fs'` is
    mangled by Vite's browser-compat externalization under the jsdom pool. */
-const { readFileSync } = process.getBuiltinModule('node:fs') as typeof import('node:fs')
+const { readdirSync, readFileSync } = process.getBuiltinModule('node:fs') as typeof import('node:fs')
 const { join } = process.getBuiltinModule('node:path') as typeof import('node:path')
 import { describe, expect, it } from 'vitest'
 
@@ -36,6 +36,46 @@ describe('the migration exists and is the shipped schema', () => {
 
   it('is byte-identical to schema.sql', () => {
     expect(SCHEMA).toBe(readFileSync(join(SUPABASE, 'schema.sql'), 'utf8'))
+  })
+
+  /* docs/11-COLLAB.md calls the three representations of this schema
+     "byte-consistent": `schema.sql` == the concatenation of `schema.part*.sql`
+     == the migration. The assertion above covers migration == schema.sql, and
+     nothing covered the other half — so a part could drift from `schema.sql`
+     and the suite would stay green while the schema installed differently
+     depending on which file someone happened to open. That is the whole point
+     of calling the invariant mandatory.
+
+     Measured before this was added, rather than assumed: the ten parts
+     concatenate to exactly `schema.sql` (58,104 characters, sha256
+     `c7fe6444…`), so this pins a property that already holds instead of
+     changing one. It went in green.
+
+     Only `schema.part*.sql` is enumerated. `migrations/` is deliberately NOT
+     scanned, because backlog item 6 plans a SECOND migration file and relies
+     on this test never enumerating that directory — so this guard closes the
+     parts gap without spending that plan. */
+  it('is byte-identical to the concatenation of its parts', () => {
+    const order = (file: string): [number, string] => {
+      const parts = file.match(/^schema\.part(\d+)([a-z]\d*)?\.sql$/)
+      if (!parts) throw new Error(`unexpected part name: ${file}`)
+      return [Number(parts[1]), parts[2] ?? '']
+    }
+    const files = readdirSync(SUPABASE)
+      .filter((file) => /^schema\.part\d+[a-z]?\d*\.sql$/.test(file))
+      .sort((a, b) => {
+        const [aMajor, aMinor] = order(a)
+        const [bMajor, bMinor] = order(b)
+        return aMajor - bMajor || aMinor.localeCompare(bMinor)
+      })
+    expect(files.length, 'no schema.part*.sql files found').toBeGreaterThan(0)
+    const concatenated = files
+      .map((file) => readFileSync(join(SUPABASE, file), 'utf8'))
+      .join('')
+    expect(
+      concatenated,
+      `schema.part*.sql is out of step with schema.sql: ${files.join(' ')}`,
+    ).toBe(SCHEMA)
   })
 
   it('declares every expected table', () => {
