@@ -56,7 +56,12 @@ export interface PreparedPayment {
 export async function prepareGatewayPayment(
   client: SupaClient,
   callerId: string,
-  input: { requestId: string; isGroup: boolean; useCredit: boolean },
+  input: {
+    requestId: string
+    isGroup: boolean
+    useCredit: boolean
+    provider: 'razorpay' | 'paypal'
+  },
 ): Promise<PreparedPayment> {
   const { requestId, isGroup, useCredit } = input
   /* Group trips pay ₹199 once (docs/01, docs/04 C): the organiser pays, no
@@ -114,7 +119,7 @@ export async function prepareGatewayPayment(
     return { due: 0, total, creditUsed: consumed.usedTotal, paymentId: paid.id, holdId: null }
   }
   const payRow = (client.from('payments').insert({
-    ...target, payer_id: callerId, provider: 'razorpay',
+    ...target, payer_id: callerId, provider: input.provider,
     provider_ref: null, amount_paise: total, credit_used_paise: consumed.usedTotal,
     currency: 'INR', status: 'created',
   }).select('id').single() as unknown as Promise<{ data: { id: string } | null; error: unknown }>)
@@ -157,6 +162,7 @@ export const createRazorpayOrder = createServerFn({ method: 'POST' })
     const isGroup = data.isGroup === true
     const prepared = await prepareGatewayPayment(client, callerId, {
       requestId: data.requestId, isGroup, useCredit: data.useCredit !== false,
+      provider: 'razorpay',
     })
     if (prepared.due === 0) {
       return {

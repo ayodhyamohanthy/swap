@@ -1,26 +1,13 @@
 /* QA gate — the commands the protocol files hand to agents must actually run.
  *
- * `agents.md` §0 step 1, `CLAUDE.md`, `GEMINI.md`, `PROMPTS.md`,
- * `docs/11-COLLAB.md` and `docs/13-COLLAB-CONTRACT.md` all tell every agent,
- * before touching anything, to list the files another agent is writing right
- * now:
- *
- *   find app/src app/tests app/locales -mmin -15 -type f
- *
- * That one command was copy-pasted into six files as `-newermt '-15 min'`,
- * which is GNU syntax. On macOS BSD `find` it prints `find: bad date -15 min`
- * and exits 1, so the collision guard the whole protocol rests on listed
- * *nothing*, on every run, for every agent — and an empty list reads exactly
- * like "no other agent is working". Five of the six were corrected; `agents.md`
- * (the file §0 tells you to read first) kept the broken form, which is why this
- * is a test rather than another note in a doc.
- *
- * What it pins: a protocol file that carries the hot-file command must use the
- * portable `-mmin` form, and `agents.md` must carry it at all — so the guard
- * cannot pass by finding nothing to check.
+ * Two easy-to-miss failures are guarded here: the hot-file command must use the
+ * portable `-mmin` form (BSD `find` rejects GNU-only `-newermt`), and the root
+ * instructions must be stored under the exact `AGENTS.md` spelling referenced
+ * by the platform guides. Case-insensitive lookup on macOS can hide a lowercase
+ * filename, so the directory entry itself is checked.
  */
 
-const { readFileSync } = process.getBuiltinModule('node:fs') as typeof import('node:fs')
+const { readFileSync, readdirSync } = process.getBuiltinModule('node:fs') as typeof import('node:fs')
 const { join } = process.getBuiltinModule('node:path') as typeof import('node:path')
 import { describe, expect, it } from 'vitest'
 
@@ -29,7 +16,7 @@ const REPO = join(APP, '..')
 
 /** The files that carry, or are supposed to carry, the hot-file check. */
 const PROTOCOL_FILES = [
-  'agents.md',
+  'AGENTS.md',
   'CLAUDE.md',
   'GEMINI.md',
   'PROMPTS.md',
@@ -45,6 +32,12 @@ function read(rel: string): string {
 }
 
 describe('protocol files (the commands agents actually run)', () => {
+  it('stores the canonical instructions under the case-sensitive AGENTS.md path', () => {
+    const entries = readdirSync(REPO)
+    expect(entries).toContain('AGENTS.md')
+    expect(entries).not.toContain('agents.md')
+  })
+
   it('spells the hot-file check the way BSD find can parse it', () => {
     const carrying = PROTOCOL_FILES.filter((file) => read(file).includes(HOT_CHECK))
     /* Non-vacuous. If every file stopped carrying the command the loop below
@@ -65,10 +58,10 @@ describe('protocol files (the commands agents actually run)', () => {
     }
   })
 
-  it('keeps it in agents.md, which every agent is told to read first', () => {
-    /* Named explicitly: the first pass fixed five files and missed this one, so
-       the count above would not have caught it disappearing from here. */
-    const agents = read('agents.md')
+  it('keeps the hot-file check in AGENTS.md, which every agent is told to read first', () => {
+    /* Check this separately so losing the command from the canonical entrypoint
+       cannot go unnoticed even if the broader non-vacuous count still passes. */
+    const agents = read('AGENTS.md')
     expect(agents).toContain(HOT_CHECK)
     expect(agents).toMatch(/-mmin -15/)
   })

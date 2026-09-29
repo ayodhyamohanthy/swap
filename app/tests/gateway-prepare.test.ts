@@ -5,7 +5,14 @@
    client also spent ₹50 of credit, billing ₹149 for a ₹99 swap. */
 import { describe, expect, it } from 'vitest'
 import type { SupaClient } from '@/server/functions'
-import { prepareGatewayPayment } from '@/server/payments'
+import { prepareGatewayPayment as prepareGatewayPaymentImpl } from '@/server/payments'
+
+type GatewayInput = Parameters<typeof prepareGatewayPaymentImpl>[2]
+const prepareGatewayPayment = (
+  client: SupaClient,
+  callerId: string,
+  input: Omit<GatewayInput, 'provider'> & { provider?: GatewayInput['provider'] },
+) => prepareGatewayPaymentImpl(client, callerId, { ...input, provider: input.provider ?? 'razorpay' })
 
 interface Row { id: string; [k: string]: unknown }
 interface WalletRow { id: string; amount_paise: number; expires_at: string | null }
@@ -100,6 +107,14 @@ describe('prepareGatewayPayment — the amount charged', () => {
     expect(p.due).toBe(4900)
     expect(inserted(state, 'wallet_tx')).toMatchObject([{ amount_paise: -5000, kind: 'used' }])
     expect(inserted(state, 'payments')).toMatchObject([{ amount_paise: 9900, credit_used_paise: 5000 }])
+  })
+
+  it('persists PayPal as the provider for a PayPal order', async () => {
+    const { client, state } = fakeClient({ request: request() })
+    await prepareGatewayPayment(client, REQUESTER, {
+      requestId: 'req_1', isGroup: false, useCredit: false, provider: 'paypal',
+    })
+    expect(inserted(state, 'payments')).toMatchObject([{ provider: 'paypal', status: 'created' }])
   })
 
   it('credit is only ever spent in whole paise off the total, never over', async () => {

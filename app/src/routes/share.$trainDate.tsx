@@ -23,6 +23,12 @@ export const Route = createFileRoute('/share/$trainDate')({
 
 type Platform = 'whatsapp' | 'instagram' | 'facebook' | 'telegram' | 'sms'
 
+export function parseShareTrainDate(value: string): { trainNo: string; journeyDate: string } {
+  const separator = value.indexOf('-')
+  if (separator < 0) return { trainNo: value, journeyDate: '' }
+  return { trainNo: value.slice(0, separator), journeyDate: value.slice(separator + 1) }
+}
+
 function ShareScreen() {
   const { trainDate } = Route.useParams()
   const { t } = useI18n()
@@ -30,7 +36,7 @@ function ShareScreen() {
   const online = useOnline()
   const [showQr, setShowQr] = useState(false)
 
-  const [trainNo, journeyDate] = trainDate.split('-')
+  const { trainNo, journeyDate } = parseShareTrainDate(trainDate)
   const origin = typeof window === 'undefined' ? '' : window.location.origin
   const link = `${origin}/train/${trainNo}?date=${encodeURIComponent(journeyDate ?? '')}`
   const text = t('share.body')

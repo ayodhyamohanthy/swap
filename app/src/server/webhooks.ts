@@ -202,6 +202,7 @@ export const createPaypalOrder = createServerFn({ method: 'POST' })
         requestId: data.requestId,
         isGroup: data.isGroup === true,
         useCredit: data.useCredit !== false,
+        provider: 'paypal',
       })
       /* Real v2 order. approval_url is where the browser redirects to authorise.
          The browser owns the origin (the PWA is the deploy target), so it sends

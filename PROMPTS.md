@@ -1,7 +1,7 @@
 # PROMPTS.md — the only prompt you need
 
 > The human does nothing but say **"start"** or **"continue"**.
-> `agents.md` §0 tells every model to find the project state, pick a free
+> `AGENTS.md` §0 tells every model to find the project state, pick a free
 > lane from `docs/14-LANES.md`, claim it, build, and release it.
 > You never pick lanes, never name files, never explain the rules.
 
@@ -9,7 +9,7 @@
 choice is free, better and meets the goals — better free/student-credit tool,
 refactor, extra tests, next Backlog item — the model just does it and notes
 the reason in the commit. They only escalate for real money, paid products,
-non-free dependencies, `agents.md` non-negotiables, or another active lane's
+non-free dependencies, `AGENTS.md` non-negotiables, or another active lane's
 files. CI (`.github/workflows/green.yml`) blocks a red push.
 
 ## Say this to any AI coding platform
@@ -26,7 +26,7 @@ Repo: /Users/ayodhyarammohanthy/Documents/GitHub/swap
 continue
 ```
 
-That's it. `agents.md` §0 is the bootstrap: pull, hot-file check, read
+That's it. `AGENTS.md` §0 is the bootstrap: pull, hot-file check, read
 `docs/14-LANES.md`, claim the first free lane, read `docs/11`–`13`, work only
 in that lane, run the three gates, mark `done`, repeat.
 
@@ -34,18 +34,18 @@ in that lane, run the three gates, mark `done`, repeat.
 
 ```
 Repo: /Users/ayodhyarammohanthy/Documents/GitHub/swap
-Read agents.md §0 and follow it exactly. Claim one free lane in docs/14-LANES.md.
+Read AGENTS.md §0 and follow it exactly. Claim one free lane in docs/14-LANES.md.
 ```
 
 ## What happens automatically (so you can trust it)
 
 | Step | Where it's written | Who does it |
 |---|---|---|
-| Pull + hot-file check | `agents.md` §0.1, `docs/11` | the model |
-| Pick + claim a lane | `agents.md` §0.2, `docs/14-LANES.md` | the model |
+| Pull + hot-file check | `AGENTS.md` §0.1, `docs/11` | the model |
+| Pick + claim a lane | `AGENTS.md` §0.2, `docs/14-LANES.md` | the model |
 | Read rules for its lane | `docs/11`/`12`/`13`, `docs/05`→`designs/` | the model |
 | Build keyless, keys later | `docs/12` §8, `wrangler.toml` | the model |
-| Three gates before commit | `agents.md` §0.4, `docs/13` §5 | the model |
+| Three gates before commit | `AGENTS.md` §0.4, `docs/13` §5 | the model |
 | Release the lane + summary | `docs/13` §2.5, `docs/14-LANES.md` | the model |
 | Integration once lanes report done | `PROMPTS.md` §3 (you run it) | you or L1 owner |
 
@@ -98,7 +98,7 @@ You are working in the shared SeatSwap repo:
 /Users/ayodhyarammohanthy/Documents/GitHub/swap
 
 Read these files in this order before writing any code:
-1. agents.md
+1. AGENTS.md
 2. docs/11-COLLAB.md          (git discipline)
 3. docs/12-INFRA-CREDITS.md   (stack + credit/free-only spend rule)
 4. docs/13-COLLAB-CONTRACT.md (lane rules)
@@ -120,7 +120,7 @@ Build with no keys (local-first; keys come later):
   npm run dev --workspace seatswap-app
 
 Match the design images in designs/ against the route map in docs/05-SCREENS.md.
-agents.md rules beat the images. Never use banned words (agents.md 10).
+AGENTS.md rules beat the images. Never use banned words (AGENTS.md 10).
 
 Before every commit (all three must pass):
   npm run typecheck --workspace seatswap-app
@@ -164,13 +164,13 @@ Push only when all gates are green: git push origin main
 
 ```
 Repo: /Users/ayodhyarammohanthy/Documents/GitHub/swap
-Read: agents.md, docs/05-SCREENS.md, docs/07-DESIGN-SYSTEM.md,
+Read: AGENTS.md, docs/05-SCREENS.md, docs/07-DESIGN-SYSTEM.md,
 docs/13-COLLAB-CONTRACT.md. Claim / confirm you hold LANE <Lx>.
 
 For each screen listed for your lane in docs/05-SCREENS.md, open the matching
 designs/NN *.jpg and compare: layout order, wording, numbers (₹99, ₹50),
 "Berth ••" masking before payment, tone. Fix ONLY inside your lane.
-If the image disagrees with agents.md, agents.md wins — note the conflict in
+If the image disagrees with AGENTS.md, AGENTS.md wins — note the conflict in
 docs/14-LANES.md notes. Then run the three gates and commit path-scoped.
 ```
 
@@ -195,7 +195,7 @@ Only free / student / startup-credit products. Green rule before commit.
 ## 5. Short version (when a platform only accepts one line)
 
 ```
-Repo /Users/ayodhyarammohanthy/Documents/GitHub/swap. Read agents.md, docs/11-COLLAB.md,
+Repo /Users/ayodhyarammohanthy/Documents/GitHub/swap. Read AGENTS.md, docs/11-COLLAB.md,
 docs/12-INFRA-CREDITS.md, docs/13-COLLAB-CONTRACT.md, docs/14-LANES.md.
 Claim ONE lane in docs/14-LANES.md, touch only that lane's files, cross-lane needs
 become `request:` lines. Build keyless. Green rule (typecheck+test+build) before commit.

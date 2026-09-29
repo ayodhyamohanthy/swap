@@ -99,7 +99,7 @@ and re-runs the suite. Never force-push, never revert another lane.
 
 ```
 Repo: /Users/ayodhyarammohanthy/Documents/GitHub/swap
-Read in order: agents.md, docs/11-COLLAB.md, docs/12-INFRA-CREDITS.md,
+Read in order: AGENTS.md, docs/11-COLLAB.md, docs/12-INFRA-CREDITS.md,
 docs/13-COLLAB-CONTRACT.md, docs/14-LANES.md.
 You own LANE <Lx> — <surface>. First: git pull --rebase, git status --short,
 hot-file check (find app/src app/tests app/locales -mmin -15 -type f).
@@ -148,7 +148,7 @@ Backlog items, swap libraries inside your lane. Record the reason in the
 commit message and, for a tool swap, in `docs/12-INFRA-CREDITS.md` §7.
 
 Only escalate for: real money, paid products, non-free dependencies,
-changes to `agents.md` non-negotiables, or another *active* lane's files
+changes to `AGENTS.md` non-negotiables, or another *active* lane's files
 (`request:` line, then stop). CI (`.github/workflows/green.yml`) enforces
 the gates on every push, so "continue" can never silently break `main`.
 
