@@ -4,8 +4,20 @@
 # fallbacks) and become live when env/secrets land. See docs/12 §8.
 name = "seatswap"
 compatibility_date = "2026-09-01"
+# server/jobs.ts, server/payments-helpers.ts and lib/supabase.ts use
+# node:crypto, Buffer and process.env. Without this flag the Worker bundle
+# builds but those imports throw at runtime on the first webhook.
+compatibility_flags = ["nodejs_compat"]
+# The server half of the app. Until this line existed, every build produced
+# dist/server/server.js (23 server functions + all the payment logic) and
+# deployed only dist/cf, so nothing could ever POST to /api/public/webhooks/*
+# — see app/src/worker.ts for what the entry does and what it refuses to do.
+main = "./src/worker.ts"
 
 [assets]
+# Required once a Worker exists: the Worker is now asked first and hands back
+# every non-/api/public request, so it needs the asset binding to answer them.
+binding = "ASSETS"
 # `dist/cf` is dist/client minus `_redirects`, staged by scripts/postbuild.mjs.
 # Workers Static Assets reads `_redirects` itself and rejects the Netlify/Surge
 # catch-all `/* /index.html 200` as an infinite loop (API error 100324: it
