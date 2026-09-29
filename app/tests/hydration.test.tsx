@@ -32,7 +32,14 @@
    which would need the router context. Add a case here when a new shell
    component starts rendering store data. */
 
-import { act, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
+/* `act` is imported from `react-dom/test-utils`, not `react`. React 19 moved
+   it: `require('react').act` is `undefined` there, so the original
+   `import { act } from 'react'` resolved to nothing and both cases failed with
+   `TypeError: act is not a function` — a test that looked written and never
+   ran. `react-dom/test-utils` still re-exports it, and that is where Vitest's
+   own React helpers get it. */
+import { act } from 'react-dom/test-utils'
 import { hydrateRoot, type Root } from 'react-dom/client'
 import { renderToString } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

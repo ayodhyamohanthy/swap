@@ -3,9 +3,17 @@
  * Reads app/locales/en.json (635 leaves, ~17k chars), drafts ONE lang
  * at a time into app/azure/tmp/<code>.json. NEVER writes app/locales/.
  * Without AZURE_TRANSLATOR_KEY: dry-run, no network, nothing written. */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+/* Node builtins come via `process.getBuiltinModule`, never a static
+ * `import 'node:fs'`. This file is a Node script in its own right, but it is
+ * also imported by `tests/azure-burndown.test.ts`, which runs under the jsdom
+ * pool — and there Vite externalises static `node:` specifiers to a browser
+ * shim, so the import resolved to nothing and the whole suite failed to
+ * collect with `Error: No such built-in module: node:`. docs/11 §Hard-won repo
+ * conventions records the same trap for the test files; it applies to anything
+ * they import too. */
+const { mkdirSync, readFileSync, writeFileSync } = process.getBuiltinModule('node:fs')
+const { dirname, join } = process.getBuiltinModule('node:path')
+const { fileURLToPath } = process.getBuiltinModule('node:url')
 const HERE = dirname(fileURLToPath(import.meta.url))
 const EN_PATH = join(HERE, '..', 'locales', 'en.json')
 const TMP = join(HERE, 'tmp')

@@ -10,6 +10,20 @@ import { defineConfig } from 'vitest/config'
    component directly (no router, which is why it needs none). */
 export default defineConfig({
   plugins: [viteReact()],
+  /* React picks its bundle on `process.env.NODE_ENV`: `index.js` loads
+     `cjs/react.production.js` when that is "production" and
+     `cjs/react.development.js` otherwise. Vitest sets it to "production", so
+     tests were loading a React with no `act` — which is what made
+     `tests/hydration.test.tsx` fail with `TypeError: act is not a function`
+     and `React.act is not a function` (the latter from
+     `react-dom/test-utils`, which just forwards to `React.act`).
+
+     This is not a cosmetic setting. The development build is also where React
+     keeps the development-only warnings this repo's guards are written
+     against, and it is the only bundle that has `act` at all — so a hydration
+     guard cannot run on the production bundle even in principle. Pinned here
+     rather than in the test file so the whole suite gets it. */
+  define: { 'process.env.NODE_ENV': JSON.stringify('development') },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
