@@ -470,6 +470,104 @@ export function paymentRows(
     }))
 }
 
+export interface AdminReportRow {
+  id: string
+  /** The activity row this came from — the id `close_report` is sent. */
+  action: string
+  /** Design 18b's Issue column: what was reported, from an allow-list. */
+  issue: string | null
+  /** Raw reason as logged, never rendered — see `issue`. */
+  reason: string
+  request_id: string | null
+  closed: boolean
+  created_at: string
+}
+
+/**
+ * The Reports queue behind design 18b (User / Issue / Status / Actions).
+ *
+ * The Issue column is built from an ALLOW-LIST, for the same reason
+ * `activityDetails` is one: `report_filed` stores a free-text `reason` written
+ * by the traveller (today the only caller passes the literal
+ * `'User reported from chat'`, but the type allows a transcript, and a
+ * transcript can carry a phone number or a UPI id — exactly what
+ * `lib/chat-guard.ts` exists to hide). So the column names the *kind* of
+ * report from a bounded vocabulary and falls back to a neutral "Reported",
+ * never to the text. `reason` is carried for the export path only, which
+ * writes it to a file the operator opened, never to the screen.
+ *
+ * A `block` and the `report_closed` that answers it are different things, so
+ * only `report_filed` rows open. That is what makes Status meaningful: an open
+ * report is one with no `report_closed` naming it.
+ */
+export function reportRows(activity: ActivityRow[]): AdminReportRow[] {
+  const closed = new Set(
+    activity.filter((row) => row.action === 'report_closed').map((row) => row.entity_id),
+  )
+  return activity
+    .filter((row) => row.action === 'report_filed')
+    .slice()
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .map((row) => {
+      const reason = typeof row.meta.reason === 'string' ? row.meta.reason : ''
+      const requestId = typeof row.meta.request_id === 'string' ? row.meta.request_id : null
+      return {
+        id: row.id,
+        action: row.action,
+        issue: reportIssue(reason),
+        reason,
+        request_id: requestId,
+        /* A report answered by a `report_closed` for the same request is
+           closed. Matching on the request rather than the row id is what makes
+           the pair joinable at all: `report_closed` is logged by the admin
+           action, which only ever has the request in hand. */
+        closed: requestId !== null && closed.has(requestId),
+        created_at: row.created_at,
+      }
+    })
+}
+
+/** The bounded vocabulary for design 18b's Issue column. A report whose reason
+    matches none of these is still reported — `null` becomes the neutral
+    "Reported" label, never a guess at what was wrong. */
+const REPORT_ISSUES: ReadonlyArray<[RegExp, string]> = [
+  [/cash|money|upi|payment/i, 'cash'],
+  [/no.?show|didn'?t come|did not come|not show/i, 'no_show'],
+  [/abusive|abuse|rude|harass/i, 'abusive'],
+  [/wrong|not as booked|different berth/i, 'wrong_berth'],
+  [/late|too late|delay/i, 'late'],
+]
+
+function reportIssue(reason: string): string | null {
+  for (const [pattern, key] of REPORT_ISSUES) {
+    if (pattern.test(reason)) return key
+  }
+  return null
+}
+
+export function reportsToCsv(rows: AdminReportRow[]): string {
+  return toCsv(
+    [
+      'id',
+      'issue',
+      'status',
+      'request_id',
+      'reason',
+      'created_at',
+    ],
+    rows.map((r) => [
+      r.id,
+      r.issue ?? 'reported',
+      r.closed ? 'closed' : 'open',
+      r.request_id,
+      /* The raw text leaves here and only here: the CSV is a file the operator
+         opened on purpose, where the screen is a thing other people can see. */
+      r.reason,
+      r.created_at,
+    ]),
+  )
+}
+
 export function paymentsToCsv(rows: AdminPaymentRow[]): string {
   return toCsv(
     [
