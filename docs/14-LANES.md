@@ -519,35 +519,34 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
    only compares the init migration to `schema.sql` and never enumerates the
    directory, so no `schema.sql` edit is needed. The old header claim that the
    schema test blocked this was wrong.
-9. **`together_seats` is never populated, so docs/08's "keep-together fit 10" is
-   a score component that cannot fire.** Found 2026-09-28 while resolving item 6.
-   The evidence chain, all of it checked:
-   - `docs/08-PWA-AND-TECH.md` line 19 specifies the score as "choice rank (1st
-     50, 2nd 35, 3rd 20) + same coach 10 + **keep-together fit 10** + acceptor
-     rating 0–10".
-   - `lib/matching.ts` line 159 awards it: `if (request.keep_together &&
-     (cand.together_seats ?? 1) >= (request.group_size ?? 1)) score +=
-     KEEP_TOGETHER_POINTS`.
-   - `CandidateSpec.together_seats` is optional and **nothing in `src/` ever
-     assigns it** — `candidateFor()` in `lib/requests.ts` omits the field.
-   - It is not a local-stub gap either: the production view `match_cards`
-     (`supabase/schema.part7.sql`) exposes `booking_id, train_no, train_name,
-     journey_date, from_code, to_code, class, is_chair_car, passenger_id,
-     label, coach, berth_type, status, quota, first_name, last_initial` — **no
-     seat count of any kind**. So the backend cannot supply it as the schema
-     stands.
-   - `tests/matching.test.ts` proves the bonus works *given* `together_seats: 2`,
-     a value no production path can produce. The test passes on data that cannot
-     occur, which is why this went unnoticed.
-   A tripwire in `tests/matching.test.ts` now pins the gap (it fails, naming
-   `lib/requests.ts`, the moment anyone wires the field) and asserts the view
-   still has no seat column. **The fix needs a decision this lane should not
-   make alone:** what does "together" mean — the count of CNF passengers on the
-   booking (computable from the view), or berths that are actually *adjacent*
-   (not computable: `match_cards` deliberately exposes no `berth_no`, per rule
-   13)? Those differ, and a raw passenger count would overstate a booking whose
-   berths are scattered across the coach. Needs an answer from the human or
-   from docs/01 before either the schema or `candidateFor` changes.
+9. ~~**`together_seats` is never populated, so docs/08's "keep-together fit
+   10" is a score component that cannot fire.**~~ **RESOLVED 2026-09-29 — the
+   field is wired; this item was stale, and it is the third backlog entry on
+   this board to describe finished work as open.** The decision this item said
+   "needs an answer from the human" was in fact answered in the code, and
+   answered the way the item itself recommended: `candidateFor()`
+   (`lib/requests.ts:245`) counts **CNF passengers minus children without a
+   berth** — swappable seats, not adjacency — with the reasoning recorded
+   beside it: the bonus only nudges ranking and never promises seating together.
+   `tests/matching.test.ts` has seven assertions on it, and the tripwire that
+   used to fail when nobody wired the field is gone, which is the intended
+   signal that the gap closed.
+
+   **The answer to the question the item left open.** It asked whether "together"
+   means a passenger count or genuinely adjacent berths, and noted the second is
+   not computable because `match_cards` exposes no `berth_no` per rule 13. Both
+   are true and they are not alternatives: **adjacency is not knowable on
+   purpose**, so the honest quantity is the one that is — a count of seats that
+   can move as a unit. Treating them as alternatives was the error, and
+   overstating adjacency would mean inventing knowledge the schema deliberately
+   withholds — the same reasoning that stops the coach map from drawing a
+   neighbour's berth. The count is also **per candidate row**, not a count of
+   rows received, so it does not break under the paging item 6 described.
+
+   No schema change was needed, and `match_cards` still has no seat column,
+   which is correct. The cost of leaving this item open was real: an agent read
+   item 4, believed it, and rebuilt a panel that already existed.
+
 7. L7: design 15's activity log — **categorised filter done, 2026-09-28.**
    Chips are All / Trips / Requests / Payments / Swaps / Reports / Sign-ins /
    Account, plus an **Other** chip that appears *only* when something is
