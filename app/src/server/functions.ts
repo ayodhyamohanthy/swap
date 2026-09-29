@@ -271,27 +271,62 @@ export async function persistMulti(
 }
 
 /** Caller id comes from the session when the backend is configured; the
-    client-supplied id is only the offline-first fallback (docs/08). */
+    client-supplied id is only the offline-first fallback (docs/08).
+
+    The two cases are deliberately different, and conflating them was a hole.
+    `!client` means no backend is configured at all: this device is the whole
+    world (docs/08 local-first), and the supplied id is the best available. But
+    a client that EXISTS and then fails to identify its caller is an
+    **authentication failure** — an expired or revoked token, a network blip, an
+    aborted request — and falling through to a string the caller chose makes
+    "who are you" answerable by the caller. `resolveCaller`'s result is used as
+    the authenticated identity by `createRazorpayOrder` and `createPaypalOrder`,
+    so that is impersonation with money attached.
+
+    So: no client → offline fallback (deliberate, unchanged). Client present but
+    no verified user → refuse. Fail closed. */
 export async function resolveCaller(client: SupaClient | null, fallbackId: string): Promise<string> {
   if (!client) return fallbackId
-  try {
-    const { data } = await client.auth.getUser()
-    if (data?.user?.id) return data.user.id
-  } catch { /* fall through to the supplied id */ }
-  return fallbackId
+  const { data, error } = await client.auth.getUser()
+  if (error || !data?.user?.id) {
+    throw new SwapError('not_signed_in')
+  }
+  return data.user.id
 }
 
-/** Re-read a row server-side so forged client copies cannot move states. */
+/** Re-read a row server-side so forged client copies cannot move states.
+
+    Same fail-closed reasoning as `resolveCaller`, and the stakes are higher:
+    every state-machine authorisation check downstream (`applySendRequest`
+    comparing `requester_id`, `applyAcceptOffer`, `planLockRequest`) runs against
+    whatever this returns. Falling back to the client's own copy on a read
+    failure means the check validates a row the attacker wrote — which is
+    precisely what the function exists to prevent. A caller that genuinely wants
+    the offline path passes `client: null` and gets the fallback, so nothing is
+    lost by refusing here.
+
+    Two failures, and only the second throws:
+
+      - **the row is not there** (`data: null`, no error). That is an answer,
+        not a fault: the callers already handle it and report
+        `request_not_found`, so raising an error here would both duplicate that
+        message and turn an ordinary "no such request" into a scary one.
+      - **the row could not be read** (a real error). There is nothing safe to
+        return, and the fallback is exactly the forged input this exists to
+        reject, so this refuses.
+
+    Note the asymmetry: `!client` still returns the fallback, because no backend
+    means this device is the whole world (docs/08). Only a configured backend
+    that cannot answer gets a refusal. */
 export async function refetchRow<T>(
   client: SupaClient | null, table: string, id: string, fallback: T,
 ): Promise<T> {
   if (!client) return fallback
-  try {
-    const query = (client.from(table).select('*').eq('id', id).single() as unknown as Promise<{ data: T | null; error: unknown }>)
-    const { data, error } = await query
-    if (!error && data) return data
-  } catch { /* fall through to the supplied row */ }
-  return fallback
+  const query = (client.from(table).select('*').eq('id', id).single() as unknown as Promise<{ data: T | null; error: unknown }>)
+  const { data, error } = await query
+  if (data) return data
+  if (!error) return fallback
+  throw new SwapError('state_unreadable')
 }
 
 async function persistTransition(

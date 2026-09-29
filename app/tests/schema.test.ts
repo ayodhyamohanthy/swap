@@ -146,6 +146,44 @@ describe('Google-only sign-in (rule 8)', () => {
   })
 })
 
+describe('a payment cannot be forged as captured (rule 2, docs/06)', () => {
+  /* The same reasoning as the wallet test above, one table over. Money only
+     moves because a payment is `paid`, and `apply_request_transition` locks a
+     swap when it sees one. So the question is not "can a client change a
+     payment's status" — `REVOKE UPDATE` already answers that — it is "can a
+     client CREATE a payment that is already paid". Revoking UPDATE does not
+     help: the status is supplied at insert time, so the policy that admits the
+     row is the one that has to constrain it. */
+  const paymentPolicies = [
+    ...SCHEMA.matchAll(/CREATE POLICY\s+\w+\s+ON\s+public\.payments[\s\S]*?;/gi),
+  ].map((m) => m[0])
+
+  it('confines every client INSERT policy to the created status', () => {
+    const clientInserts = paymentPolicies.filter(
+      (p) => /\bFOR\s+INSERT\b/i.test(p) && /\bTO\s+authenticated\b/i.test(p),
+    )
+    expect(clientInserts.length, 'expected a payer-insert policy on payments').toBeGreaterThan(0)
+    for (const policy of clientInserts) {
+      expect(
+        policy,
+        'a client may only create a payment in its initial state — a client-insertable '
+          + `'paid' row is a free swap lock and mints the acceptor's credit: ${policy}`,
+      ).toMatch(/status\s*=\s*'created'/i)
+    }
+  })
+
+  it('never lets an authenticated client UPDATE a payment', () => {
+    /* Asserted because the reasoning above depends on it, and because the two
+       together are the whole guarantee. */
+    expect(SCHEMA).toMatch(/REVOKE\s+UPDATE\s+ON\s+TABLE\s+public\.payments\s+FROM\s+authenticated;/i)
+  })
+
+  it('leaves the status moves to service_role, which bypasses RLS', () => {
+    const grantService = [...SCHEMA.matchAll(/GRANT\s+[^;]*ON\s+TABLE\s+public\.payments\s+TO\s+service_role;/gi)]
+    expect(grantService.length).toBeGreaterThan(0)
+  })
+})
+
 describe('credit cannot be minted by a passenger (rules 3-6)', () => {
   /* The wallet ledger is the only thing that makes "acceptor earns Rs 50" and
      "failed swap becomes Rs 99 credit" true. If a client can write it directly,
