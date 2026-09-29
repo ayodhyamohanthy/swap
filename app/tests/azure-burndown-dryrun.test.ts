@@ -72,14 +72,19 @@ const OWN_FIXTURES = ['ghost-spender-probe.mjs', 'leftover-check.tmp.mjs']
    into six red tests, which reads as a code regression rather than as an
    environment that cannot clean up. The refusal is kept so the test below can
    report it once, in one place, with the cause named. */
-let sweepRefused: string | null = null
+const sweepRefused: string[] = []
 
 function clearOwnFixtures() {
+  sweepRefused.length = 0
   for (const name of OWN_FIXTURES) {
     try {
       rmSync(join(AZURE, name), { force: true })
     } catch (err) {
-      sweepRefused = `${name}: ${err instanceof Error ? err.message : String(err)}`
+      /* Accumulated, not overwritten. The loop visits every fixture, so a
+         single-slot variable keeps only the LAST refusal and silently loses
+         the first — which is the one the planted fixture below needs to find.
+         That bug was caught by a full-suite run, not by reading it. */
+      sweepRefused.push(`${name}: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 }
@@ -285,14 +290,13 @@ describe('the harness only runs scripts that exist', () => {
 
     const planted = join(AZURE, OWN_FIXTURES[0])
     writeFileSync(planted, 'console.log("[planted]")\n')
-    sweepRefused = null
     clearOwnFixtures()
     /* Where the environment permits deletion the fixture is gone. Where it does
        not — an agent sandbox refusing bulk deletes — the refusal was recorded
        rather than thrown, so this stays a statement about the sweep and does
        not become a phantom failure about the code. */
-    if (sweepRefused === null) expect(existsSync(planted)).toBe(false)
-    else expect(sweepRefused).toContain(OWN_FIXTURES[0])
+    if (sweepRefused.length === 0) expect(existsSync(planted)).toBe(false)
+    else expect(sweepRefused.join('; ')).toContain(OWN_FIXTURES[0])
   })
 })
 
