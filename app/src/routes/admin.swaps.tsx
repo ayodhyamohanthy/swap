@@ -6,30 +6,35 @@ import { Card, CardBody } from '@/components/ui/card'
 import { Field, Input } from '@/components/ui/input'
 import { Pill } from '@/components/ui/pill'
 import {
+  ACTIVITY_TONE_CLASS,
   acceptorName,
+  activityTime,
   adminNoticeKey,
   collectedPaise,
   downloadCsv,
   filterSwaps,
+  paymentIdsFor,
   runAdminAction,
   shortId,
   SWAP_PHASES,
   SWAP_PHASE_LABEL,
   swapPhase,
   swapsToCsv,
+  swapTimeline,
   type AdminSwapRow,
   type SwapPhase,
 } from '@/lib/admin'
 import { applyResolution, voidSwap } from '@/lib/settle'
 import { resolveConfirmations } from '@/lib/outcomes'
 import { useI18n, type MessageKey } from '@/lib/i18n'
-import { useRequestsState } from '@/lib/use-store'
+import { useAppState, useRequestsState } from '@/lib/use-store'
 import { getTrip, paymentFor } from '@/lib/store'
 import { formatRupees } from '@/lib/money'
 
 /* Admin A4 "Swaps" (design 17). Shows the requester's PNR last4 only — never the
    full PNR (rule 13). The Status column reads in the design's words and the
-   precise state stays as a tooltip, the same split the activity log uses. */
+   precise state stays as a tooltip, the same split the activity log uses. Each
+   row's swap id opens that swap's own history, read out of the activity log. */
 
 export const Route = createFileRoute('/admin/swaps')({
   staticData: { chrome: 'setup' } satisfies RouteChrome,
@@ -65,8 +70,13 @@ const TRACKS = 'lg:grid-cols-[6.5rem_5rem_minmax(0,1fr)_minmax(0,1fr)_7rem_5.5re
    Swap column, and one definition means the two tables cannot disagree. */
 
 function AdminSwaps() {
-  const { t, date } = useI18n()
+  const { t, date, lang } = useI18n()
   const { requests, offers } = useRequestsState()
+  /* The history comes from the activity log plus the payments that name their
+     request (see `paymentIdsFor`). Both already live in the store, so this
+     panel adds a reader and no new state. */
+  const { activity, payments } = useAppState()
+  const [openId, setOpenId] = useState<string | null>(null)
   const [phase, setPhase] = useState<SwapPhase | 'all'>('all')
   const [busy, setBusy] = useState<string | null>(null)
   const [reasonFor, setReasonFor] = useState<string | null>(null)
@@ -181,6 +191,13 @@ function AdminSwaps() {
                  phase; a staff member who needs `locked` vs `confirmed` gets it
                  on hover rather than in a second column. */
               const exact = `request.statuses.${row.status}` as MessageKey
+              const open = openId === row.id
+              /* Computed for the open row only: the log is the whole audit
+                 trail, and walking it once per rendered row to build a history
+                 nobody asked to see is the one way this panel could get slow. */
+              const timeline = open
+                ? swapTimeline(activity, row.id, paymentIdsFor(payments, row.id))
+                : []
 
               return (
                 <li
@@ -194,12 +211,22 @@ function AdminSwaps() {
                         too: a swap id with no date is not an audit trail, and
                         the design has no seventh column to put one in. */}
                     <span className="col-start-1 row-start-1 min-w-0 lg:col-start-1 lg:row-start-1">
-                      <b
-                        className="block truncate font-head text-body text-ink"
+                      {/* The swap id is its own disclosure. Design 17 keeps this
+                          history in a panel beside the table; opening it from
+                          the id needs no second button and therefore no label,
+                          which is why this feature adds no copy to either
+                          catalogue — the same call the activity Table's Details
+                          column made. */}
+                      <button
+                        type="button"
+                        className="block max-w-full truncate font-head text-body text-ink"
                         title={row.id}
+                        aria-expanded={open}
+                        aria-controls={open ? `swap-history-${row.id}` : undefined}
+                        onClick={() => setOpenId(open ? null : row.id)}
                       >
                         {shortId(row.id)}
-                      </b>
+                      </button>
                       {row.journey_date ? (
                         <small className="block truncate text-caption text-muted">
                           {date(row.journey_date)}
@@ -291,6 +318,43 @@ function AdminSwaps() {
                         >
                           {t('admin.moveCredit')}
                         </Button>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {/* Design 17's Swap detail panel, rendered under the row
+                      instead of beside the table. At `lg` the table already
+                      spends 24rem on fixed tracks, so a side panel would come
+                      straight out of the two name columns that need the room
+                      most — and the history is per row, which makes it read
+                      correctly here at every width, including the 360px card
+                      layout where a side panel has nowhere to go. */}
+                  {open ? (
+                    <div id={`swap-history-${row.id}`} className="mt-2 border-t border-line pt-2">
+                      {timeline.length === 0 ? (
+                        <p className="text-caption text-muted">{t('admin.empty')}</p>
+                      ) : (
+                        <ol className="space-y-1">
+                          {timeline.map((step) => (
+                            <li
+                              key={step.id}
+                              className="flex flex-wrap items-baseline gap-x-2 text-caption"
+                            >
+                              <time className="tabular-nums text-muted" dateTime={step.at}>
+                                {date(step.at.slice(0, 10))} · {activityTime(step.at, lang)}
+                              </time>
+                              <b
+                                className={`rounded-lg px-1.5 py-0.5 font-head ${ACTIVITY_TONE_CLASS[step.tone]}`}
+                                title={step.action}
+                              >
+                                {t(step.label)}
+                              </b>
+                              {step.details ? (
+                                <span className="min-w-0 text-muted">{step.details}</span>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ol>
                       )}
                     </div>
                   ) : null}
