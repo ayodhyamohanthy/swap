@@ -6,8 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/lib/i18n'
-import { formatUsdTenths, usdTenthsFor } from '@/lib/money'
-import { buildQuote } from '@/lib/payments'
+import { buildQuote, chargeDuePaise, usdEstimateFor } from '@/lib/payments'
 import {
   beginCheckout,
   confirmCaptured,
@@ -57,11 +56,16 @@ function PaypalScreen() {
 
   const quote = buildQuote(useCredit === 1 ? credit : 0, isGroup)
   /* Card total is the gateway's own number, so a credit-covered order shows the
-     reduced amount rather than the full price. */
-  const charged = payment ? payment.amount_paise - payment.credit_used_paise : quote.due
+     reduced amount rather than the full price. Shared with the UPI screen via
+     chargeDuePaise — this screen had the correct fallback and the UPI screen had
+     `: 0`, which is how one of them came to say "Approve ₹0". */
+  const charged = chargeDuePaise(payment, quote)
   /* The USD figure is an estimate only (docs/06) — the charge is always the
-     INR amount, so a partly credit-covered order estimates on what is left. */
-  const usd = formatUsdTenths(usdTenthsFor(Math.max(charged, 1)))
+     INR amount, so a partly credit-covered order estimates on what is left.
+     `usdEstimateFor` floors the tenths: this screen is reachable with a
+     fully-credit-covered order, where the estimate rounds to zero and
+     `formatUsdTenths` throws. */
+  const usd = usdEstimateFor(charged)
 
   /* Return leg: PayPal sent the payer back with an order id to capture. */
   useEffect(() => {

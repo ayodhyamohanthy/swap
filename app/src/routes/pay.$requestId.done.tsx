@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { useI18n } from '@/lib/i18n'
 import { acceptedOffer, getRequest, revealedBerths } from '@/lib/requests'
-import { splitReceipt } from '@/lib/payments'
+import { splitReceipt, type ReceiptLine } from '@/lib/payments'
 import { formatRupees } from '@/lib/money'
 import { isGroupRequestId } from '@/lib/groups'
 import { gatewayLive, payGateFor } from '@/lib/checkout'
@@ -58,7 +58,25 @@ function DoneScreen() {
 
   const isGroup = isGroupRequestId(requestId)
   const name = acceptedOffer(requestId)?.acceptor_name ?? t('common.traveller')
+  /* `amount_paise` is GROSS; `receipt.total` is the cash the gateway captured.
+     The "… paid · Razorpay" line below used the gross, so a credit-covered
+     swap told the payer that Razorpay had taken ₹99 when it took ₹49. The
+     method named and the amount named have to be the same transaction. */
   const receipt = splitReceipt(payment.amount_paise, payment.credit_used_paise, isGroup)
+  /* One label per line, for both branches. The group branch looked the key up
+     raw, and `pay.creditUsed` is "Credit used ₹{amount}" — `fill` blanks a
+     variable it was not given, silently, so a group payment that spent credit
+     printed "Credit used ₹" with no number in it at all. A missing figure that
+     leaves a well-formed sentence behind is the same defect as the ₹0 this
+     screen's sibling showed: the reader cannot tell it is broken.
+     `withName` is the one genuine difference — a group payment has no single
+     acceptor to name (design 29b), a single swap does (design 27c). */
+  const labelFor = (line: ReceiptLine, withName: boolean) =>
+    line.label === 'credit_used'
+      ? t('pay.creditUsed', { amount: Math.abs(line.amountPaise) / 100 })
+      : line.label === 'thank_you' && withName
+        ? t('pay.receiptThanksFor', { name })
+        : t(LINE_KEY[line.label as keyof typeof LINE_KEY])
   const berths = revealedBerths(requestId)
   if (isGroup) {
     /* A group payment covers the trip, not one swap: no berth reveal here,
@@ -69,7 +87,7 @@ function DoneScreen() {
         <h1 className="text-title text-ink">{t('pay.done')}</h1>
         <p className="mt-1 text-body text-muted">
           {t('pay.paidLine', {
-            amount: formatRupees(payment.amount_paise),
+            amount: formatRupees(receipt.total),
             method: payment.provider === 'credit' ? t('profile.credit') : payment.provider === 'paypal' ? 'PayPal' : 'Razorpay',
           })}
         </p>
@@ -78,7 +96,7 @@ function DoneScreen() {
           <dl className="mt-2 text-body">
             {receipt.lines.map((line) => (
               <div key={line.label} className="flex items-center justify-between py-1">
-                <dt className="text-muted">{t(LINE_KEY[line.label as keyof typeof LINE_KEY])}</dt>
+                <dt className="text-muted">{labelFor(line, false)}</dt>
                 <dd className="font-head font-bold text-ink">{formatRupees(line.amountPaise)}</dd>
               </div>
             ))}
@@ -104,7 +122,7 @@ function DoneScreen() {
       <h1 className="text-title text-ink">{t('pay.done')}</h1>
       <p className="mt-1 text-body text-muted">
         {t('pay.paidLine', {
-          amount: formatRupees(payment.amount_paise),
+          amount: formatRupees(receipt.total),
           method: payment.provider === 'credit' ? t('profile.credit') : payment.provider === 'paypal' ? 'PayPal' : 'Razorpay',
         })}
       </p>
@@ -113,9 +131,7 @@ function DoneScreen() {
         <dl className="mt-2 text-body">
           {receipt.lines.map((line) => (
             <div key={line.label} className="flex items-center justify-between py-1">
-              <dt className="text-muted">
-                {line.label === 'thank_you' ? t('pay.receiptThanksFor', { name }) : line.label === 'credit_used' ? t('pay.creditUsed', { amount: Math.abs(line.amountPaise) / 100 }) : t(LINE_KEY[line.label as keyof typeof LINE_KEY])}
-              </dt>
+              <dt className="text-muted">{labelFor(line, true)}</dt>
               <dd className="font-head font-bold text-ink">{formatRupees(line.amountPaise)}</dd>
             </div>
           ))}

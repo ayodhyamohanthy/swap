@@ -367,7 +367,6 @@
     "yes": "हाँ, स्वैप हो गया",
     "noShow": "दूसरा व्यक्ति नहीं आया",
     "notPossible": "स्वैप हो नहीं पाया",
-    "changedMind": "हमने मन बदल लिया",
     "submit": "पक्का करें",
     "saved": "धन्यवाद। आपका जवाब सेव हो गया।",
     "waiting": "{name} के जवाब का इंतज़ार है।",
@@ -575,7 +574,8 @@
   },
   "share": {
     "title": "{train} के लोगों को बुलाएं",
-    "body": "यह लिंक कहीं भी शेयर करें। दूसरे सीधे ब्राउज़र पेज से जुड़ते हैं।",
+    "body": "अपने कोच के साथियों को WhatsApp पर भेजें, ताकि SeatSwap पर और लोग जुड़ें।",
+    "message": "मुझे {train} पर बर्थ बदलनी है। SeatSwap पर जुड़िए — हम एक-दूसरे से बदल सकते हैं।",
     "whatsapp": "WhatsApp",
     "instagram": "Instagram",
     "facebook": "Facebook",
@@ -608,6 +608,9 @@
     "title": "अभी ट्रेन में",
     "body": "अपने स्टॉप तक लाइव कोच बोर्ड। आस-पास के खुले स्वैपर दिख रहे हैं।",
     "tillStop": "बोर्ड {stop} तक लाइव रहेगा।",
+    "live": "लाइव",
+    "notLive": "ट्रेन में नहीं",
+    "until": "{stop} तक",
     "onlyOpen": "सिर्फ़ स्वैप के लिए खुले यात्री ही दिखते हैं।",
     "youHere": "आप यहाँ हैं",
     "ask": "पूछें",
@@ -740,7 +743,7 @@
     "firstOnTrain": "आज अपनी ट्रेन पर सबसे पहले",
     "firstOnTrainNone": "आज अभी कोई मैच खोज नहीं हुई।",
     "firstOnTrainUnknown": "खोजें शामिल नहीं — मैच संख्या दर्ज नहीं है।",
-    "searchPh": "कार्रवाई, उपयोगकर्ता या ट्रेन खोजें",
+    "searchPh": "कार्रवाई, ट्रेन या PNR के अंतिम 4 अंक खोजें",
     "filterAll": "सभी कार्रवाइयाँ",
     "catAll": "सभी",
     "catLabel": "श्रेणी",
@@ -749,6 +752,10 @@
     "catSignins": "साइन-इन",
     "catAccount": "खाता",
     "catOther": "अन्य",
+    "roles": {
+      "admin": "एडमिन",
+      "support": "सिस्टम"
+    },
     "act": {
       "pnr_added": "PNR जोड़ा",
       "trip_removed": "यात्रा हटाई",
@@ -799,7 +806,9 @@
       "settings_changed": "सेटिंग बदली",
       "language_changed": "भाषा बदली",
       "easy_mode_changed": "आसान मोड बदला",
-      "invite_created": "निमंत्रण बनाया"
+      "invite_created": "निमंत्रण बनाया",
+      "credit_expired": "क्रेडिट समाप्त",
+      "request_expired": "अनुरोध समाप्त"
     },
     "csv": "CSV निकालें",
     "empty": "यहाँ अभी कुछ नहीं।",
@@ -810,6 +819,19 @@
     "colStatus": "स्थिति",
     "colState": "हालत",
     "colSwap": "स्वैप",
+    "colUser": "यात्री",
+    "colIssue": "समस्या",
+    "colActions": "कार्रवाई",
+    "open": "खुली",
+    "review": "देखें",
+    "reportsSub": "दूसरे यात्रियों के बारे में आई शिकायतें देखें।",
+    "report_about": "स्वैप {swap}",
+    "report_cash": "नकद माँगा",
+    "report_no_show": "दूसरा व्यक्ति नहीं आया",
+    "report_abusive": "अशिष्ट या गाली-गलौज",
+    "report_wrong_berth": "गलत बर्थ",
+    "report_late": "मिलने के लिए नहीं आए",
+    "report_other": "शिकायत दर्ज",
     "colRequester": "अनुरोधकर्ता",
     "colAcceptor": "स्वीकारकर्ता",
     "swapAll": "सभी",
@@ -851,6 +873,8 @@
     "reasonPh": "कारण — क्रेडिट के लिए ज़रूरी",
     "acted": "हो गया।",
     "actedDemo": "इस डिवाइस पर दर्ज। सर्वर जुड़ने पर लागू होगा।",
-    "actedFailed": "यह काम नहीं हुआ। कुछ भी नहीं बदला गया।"
+    "actedFailed": "यह काम नहीं हुआ। कुछ भी नहीं बदला गया।",
+    "userTimeline": "यात्री समयरेखा",
+    "timelineAutomation": "स्वचालित"
   }
 }

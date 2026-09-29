@@ -109,6 +109,36 @@ function GroupPlanScreen() {
       ) : null}
       <p className="mt-1 text-body text-muted">{t('groups.planBody')}</p>
 
+      <Card className="mt-4 border-primary/30 bg-wash">
+        <p className="font-head text-title text-primary">
+          {t('groups.partial', { done, total })}
+        </p>
+        <CardBody className="text-ink">{t('groups.pay199')}</CardBody>
+        <p className="mt-1 font-head text-section font-bold text-ink">
+          {formatRupees(GROUP_PRICE_PAISE)}
+        </p>
+        {group.paid ? (
+          <>
+            <p className="mt-2 text-body font-semibold text-primary">{t('groups.paid')}</p>
+            <div className="mt-2 flex gap-2" role="img" aria-label={`${used}/${GROUP_MAX_SWAPS}`}>
+              {Array.from({ length: GROUP_MAX_SWAPS }, (_, i) => (
+                <span
+                  key={i}
+                  aria-hidden
+                  className={`size-3 rounded-full ${i < used ? 'bg-primary' : 'bg-line'}`}
+                />
+              ))}
+            </div>
+          </>
+        ) : (
+          <Button className="mt-3" asChild>
+            <Link to="/pay/$requestId" params={{ requestId: group.id }}>
+              {t('pay.pay199')}
+            </Link>
+          </Button>
+        )}
+      </Card>
+
       {current || unseated > 0 ? (
         <Card className="mt-4">
           {current ? (
@@ -201,7 +231,7 @@ function GroupPlanScreen() {
             /* Outside the coach strip on purpose: these family members have no
                coach at all — waitlisted, RAC, or a child travelling without a
                berth (docs/04 C). Drawing them inside a coach would place them
-               somewhere they are not. Wordless, like the cover dots below. */
+               somewhere they are not. Wordless, like the cover dots above. */
             <div className="mt-3 flex flex-wrap justify-center gap-2 border-t border-line pt-3">
               {Array.from({ length: unseated }, (_, i) => (
                 <span
@@ -216,36 +246,6 @@ function GroupPlanScreen() {
         </Card>
       ) : null}
 
-      <Card className="mt-4 border-primary/30 bg-wash">
-        <p className="font-head text-title text-primary">
-          {t('groups.partial', { done, total })}
-        </p>
-        <CardBody className="text-ink">{t('groups.pay199')}</CardBody>
-        <p className="mt-1 font-head text-section font-bold text-ink">
-          {formatRupees(GROUP_PRICE_PAISE)}
-        </p>
-        {group.paid ? (
-          <>
-            <p className="mt-2 text-body font-semibold text-primary">{t('groups.paid')}</p>
-            <div className="mt-2 flex gap-2" role="img" aria-label={`${used}/${GROUP_MAX_SWAPS}`}>
-              {Array.from({ length: GROUP_MAX_SWAPS }, (_, i) => (
-                <span
-                  key={i}
-                  aria-hidden
-                  className={`size-3 rounded-full ${i < used ? 'bg-primary' : 'bg-line'}`}
-                />
-              ))}
-            </div>
-          </>
-        ) : (
-          <Button className="mt-3" asChild>
-            <Link to="/pay/$requestId" params={{ requestId: group.id }}>
-              {t('pay.pay199')}
-            </Link>
-          </Button>
-        )}
-      </Card>
-
       <section className="mt-4 space-y-2">
         {trips.map((trip) => {
           const passenger = trip.passengers[0]
@@ -255,8 +255,13 @@ function GroupPlanScreen() {
               className="flex items-center gap-3 rounded-card border border-line bg-card p-3"
             >
               <span className="min-w-0 flex-1">
+                {/* Design 19b names the train by NUMBER on these rows
+                    ("12752 Rajdhani"), because the plan is about seats and
+                    the number is what the traveller looks up. Printing the name
+                    alone made all three rows read identically, which is no
+                    information at all. */}
                 <b className="block truncate font-head text-body text-ink">
-                  {trip.train_name || t('train.title', { n: trip.train_no })}
+                  {`${trip.train_no} ${trip.train_name}`.trim()}
                 </b>
                 <small className="block text-caption text-muted">
                   {[date(trip.journey_date), passenger?.coach ?? ''].filter(Boolean).join(' · ')}

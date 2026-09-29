@@ -478,6 +478,66 @@ describe('the family flow is reachable (docs/05 screens 52-53)', () => {
       expect(src, name).toMatch(/chrome: 'tabs', tab: 'home'/)
     }
   })
+
+  it('puts the plan card above the coach map, as 19b does', () => {
+    /* Design 19b reads top to bottom: "3 of 4 seated together" → the coach map
+       → the pay button. Shipping the map first meant the two things a user came
+       to compare — the count and the shape behind it — were separated by a
+       card boundary in the wrong order. Position, not presence: an assertion
+       that both exist would have stayed green through the swap.
+
+       Measured from the **return**, not the top of the file. An earlier
+       version of this test searched the whole source and found `groupBayRows`
+       on its derivation line, which sits above the plan card on every layout —
+       so the assertion was really about where the data is computed, and it
+       failed the moment the cards were ordered the way the design orders them.
+       The question is what the user reads first. */
+    const src = readFileSync(join(ROUTES, 'groups.$id.plan.tsx'), 'utf8')
+    const jsx = src.slice(src.indexOf('return ('))
+    const partial = jsx.indexOf("t('groups.partial'")
+    /* The map is the block that renders bay rows, not the line that derives
+       them. */
+    const map = jsx.indexOf('bayRows.map')
+    expect(partial).toBeGreaterThan(-1)
+    expect(map).toBeGreaterThan(-1)
+    expect(partial).toBeLessThan(map)
+  })
+
+  it('makes 19a’s member rows real links, not divs with a chevron', () => {
+    /* A chevron is a promise of somewhere to go. The capture showed the design
+       drawing one on every linked ticket while the row was a <div> that went
+       nowhere — an affordance that lies. */
+    const src = readFileSync(join(ROUTES, 'groups.$id.tsx'), 'utf8')
+    expect(src).toMatch(/to="\/trips\/\$tripId"/)
+    const row = src.slice(src.indexOf('groupTrips.map'), src.indexOf('Link a PNR'))
+    expect(row).toMatch(/<Link/)
+    expect(row).toMatch(/ChevronRight/)
+  })
+})
+
+describe('the onboard live chip only says Live while it is live (design 7a)', () => {
+  const { readFileSync } = process.getBuiltinModule('node:fs') as typeof import('node:fs')
+  const { join } = process.getBuiltinModule('node:path') as typeof import('node:path')
+  const src = readFileSync(join(import.meta.dirname, '..', 'src', 'routes', 'onboard.$tripId.tsx'), 'utf8')
+
+  it('derives liveness from the journey date instead of always claiming it', () => {
+    /* "Live coach board" is the promise of this screen. A chip that says Live
+       on a journey three weeks past, or one that departs tomorrow, is the one
+       small lie it must never tell — the screen's entire value is that what it
+       shows is happening now. Asserted on the derivation, not the rendering. */
+    expect(src).toMatch(/journey_date/)
+    expect(src).toMatch(/live\s*=/)
+    expect(src).toMatch(/onboard\.notLive/)
+  })
+
+  it('keeps state and stop in ONE chip, as 7a draws it', () => {
+    /* Two pills read as two facts when the design means one sentence. The
+       first attempt at this pass shipped two, and the capture showed it. */
+    const chips = src.match(/<Pill/g)?.length ?? 0
+    const header = src.slice(0, src.indexOf('<Card className="mt-4 border-primary'))
+    expect((header.match(/<Pill/g) ?? []).length).toBeLessThanOrEqual(1)
+    expect(chips).toBeGreaterThan(0)
+  })
 })
 
 describe('groupJourney (design 19b subtitle)', () => {

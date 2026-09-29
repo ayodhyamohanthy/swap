@@ -6,9 +6,11 @@
 import {
   CREDIT_VALIDITY_MONTHS,
   FEE_PAISE,
+  formatUsdTenths,
   GROUP_PRICE_PAISE,
   PRICE_PAISE,
   THANK_YOU_PAISE,
+  usdTenthsFor,
 } from './money'
 
 export const PAY_STATES = ['created', 'pending', 'paid', 'failed'] as const
@@ -40,6 +42,49 @@ export function buildQuote(balancePaise: number, isGroup = false): Quote {
   return { total, creditUsed, due, provider: due === 0 ? 'credit' : null }
 }
 
+/**
+ * What the gateway will actually take — the one number every pay screen that
+ * names an amount must agree on. A payment row's own figures win when one
+ * exists, because those are what the provider was handed; otherwise the quote
+ * the payer was shown is the only honest answer.
+ *
+ * This exists because the two screens disagreed. `pay.$requestId.upi.tsx` read
+ * `payment ? amount - credit : 0`, so on a refresh, a shared link, or a cleared
+ * profile — anywhere the request is still payable but no payment row exists yet
+ * — the screen told the passenger to **"Approve ₹0 in your UPI app"**. Zero is
+ * not a missing value on a payment screen; it is a number, and stating one you
+ * do not mean is worse than stating none. `paypal.tsx` had already solved the
+ * same problem correctly by falling back to the quote, which is exactly how two
+ * inline copies drift apart. One function, so they cannot drift again.
+ */
+export function chargeDuePaise(
+  payment: { amount_paise: number; credit_used_paise: number } | undefined,
+  quote: Quote,
+): number {
+  const charged = payment ? payment.amount_paise - payment.credit_used_paise : quote.due
+  return Number.isFinite(charged) ? Math.max(0, Math.floor(charged)) : quote.due
+}
+
+/**
+ * The "about US$X" hint for a charge, floored at one tenth.
+ *
+ * Both PayPal-facing screens compute this from the amount the payer is actually
+ * charged, so a credit-covered order estimates on what is left (money.test.ts
+ * pins that: ₹49 → "US$0.6", not "US$1.2"). But the rate hint rounds to zero
+ * below about ₹4.13 — and `formatUsdTenths` *throws* on zero. So any small
+ * remainder, including the `due = 0` of a fully credit-covered order, took the
+ * screen down during render: a crash on the one screen whose entire job is to
+ * state an amount. `Math.max(…, 1)` in the two callers only guarded the ≤ 0
+ * case, which is not where the round-to-zero happens.
+ *
+ * One function so the two screens cannot drift, and a floor so the estimate
+ * degrades to a coarse "about US$0.1" instead of throwing.
+ */
+export function usdEstimateFor(chargePaise: number): string {
+  const safe = Number.isFinite(chargePaise) ? Math.max(Math.floor(chargePaise), 1) : 1
+  return formatUsdTenths(Math.max(usdTenthsFor(safe), 1))
+}
+
 export interface ReceiptLine {
   label: string
   amountPaise: number
@@ -47,13 +92,37 @@ export interface ReceiptLine {
 
 export interface Receipt {
   lines: ReceiptLine[]
+  /** Always `sum(lines)` — the cash the gateway captured, never the gross price. */
   total: number
 }
 
-/** Receipt lines: fee ₹49 · thank-you ₹50 · credit used (if any) · total. */
-export function splitReceipt(duePaid: number, creditUsed: number, isGroup = false): Receipt {
-  const paid = Math.max(0, Math.floor(duePaid))
-  const used = Math.max(0, Math.floor(creditUsed))
+/**
+ * Receipt lines: fee ₹49 · thank-you ₹50 · credit used (if any) · Total (docs/06).
+ *
+ * The Total is what the gateway actually captured, and the lines above it SUM
+ * to it — the one property a receipt has to have. It did not have it. `total`
+ * returned the full ₹99 while a credit-used line subtracted ₹50 from the list,
+ * so a credit-covered swap printed
+ *
+ *     SeatSwap fee            ₹49
+ *     Thank-you credit ₹50
+ *     Credit used             -₹50
+ *     Total                   ₹99
+ *
+ * and no arithmetic reaches that total. Design 29b's lines sum to its total
+ * exactly; design 29a states the same split in words — "₹49 + ₹50 credit". The
+ * gross ₹99 is still the headline everywhere it belongs (`pay.under`, the
+ * method screen, the history row); it is just not what a *Total* means.
+ *
+ * `total` is therefore derived from `lines` rather than stated alongside them,
+ * so the two cannot disagree again. `grossPaise` is the payment row's
+ * `amount_paise`, which is GROSS (see `admin.ts` `collectedPaise`, which
+ * subtracts credit for the same reason); it is what bounds the credit, so a
+ * malformed row cannot produce a negative Total.
+ */
+export function splitReceipt(grossPaise: number, creditUsed: number, isGroup = false): Receipt {
+  const gross = Number.isFinite(grossPaise) ? Math.max(0, Math.floor(grossPaise)) : 0
+  const used = Number.isFinite(creditUsed) ? Math.max(0, Math.min(Math.floor(creditUsed), gross)) : 0
   const lines: ReceiptLine[] = isGroup
     ? [
         { label: 'group_cover', amountPaise: GROUP_PRICE_PAISE },
@@ -64,8 +133,8 @@ export function splitReceipt(duePaid: number, creditUsed: number, isGroup = fals
         { label: 'thank_you', amountPaise: THANK_YOU_PAISE },
         ...(used > 0 ? [{ label: 'credit_used', amountPaise: -used } as ReceiptLine] : []),
       ]
-  void paid
-  return { lines, total: isGroup ? GROUP_PRICE_PAISE : PRICE_PAISE }
+  const total = lines.reduce((sum, line) => sum + line.amountPaise, 0)
+  return { lines, total }
 }
 
 /** Minimal wallet row shape the credit planner needs. */

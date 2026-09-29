@@ -1,5 +1,5 @@
 import { Link, Outlet, createFileRoute } from '@tanstack/react-router'
-import { Baby, Plus, TrainFront, User, Users } from 'lucide-react'
+import { Baby, ChevronRight, Plus, TrainFront, User, Users } from 'lucide-react'
 import { useState, useSyncExternalStore } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
@@ -100,9 +100,15 @@ export function GroupScreen() {
                 ? Users
                 : User
           return (
-            <div
+            /* Design 19a draws every linked ticket as a row with a chevron, and
+               the chevron means somewhere to go: the organiser wants to look at
+               the berth behind "PNR ••• 4821 · 2 people · A2". A plain <div>
+               makes the affordance a lie — it looks tappable and is not. */
+            <Link
               key={trip.id}
-              className="flex items-center gap-3 rounded-card border border-line bg-card p-3 shadow-soft"
+              to="/trips/$tripId"
+              params={{ tripId: trip.id }}
+              className="flex min-h-16 items-center gap-3 rounded-card border border-line bg-card p-3 shadow-soft"
             >
               <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-wash text-primary">
                 <Icon aria-hidden className="size-5" />
@@ -121,7 +127,8 @@ export function GroupScreen() {
                   {status(passenger.status)}
                 </Pill>
               ) : null}
-            </div>
+              <ChevronRight aria-hidden className="size-5 shrink-0 text-muted" />
+            </Link>
           )
         })}
       </section>

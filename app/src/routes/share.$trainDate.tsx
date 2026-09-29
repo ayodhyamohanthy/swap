@@ -7,6 +7,7 @@ import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/lib/i18n'
 import { trackEvent } from '@/lib/analytics'
+import { inviteLink, splitTrainDate } from '@/lib/share'
 import { useOnline } from '@/lib/use-online'
 
 /* Screen 18 "Invite / share anywhere" (design 14b): WhatsApp, Instagram,
@@ -30,10 +31,15 @@ function ShareScreen() {
   const online = useOnline()
   const [showQr, setShowQr] = useState(false)
 
-  const [trainNo, journeyDate] = trainDate.split('-')
+  const { trainNo } = splitTrainDate(trainDate)
   const origin = typeof window === 'undefined' ? '' : window.location.origin
-  const link = `${origin}/train/${trainNo}?date=${encodeURIComponent(journeyDate ?? '')}`
-  const text = t('share.body')
+  const link = inviteLink(origin, trainDate)
+  /* The message that lands in someone ELSE's WhatsApp. This used to be
+     `share.body`, which is written for the person looking at this screen
+     ("Share this link anywhere") — so every invite told its recipient to go and
+     share it. Sender-facing copy stays on the screen; this is the invitation,
+     and it is addressed to whoever receives it. */
+  const text = t('share.message', { train: trainNo })
 
   async function copyLink() {
     trackEvent('share_clicked', { platform: 'copy' })
@@ -85,15 +91,26 @@ function ShareScreen() {
       <p className="mt-3 font-head text-headline text-ink">
         {t('share.title', { train: trainNo })}
       </p>
+      {/* Design 14b prints a body line between the headline and the buttons.
+          The string was already in the catalog, and on this screen it was never
+          rendered — it was being sent as the WhatsApp message instead, which is
+          where the wrong-audience bug came from. One string, two audiences, and
+          only one of them was ever served. */}
+      <p className="mt-1 text-body text-muted">{t('share.body')}</p>
 
       <Button className="mt-4" onClick={() => open('whatsapp')}>
         <Share2 aria-hidden className="size-5" />
         {t('share.whatsappCta')}
       </Button>
 
-      <Button className="mt-2" variant="outline" onClick={nativeShare}>
-        <Share2 aria-hidden className="size-5" />
-        {t('share.native')}
+      {/* Design 14b's second action is "Copy link" — the one that always works,
+          on every device, with nothing installed. A generic "Share…" sat in
+          this slot instead, while the real Copy link was demoted into the
+          six-button grid. The native sheet keeps its place below the link card
+          rather than taking the design's slot. */}
+      <Button className="mt-2" variant="outline" onClick={copyLink}>
+        <Copy aria-hidden className="size-5" />
+        {t('share.copy')}
       </Button>
 
       <Card className="mt-4">
@@ -121,6 +138,15 @@ function ShareScreen() {
           </Button>
         </div>
       </Card>
+
+      {/* Not in design 14b, and deliberately kept: the OS share sheet reaches
+          every app the six buttons above cannot (Signal, a college group, the
+          phone's own messages), which is the whole growth loop. It is below the
+          link card so it cannot displace the design's two lead actions. */}
+      <Button className="mt-3" variant="outline" onClick={nativeShare}>
+        <Share2 aria-hidden className="size-5" />
+        {t('share.native')}
+      </Button>
 
       <Button
         variant="outline"

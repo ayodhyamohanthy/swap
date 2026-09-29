@@ -367,7 +367,6 @@
     "yes": "Yes, swapped",
     "noShow": "Other person didn't come",
     "notPossible": "Swap wasn't possible",
-    "changedMind": "We changed our mind",
     "submit": "Confirm",
     "saved": "Thanks. Your answer is saved.",
     "waiting": "Waiting for {name}'s answer.",
@@ -575,7 +574,8 @@
   },
   "share": {
     "title": "Invite people on {train}",
-    "body": "Share this link anywhere. Others join from a simple browser page.",
+    "body": "Share with your coachmates on WhatsApp to get more people on SeatSwap.",
+    "message": "I'm looking to swap my berth on train {train}. Join SeatSwap and we can swap with each other.",
     "whatsapp": "WhatsApp",
     "instagram": "Instagram",
     "facebook": "Facebook",
@@ -608,6 +608,9 @@
     "title": "On the train now",
     "body": "Live coach board until your stop. Showing open swappers near you.",
     "tillStop": "Board stays live till {stop}.",
+    "live": "Live",
+    "notLive": "Not on board",
+    "until": "till {stop}",
     "onlyOpen": "Only travellers open to swap are shown.",
     "youHere": "You are here",
     "ask": "Ask",
@@ -740,7 +743,7 @@
     "firstOnTrain": "First on their train today",
     "firstOnTrainNone": "No match searches yet today.",
     "firstOnTrainUnknown": "searches are left out — the match count is not recorded.",
-    "searchPh": "Search action, user or train",
+    "searchPh": "Search action, train or last 4 of PNR",
     "filterAll": "All actions",
     "catAll": "All",
     "catLabel": "Category",
@@ -749,6 +752,10 @@
     "catSignins": "Sign-ins",
     "catAccount": "Account",
     "catOther": "Other",
+    "roles": {
+      "admin": "Admin",
+      "support": "System"
+    },
     "act": {
       "pnr_added": "Added PNR",
       "trip_removed": "Removed trip",
@@ -799,7 +806,9 @@
       "settings_changed": "Changed settings",
       "language_changed": "Changed language",
       "easy_mode_changed": "Changed easy mode",
-      "invite_created": "Created invite"
+      "invite_created": "Created invite",
+      "credit_expired": "Credit expired",
+      "request_expired": "Request expired"
     },
     "csv": "Export CSV",
     "empty": "Nothing here yet.",
@@ -810,6 +819,19 @@
     "colStatus": "Status",
     "colState": "State",
     "colSwap": "Swap",
+    "colUser": "User",
+    "colIssue": "Issue",
+    "colActions": "Actions",
+    "open": "Open",
+    "review": "Review",
+    "reportsSub": "Review reports about other travellers.",
+    "report_about": "Swap {swap}",
+    "report_cash": "Asked for cash",
+    "report_no_show": "Other person didn't come",
+    "report_abusive": "Rude or abusive",
+    "report_wrong_berth": "Wrong berth",
+    "report_late": "Missed the meeting",
+    "report_other": "Reported",
     "colRequester": "Requester",
     "colAcceptor": "Acceptor",
     "swapAll": "All",
@@ -851,6 +873,8 @@
     "reasonPh": "Reason — required for credit moves",
     "acted": "Done.",
     "actedDemo": "Logged on this device. The server applies it when connected.",
-    "actedFailed": "That did not go through. Nothing was changed."
+    "actedFailed": "That did not go through. Nothing was changed.",
+    "userTimeline": "User timeline",
+    "timelineAutomation": "Automated"
   }
 }

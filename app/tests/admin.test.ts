@@ -10,6 +10,9 @@ const { readFileSync, readdirSync, statSync } = process.getBuiltinModule(
 const { join } = process.getBuiltinModule('node:path') as typeof import('node:path')
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import en from '../locales/en.json'
+import hi from '../locales/hi.json'
+
 import {
   ACTIVITY_CATEGORIES,
   ADMIN_ROUTES,
@@ -35,6 +38,8 @@ import {
   paymentOutcome,
   paymentRows,
   paymentsToCsv,
+  reportRows,
+  reportsToCsv,
   shortId,
   statusesByPhase,
   SWAP_PHASES,
@@ -784,6 +789,63 @@ describe('filterActivity by category (design 15)', () => {
       expect(orphans).toEqual([])
     })
 
+    it('has an `admin.act.*` label in both languages for every logged action', () => {
+      /* `activityLabelKey` is `admin.act.${action}` with a null fallback, so a
+         logged action with no label renders as a raw dotted path in the audit
+         table — the screen whose whole job is to be readable. `credit_expired`
+         did exactly this: the nightly expiry job logs it every night and
+         nothing checked, because this guard did not exist (the report-issue
+         equivalent above guards a different catalogue).
+
+         The failure is invisible in review — the key looks fine, the fallback
+         looks harmless — and only shows up in a capture, which is how it was
+         found. Asserting it here means the next action added to either logging
+         entry point cannot repeat that.
+
+         `en.admin.act` is keyed by the BARE action name; the `admin.act.` prefix
+         is what `activityLabelKey` adds at the call site. Indexing the catalogue
+         with the prefixed key finds nothing and reports every action as missing,
+         which is how this guard's first draft failed. */
+      /* BOTH entry points, not just `logActivity`. `server/jobs.ts` writes
+         through `logEffect(client, action, entity, entityId)`, whose SECOND
+         argument is the action and whose THIRD is the entity type. Scanning
+         only `logActivity` passed while `credit_expired` had no label at all —
+         a green guard that never saw the action.
+
+         Every call site of that function is one line and the first argument is
+         always a bare identifier, so a single anchored regex is both sufficient
+         and easier to verify than a hand-rolled balanced-paren scanner. (Three
+         drafts of the scanner were wrong in ways that all reported success: the
+         function DEFINITION matched first; the argument scan stopped at the
+         `client` argument; and `indexOf(',') + 1` is `slice(0)` when the
+         comma is missing, returning the whole string instead of nothing. The
+         self-check below is what caught those — without it all three were
+         indistinguishable from a working guard.) */
+      const viaLogEffect = new Set<string>()
+      const callSite = /logEffect\(\s*[A-Za-z_][\w.]*\s*,\s*'([a-z][a-z_0-9]*)'/g
+      const walk = (d: string): void => {
+        for (const entry of readdirSync(d)) {
+          const full = join(d, entry)
+          if (statSync(full).isDirectory()) walk(full)
+          else if (/\.tsx?$/.test(full)) {
+            for (const m of readFileSync(full, 'utf8').matchAll(callSite)) {
+              viaLogEffect.add(m[1])
+            }
+          }
+        }
+      }
+      walk(join(import.meta.dirname, '..', 'src'))
+      expect(viaLogEffect.size, 'scanner found no logEffect call sites').toBeGreaterThan(0)
+      expect([...viaLogEffect]).toContain('credit_expired')
+
+      const missing: string[] = []
+      for (const action of [...loggedActions(), ...viaLogEffect]) {
+        const key = action as keyof typeof en.admin.act
+        if (!en.admin.act[key] || !hi.admin.act[key]) missing.push(action)
+      }
+      expect(missing).toEqual([])
+    })
+
     it('offers the design-15 chips, plus the two the log needs', () => {
       /* Sign-ins, Requests, Payments, Swaps and Reports are the design's;
          Trips and Account are added because the log really writes those
@@ -1479,6 +1541,124 @@ function creditRow(over: Partial<WalletTx> = {}): WalletTx {
     ...over,
   }
 }
+
+/* Design 18b's Reports table. The screen used to print two internal
+   identifiers where the design puts an Issue and a Status — `report_filed` as a
+   title and `swap_request` as a pill — so the queue told an operator nothing
+   they could act on. The screen now derives both from one function, and the
+   risk that matters is not a wrong label but a leaked one. */
+describe('reportRows — design 18b\'s Issue and Status', () => {
+  let n = 0
+  function row(
+    action: string,
+    meta: Record<string, unknown> = {},
+    entityId: string | null = null,
+    at = '2026-11-12T10:00:00.000Z',
+  ): ActivityRow {
+    n += 1
+    return {
+      id: `act_${n}`,
+      actor_id: 'u_1',
+      actor_role: 'user',
+      action,
+      entity: 'swap_request',
+      entity_id: entityId,
+      meta,
+      created_at: at,
+    }
+  }
+
+  beforeEach(() => {
+    n = 0
+  })
+
+  it('names the KIND of report from a bounded vocabulary, not the text', () => {
+    const [cash] = reportRows([
+      row('report_filed', { request_id: 'req_1', reason: 'He asked for cash instead of swapping' }),
+    ])
+    expect(cash.issue).toBe('cash')
+    expect(cash.request_id).toBe('req_1')
+    expect(cash.closed).toBe(false)
+  })
+
+  it('falls back to a neutral label rather than guessing at unknown text', () => {
+    const [other] = reportRows([
+      row('report_filed', { request_id: 'req_1', reason: 'something we have no word for' }),
+    ])
+    expect(other.issue).toBeNull()
+  })
+
+  it('never puts the traveller\'s free text in the row the screen renders', () => {
+    /* The reason is written by the caller and the type allows a transcript,
+       which can carry a phone number or a UPI id — what lib/chat-guard.ts
+       exists to keep off a screen. The raw text is carried for the CSV only,
+       and the screen renders `issue`. */
+    const [rowOut] = reportRows([
+      row('report_filed', {
+        request_id: 'req_1',
+        reason: 'my number is 9876543210 and he wanted upi to arjun@ybl',
+      }),
+    ])
+    expect(JSON.stringify(rowOut.issue)).not.toMatch(/9876543210|upi|ybl/)
+    expect(rowOut.reason).toContain('9876543210')
+  })
+
+  it('joins a report to the report_closed that answers it', () => {
+    const rows = reportRows([
+      row('report_filed', { request_id: 'req_1', reason: 'asked for cash' }),
+      row('report_filed', { request_id: 'req_2', reason: 'asked for cash' }),
+      row('report_closed', { request_id: 'req_1' }, 'req_1', '2026-11-12T11:00:00.000Z'),
+    ])
+    /* Keyed by request, not by position: the queue is sorted newest-first, so
+       an index-based assertion tests the sort and only incidentally the join. */
+    expect(Object.fromEntries(rows.map((r) => [r.request_id, r.closed]))).toEqual({
+      req_1: true,
+      req_2: false,
+    })
+  })
+
+  it('lists only filed reports, newest first — a block is not a report', () => {
+    const rows = reportRows([
+      row('report_filed', { request_id: 'req_1' }, null, '2026-11-12T10:00:00.000Z'),
+      row('block', {}, 'u_9'),
+      row('report_filed', { request_id: 'req_2' }, null, '2026-11-12T12:00:00.000Z'),
+    ])
+    expect(rows).toHaveLength(2)
+    expect(rows[0].request_id).toBe('req_2')
+  })
+
+  it('exports the raw reason to CSV, which is a file the operator opened', () => {
+    const csv = reportsToCsv([
+      reportRows([row('report_filed', { request_id: 'req_1', reason: 'asked for cash' })])[0],
+    ])
+    expect(csv).toContain('req_1')
+    expect(csv).toContain('asked for cash')
+    expect(csv).toContain('open')
+  })
+
+  it('has a label in both languages for every issue the allow-list can return', () => {
+    /* The screen composes `admin.report_${issue}`, so a key added to
+       `REPORT_ISSUES` without a label in both catalogues renders a raw dotted
+       path in an operator's queue. The mapping is the key name by design (the
+       same convention as `admin.act.*`), which means the list of what can be
+       returned and the list of what is translated are two things that can part
+       company — and the null fallback means nothing else would notice. */
+    const src = readFileSync(join(import.meta.dirname, '..', 'src', 'lib', 'admin.ts'), 'utf8')
+    const block = src.slice(src.indexOf('const REPORT_ISSUES'), src.indexOf('function reportIssue'))
+    /* The entries are `[/<pattern>/i, '<key>']` — the key is the SECOND field,
+       after a regex, not a quoted string in first position. A first-field
+       pattern finds nothing and passes vacuously, which is the failure mode a
+       guard like this most needs to avoid: it would report "0 issues, all
+       labelled" forever while the list grew underneath it. Mutation-checked by
+       adding an untranslated entry, which fails naming it. */
+    const keys = [...block.matchAll(/,\s*'([a-z_]+)'\]/g)].map((m) => m[1])
+    expect(keys.length).toBeGreaterThan(0)
+    for (const key of keys) {
+      expect(en.admin[`report_${key}` as keyof typeof en.admin], key).toBeTruthy()
+      expect(hi.admin[`report_${key}` as keyof typeof hi.admin], key).toBeTruthy()
+    }
+  })
+})
 
 describe('shortId — the Swap column designs 17 and 18 share', () => {
   it('keeps the tail of a prefixed id', () => {

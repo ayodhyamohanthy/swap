@@ -236,6 +236,99 @@ export function acceptorName(request: SwapRequest, offers: SwapOffer[]): string 
   return forRequest.find((offer) => offer.status === 'accepted')?.acceptor_name ?? null
 }
 
+/* ------------------------------------------------------------------ *
+ * The swap's own history (design 17's Swap detail panel)              *
+ * ------------------------------------------------------------------ */
+
+/**
+ * One step of a swap, ready to render.
+ *
+ * `label` is a catalogue key rather than a sentence: `admin.act.*` already
+ * names every one of these actions in both languages, so the timeline reuses
+ * the activity log's vocabulary instead of adding a second set of words for
+ * the same eight events — the same call `PAYMENT_STATE_LABEL` makes.
+ *
+ * `details` comes from `activityDetails`, so a step inherits its mask: only
+ * four characters of anything logged under `last4` can reach the screen
+ * (rule 13).
+ */
+export interface SwapTimelineEntry {
+  /** The log row's own id — a stable key, and what keeps two steps written in
+      the same second in a fixed, testable order. */
+  id: string
+  /** The raw action, for the tooltip and for grepping the log against code. */
+  action: string
+  label: MessageKey
+  details: string
+  /** ISO timestamp, verbatim: the screen formats it, the data stays exact. */
+  at: string
+  tone: ActivityTone
+}
+
+/**
+ * The payment ids that belong to one request.
+ *
+ * Design 17's timeline is the one place the two ids have to be joined, and the
+ * join only exists on `PaymentRow.request_id` — the payment's *activity* rows
+ * carry the payment id, not the request id. Kept here rather than inline in the
+ * route so the join is testable without a browser.
+ */
+export function paymentIdsFor(payments: PaymentRow[], requestId: string): string[] {
+  return payments.filter((payment) => payment.request_id === requestId).map((payment) => payment.id)
+}
+
+/**
+ * The history of one swap, oldest first.
+ *
+ * Two sources, because a swap's lifecycle and its money are logged as different
+ * entities: every request transition (`request_sent`, `offer_accepted`,
+ * `swap_locked`, `confirmation`, `swap_confirmed`, `someone_faster`, …) writes
+ * `{ type: 'swap_request', id }`, while the payment rows write
+ * `{ type: 'payment', id }` and name their request only through
+ * `PaymentRow.request_id` (see `paymentIdsFor`). Matching on the request id
+ * alone would produce a timeline that jumps from "accepted" to "done" with no
+ * payment in it — the step an operator is most often asked about, and the one
+ * design 17 draws as a step of its own.
+ *
+ * Ascending, which is the opposite of the activity log's newest-first order, on
+ * purpose: a log answers "what just happened" and is read from the top, a
+ * timeline answers "how did this end up here" and can only be read forwards.
+ */
+export function swapTimeline(
+  activity: ActivityRow[],
+  requestId: string,
+  paymentIds: readonly string[] = [],
+): SwapTimelineEntry[] {
+  const payments = new Set(paymentIds)
+  return activity
+    .filter(
+      (row) =>
+        (row.entity === 'swap_request' && row.entity_id === requestId) ||
+        (row.entity === 'payment' && row.entity_id !== null && payments.has(row.entity_id)),
+    )
+    .map((row) => ({
+      id: row.id,
+      action: row.action,
+      label: activityLabelKey(row.action),
+      details: activityDetails(row),
+      at: row.created_at,
+      tone: activityTone(row.action),
+    }))
+    .sort((a, b) => stepTime(a.at) - stepTime(b.at) || a.id.localeCompare(b.id))
+}
+
+/**
+ * A step's timestamp in milliseconds.
+ *
+ * An unparseable stamp sorts to the top (0) rather than to `NaN`: comparing two
+ * `NaN`s returns false both ways, which would leave such a step wherever the
+ * sort happened to drop it instead of in a defined place.
+ */
+function stepTime(iso: string): number {
+  const parsed = Date.parse(iso)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
 //__PART2__
 /* ------------------------------------------------------------------ *
  * Payments (design 18)                                                *
@@ -375,6 +468,104 @@ export function paymentRows(
       outcome: paymentOutcome(payment, toCredit),
       created_at: payment.created_at,
     }))
+}
+
+export interface AdminReportRow {
+  id: string
+  /** The activity row this came from — the id `close_report` is sent. */
+  action: string
+  /** Design 18b's Issue column: what was reported, from an allow-list. */
+  issue: string | null
+  /** Raw reason as logged, never rendered — see `issue`. */
+  reason: string
+  request_id: string | null
+  closed: boolean
+  created_at: string
+}
+
+/**
+ * The Reports queue behind design 18b (User / Issue / Status / Actions).
+ *
+ * The Issue column is built from an ALLOW-LIST, for the same reason
+ * `activityDetails` is one: `report_filed` stores a free-text `reason` written
+ * by the traveller (today the only caller passes the literal
+ * `'User reported from chat'`, but the type allows a transcript, and a
+ * transcript can carry a phone number or a UPI id — exactly what
+ * `lib/chat-guard.ts` exists to hide). So the column names the *kind* of
+ * report from a bounded vocabulary and falls back to a neutral "Reported",
+ * never to the text. `reason` is carried for the export path only, which
+ * writes it to a file the operator opened, never to the screen.
+ *
+ * A `block` and the `report_closed` that answers it are different things, so
+ * only `report_filed` rows open. That is what makes Status meaningful: an open
+ * report is one with no `report_closed` naming it.
+ */
+export function reportRows(activity: ActivityRow[]): AdminReportRow[] {
+  const closed = new Set(
+    activity.filter((row) => row.action === 'report_closed').map((row) => row.entity_id),
+  )
+  return activity
+    .filter((row) => row.action === 'report_filed')
+    .slice()
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .map((row) => {
+      const reason = typeof row.meta.reason === 'string' ? row.meta.reason : ''
+      const requestId = typeof row.meta.request_id === 'string' ? row.meta.request_id : null
+      return {
+        id: row.id,
+        action: row.action,
+        issue: reportIssue(reason),
+        reason,
+        request_id: requestId,
+        /* A report answered by a `report_closed` for the same request is
+           closed. Matching on the request rather than the row id is what makes
+           the pair joinable at all: `report_closed` is logged by the admin
+           action, which only ever has the request in hand. */
+        closed: requestId !== null && closed.has(requestId),
+        created_at: row.created_at,
+      }
+    })
+}
+
+/** The bounded vocabulary for design 18b's Issue column. A report whose reason
+    matches none of these is still reported — `null` becomes the neutral
+    "Reported" label, never a guess at what was wrong. */
+const REPORT_ISSUES: ReadonlyArray<[RegExp, string]> = [
+  [/cash|money|upi|payment/i, 'cash'],
+  [/no.?show|didn'?t come|did not come|not show/i, 'no_show'],
+  [/abusive|abuse|rude|harass/i, 'abusive'],
+  [/wrong|not as booked|different berth/i, 'wrong_berth'],
+  [/late|too late|delay/i, 'late'],
+]
+
+function reportIssue(reason: string): string | null {
+  for (const [pattern, key] of REPORT_ISSUES) {
+    if (pattern.test(reason)) return key
+  }
+  return null
+}
+
+export function reportsToCsv(rows: AdminReportRow[]): string {
+  return toCsv(
+    [
+      'id',
+      'issue',
+      'status',
+      'request_id',
+      'reason',
+      'created_at',
+    ],
+    rows.map((r) => [
+      r.id,
+      r.issue ?? 'reported',
+      r.closed ? 'closed' : 'open',
+      r.request_id,
+      /* The raw text leaves here and only here: the CSV is a file the operator
+         opened on purpose, where the screen is a thing other people can see. */
+      r.reason,
+      r.created_at,
+    ]),
+  )
 }
 
 export function paymentsToCsv(rows: AdminPaymentRow[]): string {
@@ -1041,21 +1232,33 @@ export interface ActivityFilter {
  * Note what "the actor id" is NOT: it is an opaque account id, never a name.
  * `ActivityRow` has no name field at all — the same missing-peer-row blocker as
  * `admin.users.tsx` and `get_matches()` — so a search for "Riya P" matches
- * nothing, and `admin.searchPh` ("Search action, user or train") promises a
- * capability this function cannot have. The train half is real: `train_no`
- * lives inside `meta`, and the whole of `meta` is stringified into the haystack
- * below. A `request:` line on the lane board asks L10 to reword that
- * placeholder.
+ * nothing. `admin.searchPh` says what this function can actually reach: the
+ * action name, the train (`train_no` lives inside `meta`) and the masked PNR
+ * tail (`pnr_added` logs `last4`). A full 10-digit PNR is not searchable at
+ * all — it is never stored, only four characters of it are.
  */
 export function filterActivity(rows: ActivityRow[], filter: ActivityFilter): ActivityRow[] {
   const q = filter.query.trim().toLowerCase()
-  return rows.filter((row) => {
+  const matched = rows.filter((row) => {
     if (filter.category !== 'all' && activityCategory(row.action) !== filter.category) return false
     if (filter.action && row.action !== filter.action) return false
     if (!q) return true
     const hay = [row.actor_id ?? '', row.action, row.entity ?? '', row.entity_id ?? '', JSON.stringify(row.meta)].join(' ').toLowerCase()
     return hay.includes(q)
   })
+  /* Newest first, and this has to be explicit. The log is append-ordered, so a
+     purely local log happens to come out right — until a row arrives from
+     somewhere else. `server/jobs.ts` writes `credit_expired` and
+     `request_expired` on a nightly schedule, so a job's rows land at the end of
+     the array whatever time they claim, and the audit table showed a 23:14 row
+     under a 22:45 one. An operator reading a log backwards is a contradiction
+     even when every row is individually correct.
+
+     The id tiebreak matches `userTimelines`: two rows in the same millisecond
+     must not swap places between renders. */
+  return matched.sort((a, b) =>
+    a.created_at === b.created_at ? a.id.localeCompare(b.id) : b.created_at.localeCompare(a.created_at),
+  )
 }
 
 /** Distinct action names for the filter dropdown. */
@@ -1207,6 +1410,118 @@ export function activityTrain(row: ActivityRow): string | null {
 }
 
 /* ------------------------------------------------------------------ *
+ * User timeline (design 15's right-hand panel)                        *
+ * ------------------------------------------------------------------ */
+
+/** One line of the panel: the same row the table draws, plus its actor. */
+export interface UserTimelineEntry {
+  /** The activity row's own id, so the React key is stable and unique. */
+  id: string
+  action: string
+  at: string
+  train: string | null
+  /** The Details tokens with the train omitted — the Train is its own column. */
+  detail: string
+}
+
+/** One actor's history. */
+export interface UserTimelineGroup {
+  /**
+   * The actor id exactly as the log stores it, or `null` for a row with none.
+   *
+   * Deliberately NOT a name. `ActivityRow` has no name field and the local pool
+   * holds no peer rows, so the design's "Riya P" is not derivable — and inventing
+   * one would be exactly the fabrication `tests/qa-placeholders.test.ts` bans.
+   * A caller that does have a name can map this id to it.
+   */
+  actorId: string | null
+  role: ActivityRow['actor_role']
+  /** Newest first, matching both the table and the design. */
+  entries: UserTimelineEntry[]
+}
+
+/**
+ * Design 15's right-hand **User timeline**: one panel per actor, each listing
+ * that actor's rows newest-first.
+ *
+ * **This is the part of design 15 that is derivable today.** The table's User
+ * *column* is not — that needs a name — but a panel that groups the log by who
+ * acted needs only `actor_id`, which every row already carries. So the panel
+ * ships and the column waits, and neither blocks the other.
+ *
+ * **Automation is grouped separately, and it must be.** `actor_id` is null on
+ * rows written by the cron jobs (`server/jobs.ts` writes `support` with
+ * `actor_id: 'system'`) and by `server/admin.ts` (`admin`). Filing those under
+ * the passenger's id would attribute a scheduled credit-expiry job to a person
+ * — the single most misleading thing an audit panel can do — so `null` is its
+ * own group and never merges with a real id.
+ *
+ * Order is stable and total: groups sort by their newest entry descending, so
+ * the busiest actor is on top, and two actors who acted in the same millisecond
+ * fall back to id order rather than to whatever `Array.sort` felt like.
+ */
+export function userTimelines(
+  rows: ActivityRow[],
+  options: { limitPerUser?: number; onlyActor?: string | null } = {},
+): UserTimelineGroup[] {
+  const { limitPerUser = 8, onlyActor = undefined } = options
+  const source =
+    onlyActor === undefined
+      ? rows
+      : rows.filter((row) => (row.actor_id ?? null) === onlyActor)
+
+  const byActor = new Map<string, ActivityRow[]>()
+  for (const row of source) {
+    /* `null` must be its own bucket, and `Map` would happily collapse a null
+       key onto the string "null" — so the bucket key is prefixed by type. */
+    const key = row.actor_id === null ? '\u0000null' : `id:${row.actor_id}`
+    const bucket = byActor.get(key)
+    if (bucket) bucket.push(row)
+    else byActor.set(key, [row])
+  }
+
+  const groups: UserTimelineGroup[] = []
+  for (const [key, bucket] of byActor) {
+    /* Newest first. `created_at` is an ISO string, so it sorts as a string; the
+       id is the tiebreak so the order cannot depend on input order. */
+    const ordered = [...bucket].sort((a, b) =>
+      a.created_at === b.created_at
+        ? a.id.localeCompare(b.id)
+        : b.created_at.localeCompare(a.created_at),
+    )
+    /* The role is taken from the newest row: an operator who signed in and then
+       left a cron job writing as `support` is one group, and the most recent
+       statement of who they were is the last thing they did themselves. */
+    const role = ordered[0]?.actor_role ?? 'user'
+    groups.push({
+      actorId: key.startsWith('id:') ? key.slice(3) : null,
+      role,
+      entries: ordered.slice(0, limitPerUser).map((row) => ({
+        id: row.id,
+        action: row.action,
+        at: row.created_at,
+        train: activityTrain(row),
+        detail: activityDetails(row, { omit: ['train_no'] }),
+      })),
+    })
+  }
+
+  return groups.sort((a, b) => {
+    const newestA = a.entries[0]?.at ?? ''
+    const newestB = b.entries[0]?.at ?? ''
+    if (newestA === newestB) {
+      /* Automation first on a tie: it is the row an operator most often needs
+         to find, and it has no other way to be identified. */
+      const aKey = a.actorId ?? '\u0000'
+      const bKey = b.actorId ?? '\u0000'
+      if ((aKey === '\u0000') !== (bKey === '\u0000')) return aKey === '\u0000' ? -1 : 1
+      return aKey.localeCompare(bKey)
+    }
+    return newestB.localeCompare(newestA)
+  })
+}
+
+/* ------------------------------------------------------------------ *
  * Tone (design 15's row colour)                                       *
  * ------------------------------------------------------------------ */
 
@@ -1274,6 +1589,25 @@ export function activityTone(action: string): ActivityTone {
 /** Every action the tone map names — exported for the drift guard in tests. */
 export function tonedActions(): string[] {
   return Object.keys(ACTIVITY_TONE_BY_ACTION).sort()
+}
+
+/**
+ * The tint per tone.
+ *
+ * Four semantic tokens, no raw hex and no new colours (AGENTS.md: "semantic
+ * Tailwind tokens only"). `neutral` uses `bg-background`, which is the page
+ * colour, so on a white row it reads as a quiet grey chip without introducing
+ * a fifth token for "grey".
+ *
+ * Lives here because two screens now colour the same tone: the activity log
+ * tints a row's icon with it, and design 17's swap timeline tints each step's
+ * label. Two copies would be two answers to "what colour is a failed payment".
+ */
+export const ACTIVITY_TONE_CLASS: Record<ActivityTone, string> = {
+  good: 'bg-wash text-primary',
+  warn: 'bg-accent-soft text-accent',
+  bad: 'bg-danger-soft text-danger',
+  neutral: 'bg-background text-muted',
 }
 
 /**

@@ -73,6 +73,16 @@ describe('formatting', () => {
     expect(formatRupees(123400)).toBe('₹1,234')
     expect(formatRupees(12345600)).toBe('₹1,23,456')
   })
+
+  /* A receipt's credit-used line is the only negative amount in the app, and it
+     rendered as "₹-50" — the sign interpolated after the symbol. No locale
+     writes a currency amount that way. */
+  it('puts the sign before the symbol, not after it', () => {
+    expect(formatRupees(-5000)).toBe('-₹50')
+    expect(formatRupees(-4900)).toBe('-₹49')
+    expect(formatRupees(-123400)).toBe('-₹1,234')
+    expect(formatRupees(-5000)).not.toContain('₹-')
+  })
 })
 
 /* Reading an amount back off a gateway receipt. Integer maths only: a rupee

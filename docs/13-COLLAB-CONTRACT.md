@@ -24,7 +24,7 @@ file a `docs/14-LANES.md` handoff note instead.
 | L6 Groups + onboard | `routes/groups.*`, `routes/onboard.*`, `lib/groups.ts` | Cursor |
 | L7 Admin | `routes/admin.*`, `server/admin.ts`, `lib/admin.ts` | Windsurf |
 | L8 DB + schema | `app/supabase/**`, `app/tests/schema.test.ts` | one agent at a time, announce first |
-| L9 Infra + credits | `app/azure/**`, `docs/12-*`, `.github/workflows/**` | Aider |
+| L9 Infra + credits | `app/azure/**`, `docs/12-*`, `.github/workflows/**`, `app/scripts/**` | Aider |
 | L10 i18n | `app/locales/**`, `lib/i18n.tsx` | **single writer only** |
 
 Shared files (`package.json`, `routeTree.gen.ts`, `app/vite.config.ts`)
@@ -35,6 +35,14 @@ Two more were unowned (flagged by L9, 2026-09-28) and are now assigned here:
 `app/vitest.config.ts` follows L1, and `app/scripts/**` — the collab guard and
 its installer — follows **L9**, because the guard is what enforces every other
 lane's boundary.
+
+That paragraph is prose the guard cannot read. `collab-check.mjs` parses only
+the table above for surfaces, so it never enforced this assignment — L9's OWN
+files were unclaimed as far as it was concerned, and an `app/scripts/**` edit
+passed with no check at all. **2026-09-29 (L9, Cline): merged into the L9 row
+above** — one surface added rather than one row, because `parseSurfaces` keys
+by lane id and two rows for one id would silently drop one of them. The guard
+now defends its own code.
 
 **Narrowed 2026-09-29 (L4, via the pre-commit guard).** L1 previously owned the
 whole of `app/src/components/**`, which swallowed every feature component too —

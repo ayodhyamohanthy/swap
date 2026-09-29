@@ -5,7 +5,7 @@
    that could hold a plaintext PNR. */
 /* node: modules come via getBuiltinModule — a static `import 'node:fs'` is
    mangled by Vite's browser-compat externalization under the jsdom pool. */
-const { readFileSync } = process.getBuiltinModule('node:fs') as typeof import('node:fs')
+const { readdirSync, readFileSync } = process.getBuiltinModule('node:fs') as typeof import('node:fs')
 const { join } = process.getBuiltinModule('node:path') as typeof import('node:path')
 import { describe, expect, it } from 'vitest'
 
@@ -36,6 +36,46 @@ describe('the migration exists and is the shipped schema', () => {
 
   it('is byte-identical to schema.sql', () => {
     expect(SCHEMA).toBe(readFileSync(join(SUPABASE, 'schema.sql'), 'utf8'))
+  })
+
+  /* docs/11-COLLAB.md calls the three representations of this schema
+     "byte-consistent": `schema.sql` == the concatenation of `schema.part*.sql`
+     == the migration. The assertion above covers migration == schema.sql, and
+     nothing covered the other half — so a part could drift from `schema.sql`
+     and the suite would stay green while the schema installed differently
+     depending on which file someone happened to open. That is the whole point
+     of calling the invariant mandatory.
+
+     Measured before this was added, rather than assumed: the ten parts
+     concatenate to exactly `schema.sql` (58,104 characters, sha256
+     `c7fe6444…`), so this pins a property that already holds instead of
+     changing one. It went in green.
+
+     Only `schema.part*.sql` is enumerated. `migrations/` is deliberately NOT
+     scanned, because backlog item 6 plans a SECOND migration file and relies
+     on this test never enumerating that directory — so this guard closes the
+     parts gap without spending that plan. */
+  it('is byte-identical to the concatenation of its parts', () => {
+    const order = (file: string): [number, string] => {
+      const parts = file.match(/^schema\.part(\d+)([a-z]\d*)?\.sql$/)
+      if (!parts) throw new Error(`unexpected part name: ${file}`)
+      return [Number(parts[1]), parts[2] ?? '']
+    }
+    const files = readdirSync(SUPABASE)
+      .filter((file) => /^schema\.part\d+[a-z]?\d*\.sql$/.test(file))
+      .sort((a, b) => {
+        const [aMajor, aMinor] = order(a)
+        const [bMajor, bMinor] = order(b)
+        return aMajor - bMajor || aMinor.localeCompare(bMinor)
+      })
+    expect(files.length, 'no schema.part*.sql files found').toBeGreaterThan(0)
+    const concatenated = files
+      .map((file) => readFileSync(join(SUPABASE, file), 'utf8'))
+      .join('')
+    expect(
+      concatenated,
+      `schema.part*.sql is out of step with schema.sql: ${files.join(' ')}`,
+    ).toBe(SCHEMA)
   })
 
   it('declares every expected table', () => {
@@ -143,6 +183,44 @@ describe('Google-only sign-in (rule 8)', () => {
         new RegExp(`^\\s*${banned}\\s+`, 'im'),
       )
     }
+  })
+})
+
+describe('a payment cannot be forged as captured (rule 2, docs/06)', () => {
+  /* The same reasoning as the wallet test above, one table over. Money only
+     moves because a payment is `paid`, and `apply_request_transition` locks a
+     swap when it sees one. So the question is not "can a client change a
+     payment's status" — `REVOKE UPDATE` already answers that — it is "can a
+     client CREATE a payment that is already paid". Revoking UPDATE does not
+     help: the status is supplied at insert time, so the policy that admits the
+     row is the one that has to constrain it. */
+  const paymentPolicies = [
+    ...SCHEMA.matchAll(/CREATE POLICY\s+\w+\s+ON\s+public\.payments[\s\S]*?;/gi),
+  ].map((m) => m[0])
+
+  it('confines every client INSERT policy to the created status', () => {
+    const clientInserts = paymentPolicies.filter(
+      (p) => /\bFOR\s+INSERT\b/i.test(p) && /\bTO\s+authenticated\b/i.test(p),
+    )
+    expect(clientInserts.length, 'expected a payer-insert policy on payments').toBeGreaterThan(0)
+    for (const policy of clientInserts) {
+      expect(
+        policy,
+        'a client may only create a payment in its initial state — a client-insertable '
+          + `'paid' row is a free swap lock and mints the acceptor's credit: ${policy}`,
+      ).toMatch(/status\s*=\s*'created'/i)
+    }
+  })
+
+  it('never lets an authenticated client UPDATE a payment', () => {
+    /* Asserted because the reasoning above depends on it, and because the two
+       together are the whole guarantee. */
+    expect(SCHEMA).toMatch(/REVOKE\s+UPDATE\s+ON\s+TABLE\s+public\.payments\s+FROM\s+authenticated;/i)
+  })
+
+  it('leaves the status moves to service_role, which bypasses RLS', () => {
+    const grantService = [...SCHEMA.matchAll(/GRANT\s+[^;]*ON\s+TABLE\s+public\.payments\s+TO\s+service_role;/gi)]
+    expect(grantService.length).toBeGreaterThan(0)
   })
 })
 

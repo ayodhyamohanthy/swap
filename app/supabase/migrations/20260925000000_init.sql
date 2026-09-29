@@ -686,13 +686,29 @@ GRANT EXECUTE ON FUNCTION public.touch_updated_at() TO authenticated, service_ro
 
 -- ---------------------------------------------------------------- payments
 -- Payers create rows and read their own; status moves happen service-side
--- (webhook with service_role, which bypasses RLS). No client UPDATE means no
--- forged paid without a gateway (docs/06: webhook is the source of truth).
+-- (webhook with service_role, which bypasses RLS). docs/06: the webhook is the
+-- source of truth.
+--
+-- The `status = 'created'` term is load-bearing, and it was missing until an
+-- audit pointed at it. `REVOKE UPDATE` stops a client *changing* a row, but it
+-- does nothing about the status a client *supplies when creating* one: the
+-- insert policy checked only `payer_id = auth.uid()`, so a signed-in user could
+-- POST `{status: 'paid', amount_paise: 0}` for one of their own requests, and
+-- the database would hold a captured payment that no gateway ever confirmed.
+-- `apply_request_transition` then sees a paid payment for a party and locks the
+-- swap — a ₹99 swap for free, repeatable, and it mints the acceptor's ₹50.
+-- The comment above used to claim the missing UPDATE grant closed this; it does
+-- not, and the trigger that re-checks `has_captured_payment` inherits the same
+-- forged row rather than catching it.
+--
+-- A client may therefore only ever create a payment in its initial state.
+-- `pending`, `paid` and `failed` are written exclusively by the webhook under
+-- service_role, which bypasses RLS.
 DROP POLICY IF EXISTS payments_payer ON public.payments;
 CREATE POLICY payments_payer_read ON public.payments
   FOR SELECT TO authenticated USING (payer_id = auth.uid());
 CREATE POLICY payments_payer_create ON public.payments
-  FOR INSERT TO authenticated WITH CHECK (payer_id = auth.uid());
+  FOR INSERT TO authenticated WITH CHECK (payer_id = auth.uid() AND status = 'created');
 REVOKE UPDATE ON TABLE public.payments FROM authenticated;
 
 -- Idempotency key for webhook replay (docs/06 section 5).
@@ -866,10 +882,24 @@ BEGIN
   IF recent >= 12 THEN
     RAISE EXCEPTION 'rate_limited' USING ERRCODE = 'P0001';
   END IF;
+  -- Mirrors lib/chat-guard.ts. This list was a generation behind it: the
+  -- English and numeric patterns were here, but the HINGLISH and DEVANAGARI
+  -- money verbs were not, so 'bhej do paise' and 'बेच दोगे क्या' passed
+  -- flagged_risky = false in the database while the client guard flagged them.
+  -- The client is not the enforcement point for another user's device — the
+  -- row is what the receiver's screen reads (`chat-sync.ts` trusts
+  -- `flagged_risky` for `hidden`), so the database copy has to be at least as
+  -- strict as the TypeScript one or the stricter of the two is theatre.
+  --
+  -- `\y` is the Postgres word boundary (it is ASCII-aware, so the Devanagari
+  -- alternatives are plain substrings, exactly as in the TS guard). Every
+  -- Devanagari entry is money-specific, never a common word.
   IF NEW.text ~* '[a-z0-9._-]+@[a-z]+'
     OR NEW.text ~* '(^|[^0-9])\+?91[\s-]?[6-9][0-9]{9}([^0-9]|$)'
     OR NEW.text ~* '(^|[^0-9])[6-9][0-9]{9}([^0-9]|$)'
-    OR NEW.text ~* '\y(cash|upi|gpay|phonepe|paytm|pay\s?me|send\s+(me\s+)?money|transfer|account\s*(no|number|detail)|ifsc|qr(\s*code)?|sell|buy|extra\s*(money|cash|charge|fee|payment))\y'
+    OR NEW.text ~* '\y(cash|upi|gpay|phonepe|paytm|pay\s?me|send\s+(me\s+)?money|transfer|account\s*(no|number|detail)|ifsc|qr(\s*code)?|bribe|tip\s*(me|us)?|extra\s*(money|cash|charge|fee|payment)|sell|buy|charge\s*(extra|more))\y'
+    OR NEW.text ~* '\y(khareed|kharid|bech|bhej|paise|paisa|nakad|nagad|nagdi|phone\s*pe)\y'
+    OR NEW.text ~ 'नकद|पैसे|पैसा|यूपीआई|यूपीआय|खरीद|बेच|फोन\s*पे'
   THEN
     NEW.flagged_risky := true;
   END IF;

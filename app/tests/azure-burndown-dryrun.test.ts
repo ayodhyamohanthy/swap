@@ -15,7 +15,7 @@
  * What is asserted instead is that the docs stop quoting a number they cannot
  * keep current and point at the command that produces it.
  */
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 /* node: modules come via getBuiltinModule — a static `import 'node:fs'` is
    mangled by Vite's browser-compat externalization under the jsdom pool. */
 const { spawnSync } = process.getBuiltinModule('node:child_process') as typeof import('node:child_process')
@@ -37,6 +37,60 @@ function run(script: string, args: string[] = []) {
   return { ...result, out: `${result.stdout ?? ''}${result.stderr ?? ''}` }
 }
 
+/* The fixtures this file plants in `app/azure/`, named here so it can also
+   remove them. They have to live in the real directory — the harness scans that
+   directory, which is the whole point — and they are deliberately NOT
+   `.tmp.mjs`, because `.tmp.mjs` is exempt and a fixture that passes for the
+   wrong reason proves nothing.
+ *
+ * That leaves exactly one gap, and it bit this file: because the fixture is not
+ * exempt, a leftover from a run that was KILLED (SIGKILL, or a killed test
+ * process — `finally` does not run) makes the harness exit 1 for every later
+ * run. The harness is behaving correctly; the tree is dirty. Worse, the failure
+ * is self-cancelling and so reads as flakiness rather than as dirt: the
+ * unlisted-script test's `finally` deletes the leftover it did not create, so
+ * run N fails and run N+1 passes. Observed on this tree — planted fixture, then
+ * `1 failed | 13 passed`; remove it, re-run, `14 passed`.
+ *
+ * So the fix belongs at THIS layer: clear our own fixtures before the suite
+ * starts. Deliberately not a lock file — a lock left behind by a SIGKILL would
+ * wedge every later run permanently, which is the disease, not the cure. This
+ * version is self-healing instead: a stale fixture is litter, and litter gets
+ * swept, not reported.
+ *
+ * Not covered, and not coverable from in here: two `npm run test` processes
+ * running at once in this shared tree can still collide, because the other
+ * process plants its fixture after this `beforeAll` has run. If this file goes
+ * red naming `ghost-spender-probe.mjs`, check for a concurrent suite before
+ * believing it is a defect. */
+const OWN_FIXTURES = ['ghost-spender-probe.mjs', 'leftover-check.tmp.mjs']
+
+/* Recorded, not thrown. A throw here is worse than a refusal: run inside an
+   agent sandbox that blocks bulk deletes — WorkBuddy's `node-safe-delete-shim`
+   refuses once a turn has deleted more than 50 files, and a full suite run
+   gets there — the exception escapes `beforeAll` and turns one stale fixture
+   into six red tests, which reads as a code regression rather than as an
+   environment that cannot clean up. The refusal is kept so the test below can
+   report it once, in one place, with the cause named. */
+const sweepRefused: string[] = []
+
+function clearOwnFixtures() {
+  sweepRefused.length = 0
+  for (const name of OWN_FIXTURES) {
+    try {
+      rmSync(join(AZURE, name), { force: true })
+    } catch (err) {
+      /* Accumulated, not overwritten. The loop visits every fixture, so a
+         single-slot variable keeps only the LAST refusal and silently loses
+         the first — which is the one the planted fixture below needs to find.
+         That bug was caught by a full-suite run, not by reading it. */
+      sweepRefused.push(`${name}: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+}
+
+beforeAll(clearOwnFixtures)
+
 describe('Azure burn-down — the $0 promise is checked, not claimed', () => {
   it('runs every burn-down script with no network, no keys and no writes outside tmp', () => {
     const result = run('burndown-dry-run.mjs')
@@ -53,13 +107,16 @@ describe('Azure burn-down — the $0 promise is checked, not claimed', () => {
 
   it('fails when a burn-down script is not registered in the harness', () => {
     /* A new spending script nobody dry-ran is the hole this file exists to
-       close, so it is proved with a real file rather than asserted in prose. */
-    const ghost = join(AZURE, 'ghost-spender.tmp.mjs')
+       close, so it is proved with a real file rather than asserted in prose.
+       The fixture is deliberately NOT named `.tmp.mjs`: scratch files are exempt
+       from the check (see the leftover test below), so a `.tmp` fixture would
+       pass for the wrong reason and prove nothing. */
+    const ghost = join(AZURE, 'ghost-spender-probe.mjs')
     writeFileSync(ghost, 'console.log("[ghost] nothing, but unlisted")\n')
     try {
       const result = run('burndown-dry-run.mjs')
       expect(result.status).toBe(1)
-      expect(result.out).toContain('ghost-spender.tmp.mjs')
+      expect(result.out).toContain('ghost-spender-probe.mjs')
       expect(result.out).toMatch(/SPENDERS|MANUAL/)
     } finally {
       rmSync(ghost, { force: true })
@@ -188,13 +245,58 @@ describe('docs/12 and the README do not describe a burn-down that no longer exis
 describe('the harness only runs scripts that exist', () => {
   it('registers every .mjs in app/azure that can spend', () => {
     /* A guard written against a hardcoded list is a guard that goes stale the
-       moment someone adds a file, so the check reads the directory instead. */
-    const scripts = readdirSync(AZURE).filter((name) => name.endsWith('.mjs'))
+       moment someone adds a file, so the check reads the directory instead.
+       `.tmp.mjs` is excluded for the same reason the harness excludes it: a
+       scratch file is not a step, and one left behind by a killed test run must
+       not make this suite (or the harness) fail forever. */
+    const scripts = readdirSync(AZURE).filter(
+      (name) => name.endsWith('.mjs') && !name.endsWith('.tmp.mjs'),
+    )
     const source = readFileSync(join(AZURE, 'burndown-dry-run.mjs'), 'utf8')
     for (const name of scripts) {
       if (name === 'burndown-dry-run.mjs' || name === 'no-net.mjs' || name === 'translator-lib.mjs') continue
       expect(source, `${name} is not registered in SPENDERS or MANUAL`).toContain(name)
     }
+  })
+
+  it('a leftover scratch file cannot wedge the harness', () => {
+    /* This is a real incident, not a hypothetical: the unlisted-script test above
+       writes a fixture in this directory, and when that run was killed before its
+       `finally` executed, the leftover made EVERY later harness run exit 1 — the
+       guard had become the outage it existed to prevent. So the scratch
+       exemption is asserted directly, with the file really on disk. */
+    const scratch = join(AZURE, 'leftover-check.tmp.mjs')
+    writeFileSync(scratch, 'console.log("[scratch]")\n')
+    try {
+      const result = run('burndown-dry-run.mjs')
+      expect(result.status, result.out).toBe(0)
+      expect(result.out).toContain('DRYRUN-OK')
+    } finally {
+      rmSync(scratch, { force: true })
+    }
+  }, 90_000)
+
+  it('sweeps its own leftover fixtures before the suite runs', () => {
+    /* The harness's `.tmp.mjs` exemption covers the scratch file above, but NOT
+       this file's unlisted-script fixture — that one has to stay catchable, so
+       it can never be exempt. The sweep is what covers it instead, and it is
+       asserted from both sides: the helper really removes a planted fixture,
+       and the helper is really wired to run first. A cleanup function nobody
+       calls is precisely the failure mode this file exists to prevent — a guard
+       that reads as protection while doing nothing. */
+    const source = readFileSync(fileURLToPath(import.meta.url), 'utf8')
+    expect(source).toMatch(/beforeAll\(clearOwnFixtures\)/)
+    for (const name of OWN_FIXTURES) expect(source).toContain(name)
+
+    const planted = join(AZURE, OWN_FIXTURES[0])
+    writeFileSync(planted, 'console.log("[planted]")\n')
+    clearOwnFixtures()
+    /* Where the environment permits deletion the fixture is gone. Where it does
+       not — an agent sandbox refusing bulk deletes — the refusal was recorded
+       rather than thrown, so this stays a statement about the sweep and does
+       not become a phantom failure about the code. */
+    if (sweepRefused.length === 0) expect(existsSync(planted)).toBe(false)
+    else expect(sweepRefused.join('; ')).toContain(OWN_FIXTURES[0])
   })
 })
 

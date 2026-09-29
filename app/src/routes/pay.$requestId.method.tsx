@@ -7,12 +7,10 @@ import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/lib/i18n'
-import { formatUsdTenths, PRICE_PAISE, usdTenthsFor } from '@/lib/money'
 import { loadRazorpay } from '@/lib/pay-sdk'
 import { beginCheckout, payGateFor, CheckoutError } from '@/lib/checkout'
 import { acceptedOffer } from '@/lib/requests'
-import { buildQuote } from '@/lib/payments'
-import { formatRupees } from '@/lib/money'
+import { buildQuote, usdEstimateFor } from '@/lib/payments'
 import { isGroupRequestId } from '@/lib/groups'
 import { PayBlocked } from './pay.$requestId'
 import { useCreditPaise } from '@/lib/use-store'
@@ -54,9 +52,16 @@ function MethodScreen() {
   const quote = buildQuote(useCredit === 1 ? credit : 0, isGroup)
   const [busy, setBusy] = useState(false)
   const name = acceptedOffer(requestId)?.acceptor_name ?? t('common.traveller')
-  /* Same estimate helper as the PayPal screen: quote.due is the INR charge,
-     quote.provider === 'credit' means nothing is charged at all. */
-  const usd = formatUsdTenths(usdTenthsFor(isGroup ? 19900 : PRICE_PAISE))
+  /* The estimate must describe the SAME amount the sentence names. This read
+     `usdTenthsFor(isGroup ? 19900 : PRICE_PAISE)` — the FULL price — while
+     `paypalNote` quotes `quote.due`, so a credit-covered order rendered
+     "PayPal shows about US$1.2 as an estimate. You are charged ₹49.": one
+     sentence, two different amounts, with the dollar figure describing the one
+     the payer is not paying. `usdEstimateFor` also floors the tenths, because
+     this screen is reached with `due = 0` (fully credit-covered) and with small
+     remainders the rate hint rounds to zero — and `formatUsdTenths` throws on
+     zero, so the estimate used to take the screen down mid-render. */
+  const usd = usdEstimateFor(quote.due)
 
   async function pay(provider: 'razorpay' | 'paypal', method: Method) {
     if (busy) return
@@ -117,7 +122,12 @@ function MethodScreen() {
       <h1 className="text-title text-ink">{t('pay.methodTitle')}</h1>
       <Card className="mt-4">
         <CardTitle>{isGroup ? t('pay.groupTitle') : `${t('pay.title', { name })}`} · {isGroup ? t('pay.pay199') : t('pay.pay99')}</CardTitle>
-        <CardBody>{t('pay.due', { amount: quote.due / 100 })} · {formatRupees(quote.due)}</CardBody>
+        {/* One statement of the amount due, not two. `pay.due` is already
+            "To pay ₹{amount}", so the `· {formatRupees(quote.due)}` that used to
+            follow it rendered the same figure twice — "To pay ₹49 · ₹49" — from
+            two different formatters of one number. Design 27a draws no body line
+            at all; this keeps the useful clarification and drops the echo. */}
+        <CardBody>{t('pay.due', { amount: quote.due / 100 })}</CardBody>
       </Card>
 
       <p className="mt-5 text-caption font-semibold uppercase tracking-wide text-muted">{t('pay.inIndia')}</p>

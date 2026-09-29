@@ -1,5 +1,5 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
-import { Link2, MapPin } from 'lucide-react'
+import { Link2 } from 'lucide-react'
 import type { RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
@@ -61,13 +61,47 @@ function OnboardScreen() {
       other.passengers[0]?.status === 'CNF',
   )
 
+  /* Design 7a's "Live" chip is honest only while the journey is. The board is
+     scoped to "until your stop", so before the train departs or after it has
+     arrived there is nothing live to show, and a chip that says Live anyway is
+     the exact small lie this screen must not tell. Judged in local time
+     because "now" for a traveller is their own clock; `journey_date` carries no
+     time, so a day of travel is treated as live from 04:00 to 23:59 — the
+     window an Indian train journey actually occupies. */
+  const started = trip.journey_date ? `${trip.journey_date}T04:00` : null
+  const ended = trip.journey_date ? `${trip.journey_date}T23:59` : null
+  const now = Date.now()
+  const live =
+    started !== null && ended !== null && now >= Date.parse(started) && now <= Date.parse(ended)
+
   return (
     <div>
       <h1 className="text-title text-ink">{t('onboard.title')}</h1>
-      <p className="mt-1 text-body text-muted">{t('onboard.body')}</p>
-      <p className="mt-1 flex items-center gap-1.5 text-caption text-primary">
-        <MapPin aria-hidden className="size-4" />
-        {t('onboard.tillStop', { stop: trip.to_code || trip.train_no })}
+      {/* Design 7a leads with ONE chip — "● Live · until Bhopal" — then a
+          single coach line. Two separate pills read as two separate facts when
+          the design means one sentence, so the state and the stop stay in one
+          chip. Reuses `onboard.tillStop` on the Updates path and
+          `onboard.until` here; the long `onboard.body` sentence moves to the
+          foot of the screen, where at the top it pushed the board below the
+          fold. */}
+      <p className="mt-2">
+        <Pill tone={live ? 'primary' : 'neutral'}>
+          <span
+            aria-hidden
+            className={`size-2 rounded-full ${live ? 'bg-primary' : 'bg-line'}`}
+          />
+          {`${t(live ? 'onboard.live' : 'onboard.notLive')} · ${t('onboard.until', {
+            stop: trip.to_code || trip.train_no,
+          })}`}
+        </Pill>
+      </p>
+      <p className="mt-1 text-body text-ink">
+        {[
+          t('trip.coach', { coach: trip.passengers[0]?.coach ?? '' }),
+          trip.train_name || t('train.title', { n: trip.train_no }),
+        ]
+          .filter(Boolean)
+          .join(' · ')}
       </p>
 
       <Card className="mt-4 border-primary/30 bg-wash">
@@ -124,6 +158,8 @@ function OnboardScreen() {
         <Link2 aria-hidden className="size-5" />
         {t('onboard.shareLink')}
       </Button>
+
+      <p className="mt-4 text-caption text-muted">{t('onboard.body')}</p>
     </div>
   )
 }

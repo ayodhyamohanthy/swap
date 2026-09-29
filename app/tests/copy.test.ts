@@ -15,8 +15,17 @@ import { maskPnr } from '@/lib/pnr'
 
 const SRC = join(import.meta.dirname, '..', 'src')
 
-/** Only the files a traveller can actually read copy from. */
-const COPY_DIRS = ['routes', 'components'].map((dir) => join(SRC, dir))
+/**
+ * Every directory a traveller's copy can reach.
+ *
+ * `lib/` and `server/` are now included, and that is the point: several
+ * `lib/*.ts` files export the label helpers screens render (`i18n`, `admin`,
+ * `payments`, `checkout`, `settle`, `outcomes`, `money`), and `server/` builds
+ * user-visible error and notice text. A guard that only read `routes/` and
+ * `components/` therefore left most of the copy surface unwatched — it was a
+ * net over two directories, with the widest one beside it.
+ */
+const COPY_DIRS = ['routes', 'components', 'lib', 'server'].map((dir) => join(SRC, dir))
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -41,6 +50,36 @@ const UI_COPY: Array<[string, string]> = COPY_DIRS.flatMap((dir) =>
   }),
 )
 
+/**
+ * The same scan with the code-identifier noise removed, for `lib/`+`server/`.
+ *
+ * Widening `COPY_DIRS` turned up six hits that are not copy at all: the HTTP
+ * `Authorization` header in four gateway clients, and the `'authorize'` member
+ * of the `PayState` union in `lib/payments.ts`. A banned-words guard that
+ * demands those be renamed would be teaching the codebase to lie about its own
+ * protocol — the header is named by PayPal and Razorpay, and the state is named
+ * in `lib/payments.ts`'s own state machine.
+ *
+ * So the exceptions are enumerated rather than pattern-matched. A first version
+ * stripped *every* quoted string to kill the noise, and that stripped the copy
+ * too — planting a banned word in a `lib/` string passed, which is precisely
+ * what this guard exists to catch. A banned word in a `lib/` string has to fail,
+ * so the allow-list below names the few things that are genuinely identifiers.
+ */
+const IDENTIFIER_NOISE: Array<[RegExp, string]> = [
+  /* The HTTP header PayPal and Razorpay both specify by name. */
+  [/Authorization\s*:/g, 'H:'],
+  /* Import paths and bare module specifiers. */
+  [/(?:from|import)\s*['"][^'"\n]*['"]/g, "I'"],
+  /* The PayState union member, in `lib/payments.ts`'s own state machine. */
+  [/'authorize'/g, "'a_z'"],
+]
+
+const TEXT_COPY: Array<[string, string]> = UI_COPY.map(([file, text]): [string, string] => [
+  file,
+  IDENTIFIER_NOISE.reduce((acc, [pattern, to]) => acc.replace(pattern, to), text),
+])
+
 /** The mandated footer disclaimer is the one place "official" may appear (rule 11). */
 const BANNED: Array<[string, RegExp]> = [
   ['TTE', /\btte\b/i],
@@ -57,9 +96,9 @@ const BANNED: Array<[string, RegExp]> = [
 const DISPUTE_LINE = "We'll look at both sides and reply as soon as we can."
 
 /** Short "…surrounding text…" so a failure points at the word, not the whole file. */
-function hitsFor(pattern: RegExp): string[] {
+function hitsFor(pattern: RegExp, source: Array<[string, string]> = TEXT_COPY): string[] {
   const found: string[] = []
-  for (const [file, text] of UI_COPY) {
+  for (const [file, text] of source) {
     for (const match of text.matchAll(new RegExp(pattern.source, pattern.flags + 'g'))) {
       const from = Math.max(0, match.index - 30)
       const to = Math.min(text.length, match.index + match[0].length + 30)
@@ -71,14 +110,25 @@ function hitsFor(pattern: RegExp): string[] {
 
 describe('banned words in app source', () => {
   it('scans a real number of files (guards against an empty scan)', () => {
-    /* One blob per route/component file — well over 30 screens today. */
+    /* One blob per file across routes, components, lib and server — well over
+       30 screens plus the ~40 library files. */
     expect(UI_COPY.length).toBeGreaterThan(30)
     for (const [file, text] of UI_COPY) {
       expect(text.length, `${file} scanned as empty`).toBeGreaterThan(0)
     }
   })
 
-  it.each(BANNED)('never uses %s in a route or component', (_label, pattern) => {
+  it('covers lib/ and server/, not only the route and component directories', () => {
+    /* The gap this closes: a banned word in a `lib/`-rendered label or a
+       server error string used to pass CI, because those directories were
+       never read. Asserted so the coverage cannot be quietly narrowed back. */
+    const dirs = new Set(UI_COPY.map(([file]) => file.split('/')[0]))
+    for (const dir of ['routes', 'components', 'lib', 'server']) {
+      expect(dirs.has(dir), `copy.test.ts no longer scans src/${dir}`).toBe(true)
+    }
+  })
+
+  it.each(BANNED)('never uses %s in copy a traveller can read', (_label, pattern) => {
     expect(hitsFor(pattern)).toEqual([])
   })
 

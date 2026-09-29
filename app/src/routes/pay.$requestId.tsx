@@ -228,7 +228,26 @@ export function PayScreen() {
           {isGroup ? t('pay.groupUnder') : t('pay.under')}
         </span>
       </div>
-      {paid && paid.status !== 'failed' ? (
+      {/* Design 03c ends on "Pay with UPI" — the action, not a status page.
+          Reuses `pay.payNow` ("Pay ₹49") rather than a new key: the design
+          names the instrument because its method screen is one tap away, and
+          the amount is the more useful of the two on a screen that has just
+          shown a credit discount change.
+
+          The branch used to be `paid && paid.status !== 'failed'`, which sent
+          the traveller to a waiting screen after a payment that had only been
+          *created*. `startPayment` writes a `created` row the moment checkout
+          opens, before a byte reaches Razorpay, so a first-time payer who
+          backed out of the method screen, or whose gateway handoff was killed,
+          landed on "Your bank is still confirming ₹99 / Please don't pay again"
+          for a payment the bank had never heard of. The instruction not to pay
+          again is the right instinct applied to the wrong state: the honest
+          thing there is to let them pay.
+
+          `pending` is the only state where money is genuinely in flight, so it
+          is the only one that earns the status screen. `created` and `failed`
+          both go back to the method list. */}
+      {paid?.status === 'pending' ? (
         <Button className="mt-4" asChild>
           <Link to="/pay/$requestId/status" params={{ requestId }} search={{ state: 'pending' }}>
             {t('pay.checkStatus')}
@@ -240,7 +259,7 @@ export function PayScreen() {
             to="/pay/$requestId/method" params={{ requestId }}
             search={{ useCredit: useCredit ? 1 : 0 }}
           >
-            {t('common.continue')}
+            {t('pay.payNow', { amount: quote.due / 100 })}
           </Link>
         </Button>
       )}

@@ -1,11 +1,12 @@
 /* SeatSwap analytics events (docs/08). Names match activity_log actions
-   plus share_clicked(platform), install_prompt_accepted, first_screen_viewed.
-   Dev: console.debug only. Prod: no network — caller forwards to the server
-   log endpoint when it exists; by default events stay on-device. */
+   plus share_clicked(platform), install_prompt_accepted, first_screen_viewed,
+   swap_done_viewed. Dev: console.debug only. Prod: no network — caller forwards
+   to the server log endpoint when it exists; by default events stay on-device. */
 
 export const ANALYTICS_EVENTS = [
   'sign_in', 'pnr_added', 'request_sent', 'offer_accepted', 'offer_declined',
   'payment_created', 'payment_paid', 'payment_failed', 'swap_locked',
+  'swap_done_viewed',
   'message_flagged', 'confirmation', 'dispute_opened', 'dispute_resolved',
   'credit_added', 'credit_used', 'credit_expired', 'report_created',
   'user_blocked', 'admin_action', 'share_clicked', 'install_prompt_accepted',
@@ -26,7 +27,14 @@ function isDev(): boolean {
   } catch { /* non-vite runtime */ }
   try {
     return (globalThis as unknown as { process?: { env?: Record<string, string> } }).process?.env?.NODE_ENV !== 'production'
-  } catch { return true }
+  } catch {
+    /* Fail CLOSED. This switch gates `console.debug` of caller-supplied event
+       meta — ids, amounts, ranks — so an unreadable environment must not be
+       read as permission to log. The old `return true` meant the one runtime
+       where NEITHER env source could be read was the one that logged, which is
+       the opposite of the safe default for a privacy-adjacent switch. */
+    return false
+  }
 }
 
 /** Debug in dev, silent no-network no-op in prod (docs/08 low cost). */
