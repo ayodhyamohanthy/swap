@@ -12,7 +12,6 @@ import {
   incomingFor,
   matchesFor,
   receivedToday,
-  receivedTodayForUser,
   createRequest,
   resetRequests,
   respondToIncoming,
@@ -58,6 +57,11 @@ function sendOneToAcceptor(from: Trip): void {
   sendRequest(createRequest({ trip_id: from.id, choices: ['UB'] }).id)
 }
 
+/** The same, ticked to one berth on the matches screen. */
+function sendOneTo(from: Trip, acceptorId: string): void {
+  sendRequest(createRequest({ trip_id: from.id, choices: ['UB'] }).id, [acceptorId])
+}
+
 describe('inbound cap (docs/03, default 3/day)', () => {
   beforeEach(() => {
     resetStore()
@@ -69,7 +73,6 @@ describe('inbound cap (docs/03, default 3/day)', () => {
     expect(receivedToday(acceptor.id)).toBe(0)
     sendOneToAcceptor(requesters[0])
     expect(receivedToday(acceptor.id)).toBe(1)
-    expect(receivedTodayForUser()).toBe(1)
   })
 
   it('drops an over-requested berth from the match list', async () => {
@@ -98,11 +101,31 @@ describe('inbound cap (docs/03, default 3/day)', () => {
     expect(incomingFor(acceptor.id)).toBeDefined()
     for (const requester of requesters.slice(0, 3)) sendOneToAcceptor(requester)
 
-    expect(receivedTodayForUser()).toBe(3)
+    expect(receivedToday(acceptor.id)).toBe(3)
     expect(incomingFor(acceptor.id)).toBeUndefined()
 
     updateSettings({ max_requests_per_day: 10 })
     expect(incomingFor(acceptor.id)).toBeDefined()
+  })
+
+  it('charges each booking its own requests, not the whole device', async () => {
+    /* Every trip on this device belongs to one account, so counting the
+       account's offers charged a traveller for the requests THEY sent: three
+       sends to three different berths shut their own board. docs/03's cap is
+       the acceptor's, per booking. */
+    const { requesters } = await pool()
+    const peers: Trip[] = []
+    for (const [index, pnr] of ['4512789670', '4512789671', '4512789672'].entries()) {
+      const peer = await trip(pnr, `B${7 + index}`, String(60 + index), 'UB')
+      setOpenToSwap(peer.id, true)
+      peers.push(peer)
+    }
+    for (const [index, peer] of peers.entries()) sendOneTo(requesters[index], peer.id)
+
+    for (const peer of peers) {
+      expect(receivedToday(peer.id)).toBe(1)
+      expect(incomingFor(peer.id)).toBeDefined()
+    }
   })
 })
 

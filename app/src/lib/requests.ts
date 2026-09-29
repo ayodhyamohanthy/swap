@@ -215,21 +215,16 @@ export function sentToday(): number {
   return ensureLoaded().requests.filter((request) => isToday(request.sent_at, key)).length
 }
 
-/** Offers this trip has already received today — the per-booking measure the
-    match query scores candidates with (docs/03's inbound cap). */
+/** Offers this trip has already received today — the measure docs/03's
+    `max_requests_per_day` (default 3) caps. Per booking, deliberately: on this
+    device every trip belongs to one account, so an account-wide count would
+    charge a traveller for requests THEY sent (each outgoing offer lands on a
+    trip in the same store) and shut their own board after three sends. */
 export function receivedToday(tripId: string): number {
   const key = dayKey(new Date())
   return ensureLoaded().offers.filter(
     (offer) => offer.acceptor_trip_id === tripId && isToday(offer.created_at, key),
   ).length
-}
-
-/** Offers this traveller has received today across all their bookings.
-    `max_requests_per_day` is an account setting (docs/02 `settings`), so the
-    acceptor's own board is gated on the account, not on one ticket. */
-export function receivedTodayForUser(): number {
-  const key = dayKey(new Date())
-  return ensureLoaded().offers.filter((offer) => isToday(offer.created_at, key)).length
 }
 
 /** docs/03: "backed out 3 times in 30 days → hidden from matches for 30 days".
@@ -850,7 +845,7 @@ export function incomingFor(tripId: string): IncomingRequest | undefined {
        (the Settings switch's other half). Both gate NEW rows only, like the
        filters above. */
     if (hiddenForAbuse(tripId)) return undefined
-    if (receivedTodayForUser() >= prefs.max_requests_per_day) return undefined
+    if (receivedToday(tripId) >= prefs.max_requests_per_day) return undefined
     if (prefs.women_only && !DEMO_INCOMING.is_woman) return undefined
     if (prefs.families_only && !DEMO_INCOMING.is_family) return undefined
     if (prefs.same_coach_only && normalizeCoach(DEMO_INCOMING.coach) !== normalizeCoach(passenger.coach)) {
