@@ -51,8 +51,15 @@ export function formatUsdTenths(tenths: number): string {
   return `US$${Math.trunc(tenths / 10)}.${tenths % 10}`
 }
 
+/** "₹99", "-₹50". The sign belongs BEFORE the symbol: interpolating a negative
+    straight after `₹` renders "₹-50", which is not how a rupee amount is
+    written anywhere. The one negative this formatter is ever handed is a
+    receipt's credit-used line (docs/06 "credit used (if any)"), which is a
+    deduction and has to read as one. */
 export function formatRupees(paise: number): string {
-  return `₹${rupees(paise).toLocaleString('en-IN')}`
+  const value = rupees(paise)
+  const sign = value < 0 ? '-' : ''
+  return `${sign}₹${Math.abs(value).toLocaleString('en-IN')}`
 }
 
 /** Decimal string for payment-gateway wire formats. Razorpay takes integer

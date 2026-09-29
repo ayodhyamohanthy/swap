@@ -4,7 +4,9 @@ import { AppFooter, type RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
 import { useI18n } from '@/lib/i18n'
-import { usePaymentFor } from '@/lib/use-store'
+import { useCreditPaise, usePaymentFor } from '@/lib/use-store'
+import { buildQuote, chargeDuePaise } from '@/lib/payments'
+import { isGroupRequestId } from '@/lib/groups'
 import { payGateFor } from '@/lib/checkout'
 import { PayBlocked } from './pay.$requestId'
 
@@ -23,7 +25,12 @@ function UpiScreen() {
   const { useCredit } = Route.useSearch()
   const { t } = useI18n()
   const payment = usePaymentFor(requestId)
-  const due = payment ? payment.amount_paise - payment.credit_used_paise : 0
+  const credit = useCreditPaise()
+  const quote = buildQuote(useCredit === 1 ? credit : 0, isGroupRequestId(requestId))
+  /* What the gateway will take. NOT `payment ? … : 0`: with no payment row yet
+     — a refresh, a shared link, a cleared profile — that rendered "Approve ₹0
+     in your UPI app" on a live payment screen. See chargeDuePaise. */
+  const due = chargeDuePaise(payment, quote)
   /* Rule 2: nothing is waiting for a UPI approval on a swap already settled. */
   const gate = payGateFor(requestId)
   if (gate !== 'payable') return <PayBlocked requestId={requestId} gate={gate} />
