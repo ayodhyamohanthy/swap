@@ -40,7 +40,7 @@ import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, relative } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -78,6 +78,38 @@ const NOT_STEPS = new Set(['burndown-dry-run.mjs', 'no-net.mjs', 'translator-lib
    (translator-draft.mjs writes `tmp/<code>.json`, and other lanes use the same). */
 function isScratch(name) {
   return name.endsWith('.tmp.mjs')
+}
+
+/* WHICH DIRECTORY DECIDES WHAT COUNTS AS A STEP. `app/azure/` by default, which
+ * is the real question. The flag exists so the test that proves this check fires
+ * does not have to plant its fixture in the real directory.
+ *
+ * A fixture planted there is not merely untidy — it is a false spend-safety
+ * alarm. The digest check below snapshots this directory before and after the
+ * spenders run, so any harness run that OVERLAPS the fixture's lifetime sees the
+ * tree change and fails with "files changed outside azure/tmp". In a shared
+ * working tree that is the most expensive false positive this guard can produce:
+ * the one alarm nobody may learn to ignore, raised by a neighbour's scratch
+ * file. The fixture moved out instead of the alarm being softened. */
+function scanDir() {
+  const argv = process.argv.slice(2)
+  const at = argv.indexOf('--scan')
+  if (at === -1) return HERE
+  const given = argv[at + 1]
+  const dir = resolve(given ?? '')
+  if (given === undefined || !existsSync(dir)) {
+    console.error(
+      `burndown-dry-run: --scan needs an existing directory, got: ${given ?? '<missing>'}`,
+    )
+    process.exit(2)
+  }
+  return dir
+}
+
+/** A path as a reader recognises it: `app/azure` for the default, absolute otherwise. */
+function display(dir) {
+  const rel = relative(APP, dir)
+  return rel.startsWith('..') ? dir : `app/${rel}`
 }
 
 /** Content digest of a tree, so a rewrite with identical bytes is not a change. */
@@ -118,6 +150,10 @@ function runStep(step, logDir) {
   const attempts = existsSync(netLog) ? readFileSync(netLog, 'utf8').split('\n').filter(Boolean) : []
   return { ...step, result, attempts }
 }
+
+/* Resolved up front so a bad argument exits 2 before the spenders run, rather
+   than after two seconds of output that looks like a real dry run. */
+const SCAN = scanDir()
 const logDir = mkdtempSync(join(tmpdir(), 'seatswap-burndown-'))
 const before = protectedState()
 const runs = SPENDERS.map((step) => runStep(step, logDir))
@@ -165,19 +201,27 @@ if (failures.length > 0) {
   process.exit(1)
 }
 
-/* Machine-readable, for tests/azure-burndown-dryrun.test.ts. */
-console.log(`DRYRUN-OK scripts=${runs.length} network=${network} writes=0 spend=0.00`)
-
 /* A new burn-down script nobody dry-ran is the failure this file exists to
- * prevent, so it fails here rather than being quietly left out of the table. */
-const present = readdirSync(HERE).filter(
+ * prevent, so it fails here rather than being quietly left out of the table.
+ *
+ * THIS RUNS BEFORE THE SUCCESS LINE, and that order is the point. `DRYRUN-OK`
+ * used to be printed first, so a run that found an unlisted script printed
+ * DRYRUN-OK and then exited 1 — a token that reads as "ok" appearing on a run
+ * that failed, which is how a machine-readable success signal stops being one.
+ * The test asserts its ABSENCE on a failing run, not only its presence. */
+const present = readdirSync(SCAN).filter(
   (name) => name.endsWith('.mjs') && !NOT_STEPS.has(name) && !isScratch(name),
 )
 const unlisted = present.filter((name) => !SPENDERS.some((step) => step.script === name))
+console.log(`scanned: ${display(SCAN)} — ${present.length} script(s), ${unlisted.length} unlisted`)
 if (unlisted.length > 0) {
   console.error(
-    `\nburndown-dry-run: unlisted script(s) in app/azure: ${unlisted.join(', ')}\n` +
+    `\nburndown-dry-run: unlisted script(s) in ${display(SCAN)}: ${unlisted.join(', ')}\n` +
       'Add each to SPENDERS with its no-spend invocation, or to MANUAL with a reason.',
   )
   process.exit(1)
 }
+
+/* Machine-readable, for tests/azure-burndown-dryrun.test.ts. Emitted only once
+ * every check above has passed, so its presence IS the success signal. */
+console.log(`DRYRUN-OK scripts=${runs.length} network=${network} writes=0 spend=0.00`)
