@@ -807,7 +807,9 @@
       "settings_changed": "सेटिंग बदली",
       "language_changed": "भाषा बदली",
       "easy_mode_changed": "आसान मोड बदला",
-      "invite_created": "निमंत्रण बनाया"
+      "invite_created": "निमंत्रण बनाया",
+      "credit_expired": "क्रेडिट समाप्त",
+      "request_expired": "अनुरोध समाप्त"
     },
     "csv": "CSV निकालें",
     "empty": "यहाँ अभी कुछ नहीं।",
@@ -877,6 +879,8 @@
     "reasonPh": "कारण — क्रेडिट के लिए ज़रूरी",
     "acted": "हो गया।",
     "actedDemo": "इस डिवाइस पर दर्ज। सर्वर जुड़ने पर लागू होगा।",
-    "actedFailed": "यह काम नहीं हुआ। कुछ भी नहीं बदला गया।"
+    "actedFailed": "यह काम नहीं हुआ। कुछ भी नहीं बदला गया।",
+    "userTimeline": "यात्री समयरेखा",
+    "timelineAutomation": "स्वचालित"
   }
 }

@@ -29,6 +29,7 @@ import {
   downloadCsv,
   filterActivity,
   uncategorisedActions,
+  userTimelines,
   type ActivityCategory,
 } from '@/lib/admin'
 import { actorRoleLabel, useI18n, type MessageKey } from '@/lib/i18n'
@@ -98,6 +99,10 @@ const CATEGORY_ICON: Record<ActivityCategory, LucideIcon> = {
      - **User** ("Riya P") cannot be built at all.
      - the **User timeline** panel beside the table needs the same name.
 
+   The panel itself does not: it groups by `actor_id`, which every row carries,
+   so it ships below the table. What it will not do is print a name, because
+   there is none to print and `tests/qa-placeholders.test.ts` bans inventing one.
+
    Details stays in the Action cell rather than becoming a fifth column. The
    design's own rows show short values ("UPI", "A2", "Wants Lower") because
    they are hand-written; a real row is a `·`-separated list up to 60 chars, and
@@ -114,6 +119,12 @@ function AdminActivity() {
   const actions = activityActions(activity)
   const uncategorised = uncategorisedActions(activity)
   const rows = filterActivity(activity, { action, category, query })
+  /* The panel reads the WHOLE log, not the filtered rows: it is a per-actor
+     summary beside a filtered table, so narrowing the table to "Payments"
+     should not silently re-label who has history. A panel that tracked the
+     filter would also be useless for its actual job — answering "what else did
+     this person do", which is the question a timeline is opened for. */
+  const timelines = userTimelines(activity, { limitPerUser: 6 })
 
   /* `other` is offered only when something actually landed in it, so an action
      added without updating the category map shows up loudly instead of being
@@ -283,6 +294,99 @@ function AdminActivity() {
           </ul>
         </div>
       )}
+
+      {/* Design 15's right-hand **User timeline**, below the table rather than
+          beside it. The design draws it in a right column at ~1600px, but the
+          console's own measure stops at 1440 (AGENTS.md rule 12a) and a
+          two-column split at 1180px would squeeze the table's own columns —
+          which are already the tight part. So the panel is a full-width section
+          after the table at every width, and the design's shape (a title, one
+          group per actor, newest first, time on the left) is what is preserved.
+
+          It renders nothing at all when there is no log, rather than an empty
+          panel titled "User timeline" — a heading over nothing is worse than
+          no heading. */}
+      {timelines.length > 0 ? (
+        <section aria-labelledby="admin-timeline-heading" className="mt-6">
+          <h2 id="admin-timeline-heading" className="text-head text-ink">
+            {t('admin.userTimeline')}
+          </h2>
+          {/* One column of groups at `sm`, two from `lg`. The groups are
+              independent, so a grid (not a flex row) is what makes the second
+              column line up without a hardcoded height. */}
+          <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+            {timelines.map((group) => {
+              /* No name exists, so the heading says what the id IS rather than
+                 pretending to know who it is. The raw id is kept visible and
+                 selectable: an operator reading an audit log needs the id they
+                 can paste into a search, and a design's "Riya P" is a mock. */
+              const isAutomation = group.actorId === null
+              return (
+                <li key={group.actorId ?? ' automation'}>
+                  <Card>
+                    <CardBody>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <b className="truncate font-head text-body text-ink">
+                          {isAutomation
+                            ? t('admin.timelineAutomation')
+                            : group.actorId}
+                        </b>
+                        {!isAutomation && group.role !== 'user' ? (
+                          <span className="shrink-0 text-caption text-muted">
+                            {group.role}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <ol className="mt-2 space-y-2">
+                        {group.entries.map((entry) => {
+                          const Icon = CATEGORY_ICON[activityCategory(entry.action)]
+                          const tone = activityTone(entry.action)
+                          return (
+                            <li key={entry.id} className="flex items-start gap-2.5">
+                              <span
+                                aria-hidden
+                                className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg ${TONE_CLASS[tone]}`}
+                              >
+                                <Icon className="size-3.5" />
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                {/* The label, with the time beside it. The raw
+                                    action stays a tooltip so the line is still
+                                    greppable against the code — the same
+                                    contract the table row uses. */}
+                                <span className="flex flex-wrap items-baseline gap-x-2">
+                                  <b
+                                    className="truncate font-head text-body text-ink"
+                                    title={entry.action}
+                                  >
+                                    {t(activityLabelKey(entry.action))}
+                                  </b>
+                                  <small className="text-caption text-muted">
+                                    {activityTime(entry.at, lang)}
+                                  </small>
+                                </span>
+                                {/* Train and details, joined the way the table
+                                    joins them. Either may be absent, and an
+                                    empty line is not rendered at all. */}
+                                {entry.train || entry.detail ? (
+                                  <small className="mt-0.5 block truncate text-caption text-muted">
+                                    {[entry.train, entry.detail].filter(Boolean).join(' · ')}
+                                  </small>
+                                ) : null}
+                              </span>
+                            </li>
+                          )
+                        })}
+                      </ol>
+                    </CardBody>
+                  </Card>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      ) : null}
     </div>
   )
 }

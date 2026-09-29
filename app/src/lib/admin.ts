@@ -1239,13 +1239,26 @@ export interface ActivityFilter {
  */
 export function filterActivity(rows: ActivityRow[], filter: ActivityFilter): ActivityRow[] {
   const q = filter.query.trim().toLowerCase()
-  return rows.filter((row) => {
+  const matched = rows.filter((row) => {
     if (filter.category !== 'all' && activityCategory(row.action) !== filter.category) return false
     if (filter.action && row.action !== filter.action) return false
     if (!q) return true
     const hay = [row.actor_id ?? '', row.action, row.entity ?? '', row.entity_id ?? '', JSON.stringify(row.meta)].join(' ').toLowerCase()
     return hay.includes(q)
   })
+  /* Newest first, and this has to be explicit. The log is append-ordered, so a
+     purely local log happens to come out right — until a row arrives from
+     somewhere else. `server/jobs.ts` writes `credit_expired` and
+     `request_expired` on a nightly schedule, so a job's rows land at the end of
+     the array whatever time they claim, and the audit table showed a 23:14 row
+     under a 22:45 one. An operator reading a log backwards is a contradiction
+     even when every row is individually correct.
+
+     The id tiebreak matches `userTimelines`: two rows in the same millisecond
+     must not swap places between renders. */
+  return matched.sort((a, b) =>
+    a.created_at === b.created_at ? a.id.localeCompare(b.id) : b.created_at.localeCompare(a.created_at),
+  )
 }
 
 /** Distinct action names for the filter dropdown. */
@@ -1394,6 +1407,118 @@ export function activityDetails(row: ActivityRow, options: DetailOptions = {}): 
  */
 export function activityTrain(row: ActivityRow): string | null {
   return detailToken((row.meta as Record<string, unknown>).train_no)
+}
+
+/* ------------------------------------------------------------------ *
+ * User timeline (design 15's right-hand panel)                        *
+ * ------------------------------------------------------------------ */
+
+/** One line of the panel: the same row the table draws, plus its actor. */
+export interface UserTimelineEntry {
+  /** The activity row's own id, so the React key is stable and unique. */
+  id: string
+  action: string
+  at: string
+  train: string | null
+  /** The Details tokens with the train omitted — the Train is its own column. */
+  detail: string
+}
+
+/** One actor's history. */
+export interface UserTimelineGroup {
+  /**
+   * The actor id exactly as the log stores it, or `null` for a row with none.
+   *
+   * Deliberately NOT a name. `ActivityRow` has no name field and the local pool
+   * holds no peer rows, so the design's "Riya P" is not derivable — and inventing
+   * one would be exactly the fabrication `tests/qa-placeholders.test.ts` bans.
+   * A caller that does have a name can map this id to it.
+   */
+  actorId: string | null
+  role: ActivityRow['actor_role']
+  /** Newest first, matching both the table and the design. */
+  entries: UserTimelineEntry[]
+}
+
+/**
+ * Design 15's right-hand **User timeline**: one panel per actor, each listing
+ * that actor's rows newest-first.
+ *
+ * **This is the part of design 15 that is derivable today.** The table's User
+ * *column* is not — that needs a name — but a panel that groups the log by who
+ * acted needs only `actor_id`, which every row already carries. So the panel
+ * ships and the column waits, and neither blocks the other.
+ *
+ * **Automation is grouped separately, and it must be.** `actor_id` is null on
+ * rows written by the cron jobs (`server/jobs.ts` writes `support` with
+ * `actor_id: 'system'`) and by `server/admin.ts` (`admin`). Filing those under
+ * the passenger's id would attribute a scheduled credit-expiry job to a person
+ * — the single most misleading thing an audit panel can do — so `null` is its
+ * own group and never merges with a real id.
+ *
+ * Order is stable and total: groups sort by their newest entry descending, so
+ * the busiest actor is on top, and two actors who acted in the same millisecond
+ * fall back to id order rather than to whatever `Array.sort` felt like.
+ */
+export function userTimelines(
+  rows: ActivityRow[],
+  options: { limitPerUser?: number; onlyActor?: string | null } = {},
+): UserTimelineGroup[] {
+  const { limitPerUser = 8, onlyActor = undefined } = options
+  const source =
+    onlyActor === undefined
+      ? rows
+      : rows.filter((row) => (row.actor_id ?? null) === onlyActor)
+
+  const byActor = new Map<string, ActivityRow[]>()
+  for (const row of source) {
+    /* `null` must be its own bucket, and `Map` would happily collapse a null
+       key onto the string "null" — so the bucket key is prefixed by type. */
+    const key = row.actor_id === null ? '\u0000null' : `id:${row.actor_id}`
+    const bucket = byActor.get(key)
+    if (bucket) bucket.push(row)
+    else byActor.set(key, [row])
+  }
+
+  const groups: UserTimelineGroup[] = []
+  for (const [key, bucket] of byActor) {
+    /* Newest first. `created_at` is an ISO string, so it sorts as a string; the
+       id is the tiebreak so the order cannot depend on input order. */
+    const ordered = [...bucket].sort((a, b) =>
+      a.created_at === b.created_at
+        ? a.id.localeCompare(b.id)
+        : b.created_at.localeCompare(a.created_at),
+    )
+    /* The role is taken from the newest row: an operator who signed in and then
+       left a cron job writing as `support` is one group, and the most recent
+       statement of who they were is the last thing they did themselves. */
+    const role = ordered[0]?.actor_role ?? 'user'
+    groups.push({
+      actorId: key.startsWith('id:') ? key.slice(3) : null,
+      role,
+      entries: ordered.slice(0, limitPerUser).map((row) => ({
+        id: row.id,
+        action: row.action,
+        at: row.created_at,
+        train: activityTrain(row),
+        detail: activityDetails(row, { omit: ['train_no'] }),
+      })),
+    })
+  }
+
+  return groups.sort((a, b) => {
+    const newestA = a.entries[0]?.at ?? ''
+    const newestB = b.entries[0]?.at ?? ''
+    if (newestA === newestB) {
+      /* Automation first on a tie: it is the row an operator most often needs
+         to find, and it has no other way to be identified. */
+      const aKey = a.actorId ?? '\u0000'
+      const bKey = b.actorId ?? '\u0000'
+      if ((aKey === '\u0000') !== (bKey === '\u0000')) return aKey === '\u0000' ? -1 : 1
+      return aKey.localeCompare(bKey)
+    }
+    return newestB.localeCompare(newestA)
+  })
 }
 
 /* ------------------------------------------------------------------ *

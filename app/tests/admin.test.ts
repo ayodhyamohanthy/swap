@@ -789,6 +789,63 @@ describe('filterActivity by category (design 15)', () => {
       expect(orphans).toEqual([])
     })
 
+    it('has an `admin.act.*` label in both languages for every logged action', () => {
+      /* `activityLabelKey` is `admin.act.${action}` with a null fallback, so a
+         logged action with no label renders as a raw dotted path in the audit
+         table — the screen whose whole job is to be readable. `credit_expired`
+         did exactly this: the nightly expiry job logs it every night and
+         nothing checked, because this guard did not exist (the report-issue
+         equivalent above guards a different catalogue).
+
+         The failure is invisible in review — the key looks fine, the fallback
+         looks harmless — and only shows up in a capture, which is how it was
+         found. Asserting it here means the next action added to either logging
+         entry point cannot repeat that.
+
+         `en.admin.act` is keyed by the BARE action name; the `admin.act.` prefix
+         is what `activityLabelKey` adds at the call site. Indexing the catalogue
+         with the prefixed key finds nothing and reports every action as missing,
+         which is how this guard's first draft failed. */
+      /* BOTH entry points, not just `logActivity`. `server/jobs.ts` writes
+         through `logEffect(client, action, entity, entityId)`, whose SECOND
+         argument is the action and whose THIRD is the entity type. Scanning
+         only `logActivity` passed while `credit_expired` had no label at all —
+         a green guard that never saw the action.
+
+         Every call site of that function is one line and the first argument is
+         always a bare identifier, so a single anchored regex is both sufficient
+         and easier to verify than a hand-rolled balanced-paren scanner. (Three
+         drafts of the scanner were wrong in ways that all reported success: the
+         function DEFINITION matched first; the argument scan stopped at the
+         `client` argument; and `indexOf(',') + 1` is `slice(0)` when the
+         comma is missing, returning the whole string instead of nothing. The
+         self-check below is what caught those — without it all three were
+         indistinguishable from a working guard.) */
+      const viaLogEffect = new Set<string>()
+      const callSite = /logEffect\(\s*[A-Za-z_][\w.]*\s*,\s*'([a-z][a-z_0-9]*)'/g
+      const walk = (d: string): void => {
+        for (const entry of readdirSync(d)) {
+          const full = join(d, entry)
+          if (statSync(full).isDirectory()) walk(full)
+          else if (/\.tsx?$/.test(full)) {
+            for (const m of readFileSync(full, 'utf8').matchAll(callSite)) {
+              viaLogEffect.add(m[1])
+            }
+          }
+        }
+      }
+      walk(join(import.meta.dirname, '..', 'src'))
+      expect(viaLogEffect.size, 'scanner found no logEffect call sites').toBeGreaterThan(0)
+      expect([...viaLogEffect]).toContain('credit_expired')
+
+      const missing: string[] = []
+      for (const action of [...loggedActions(), ...viaLogEffect]) {
+        const key = action as keyof typeof en.admin.act
+        if (!en.admin.act[key] || !hi.admin.act[key]) missing.push(action)
+      }
+      expect(missing).toEqual([])
+    })
+
     it('offers the design-15 chips, plus the two the log needs', () => {
       /* Sign-ins, Requests, Payments, Swaps and Reports are the design's;
          Trips and Account are added because the log really writes those

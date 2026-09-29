@@ -807,7 +807,9 @@
       "settings_changed": "Changed settings",
       "language_changed": "Changed language",
       "easy_mode_changed": "Changed easy mode",
-      "invite_created": "Created invite"
+      "invite_created": "Created invite",
+      "credit_expired": "Credit expired",
+      "request_expired": "Request expired"
     },
     "csv": "Export CSV",
     "empty": "Nothing here yet.",
@@ -877,6 +879,8 @@
     "reasonPh": "Reason — required for credit moves",
     "acted": "Done.",
     "actedDemo": "Logged on this device. The server applies it when connected.",
-    "actedFailed": "That did not go through. Nothing was changed."
+    "actedFailed": "That did not go through. Nothing was changed.",
+    "userTimeline": "User timeline",
+    "timelineAutomation": "Automated"
   }
 }
