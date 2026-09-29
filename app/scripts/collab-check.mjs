@@ -26,7 +26,13 @@
 import { execFileSync, execSync } from 'node:child_process'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+
+/* The decisions live in a module with no imports, so `tests/collab-check.test.ts`
+   can exercise them without pulling `node:child_process` into the jsdom pool —
+   the mistake that broke test collection for six lanes when `translator-lib.mjs`
+   did it (docs/11). */
+import { clashesFor, declaredBy, ownedByLane, parseActiveLanes, parseSurfaces } from './lane-board.mjs'
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '..')
 const REPO = join(APP, '..')
@@ -148,84 +154,30 @@ function checkGenerated() {
 /* ---- active lanes, read out of the board itself ----
    docs/13 §1 holds the lane -> surface map; docs/14 holds who is active right
    now. Parsing both means the guard can never drift from the board: a new lane
-   or a new `active:` timestamp is enforced with no edit to this file. */
+   or a new `active:` timestamp is enforced with no edit to this file.
+
+   The parsing itself lives in `lane-board.mjs`, which imports nothing — so the
+   decisions are unit-testable without dragging `node:child_process` into a
+   jsdom test file (docs/11 records what that cost last time). This function is
+   now only the part that touches the disk. */
 function activeLanes() {
   const board = readFileSync(join(REPO, 'docs', '14-LANES.md'), 'utf8')
-  const active = new Set()
-  /* The state is the LAST cell, and a claim is matched only at the START of it.
-     Two earlier shapes were both wrong, in opposite directions. Reading the
-     fifth cell as free text made `slice(4)` empty for the three-column rows
-     (`| L7 | Admin | done. … |`), so a lane claimed there was invisible to the
-     guard; and an unanchored search for `active:` matched the
-     `(was: active: <agent>)` note that every RELEASED row carries, so releasing
-     a lane never cleared the guard and it went on refusing that lane its own
-     files. Anchoring to the start keeps the property the free-text match was
-     written for — the guard can still refuse the committer's own lane. */
-  for (const line of board.split('\n')) {
-    if (!line.startsWith('| L')) continue
-    /* The state is the LAST cell, not the fifth. Lane rows do not all have the
-       same number of columns — `| L7 | Admin | done. … |` has three — so
-       `slice(4)` read an empty string for those and the guard never checked them
-       at all: a lane claimed in a three-column row was invisible, which is the
-       same class of bug the free-text match below was written to fix.
-       And the match is anchored to the START of the state, because every
-       released row reads `done. <time> (was: active: <agent>)`. An unanchored
-       search for `active:` therefore re-marks a lane as active the instant it
-       releases, so no lane could ever clear the guard by releasing — the guard
-       was blocking released lanes on their own files, including this one. */
-    const cells = line.split('|')
-    if ((cells[0] ?? '').trim() === '') cells.shift()
-    if (cells.length > 0 && (cells[cells.length - 1] ?? '').trim() === '') cells.pop()
-    const id = (cells[0] ?? '').trim().split(/\s+/)[0]
-    if (!/^L\d+$/.test(id)) continue
-    const state = (cells[cells.length - 1] ?? '').trim()
-    /* `active: none` is docs/13 §5's documented way to RELEASE a lane, so it is
-       not a claim. The old `(?!none\b)` lookahead never fired: `\s*` backtracks
-       to zero spaces and the lookahead then sits on ` n`, which is not `none`,
-       so it succeeded. Both release conventions were therefore unusable. */
-    const claim = state.match(/^active\s*:\s*(\S+)/i)
-    if (claim && !/^none$/i.test(claim[1])) active.add(id)
-  }
-  if (active.size === 0) return []
+  const claims = parseActiveLanes(board)
+  if (claims.length === 0) return []
   const contract = readFileSync(join(REPO, 'docs', '13-COLLAB-CONTRACT.md'), 'utf8')
-  const lanes = []
-  for (const line of contract.split('\n')) {
-    if (!line.startsWith('| L')) continue
-    const cells = line.split('|').map((c) => c.trim())
-    const id = (cells[1] ?? '').split(/\s+/)[0]
-    if (!active.has(id)) continue
-    const surfaces = [...(cells[2] ?? '').matchAll(/`([^`]+)`/g)].map((m) => m[1])
-    if (surfaces.length > 0) lanes.push({ id, surfaces })
-  }
-  return lanes
+  const surfaces = parseSurfaces(
+    contract,
+    claims.map((c) => c.id),
+  )
+  const byId = new Map(claims.map((c) => [c.id, c.holder]))
+  return surfaces.map((lane) => ({ ...lane, holder: byId.get(lane.id) ?? '' }))
 }
 
-/** Glob -> RegExp. `**` spans directories, `*` stops at one. Surfaces in
-    docs/13 are written two ways — repo-relative (`app/src/components/**`) and
-    source-relative (`routes/pay.*`) — so both forms are tried. */
-function globToRegExp(glob) {
-  let re = ''
-  for (let i = 0; i < glob.length; i += 1) {
-    const c = glob[i]
-    if (c === '*') {
-      if (glob[i + 1] === '*') {
-        re += '.*'
-        i += 1
-      } else {
-        re += '[^/]*'
-      }
-    } else if (c === '?') {
-      re += '[^/]'
-    } else {
-      re += c.replace(/[.+^${}()|[\]\\]/, '\\$&')
-    }
-  }
-  return new RegExp('^' + re + '$')
-}
-
-function ownedByLane(file, surface) {
-  return globToRegExp(surface).test(file) || globToRegExp(`app/src/${surface}`).test(file)
-}
+/* `globToRegExp` and `ownedByLane` now live in `lane-board.mjs` and are
+   imported above. They were extracted rather than duplicated: two copies of a
+   surface-matching rule is how the guard and its tests would come to disagree
+   about what a lane owns, and the tests would then be evidence about the wrong
+   code. */
 
 /* ---- pre-commit mode (.githooks/pre-commit) ----
    Runs on every commit. Keeps the fast structural checks only; the green rule
@@ -238,17 +190,22 @@ function hookMode() {
   if (files.length === 0) problems.push('nothing is staged — a hook that passes on an empty index is a hook nobody trusts')
 
   const lanes = activeLanes()
-  const clashes = []
-  for (const file of files) {
-    for (const lane of lanes) {
-      const hit = lane.surfaces.find((surface) => ownedByLane(file, surface))
-      if (hit) clashes.push(`${file} -> ${lane.id} (${hit})`)
-    }
-  }
+  /* WHO IS COMMITTING. The guard knows which lanes are active but cannot know
+     the committer's identity: every agent here commits under ONE shared git
+     identity, so `git config user.name` would exempt everybody and turn the
+     guard off. The identity is declared per-process instead — LANE=<id> or
+     LANE_AGENT=<holder> — and a declared lane's files are its own business.
+     Unset means unchanged behaviour, so this is opt-in and fails safe. */
+  const declaration = { lane: process.env.LANE, agent: process.env.LANE_AGENT }
+  const clashes = clashesFor(files, lanes, declaration)
   if (clashes.length > 0) {
     problems.push(
       `these files belong to a lane that is active right now:\n        ${clashes.join('\n        ')}` +
-        '\n      stage only your own files, or wait for that lane to release (docs/14).',
+        '\n      If this is your own lane and you hold the claim, say so — that is what' +
+        '\n      the declaration is for, and it is safer than --no-verify:' +
+        '\n        LANE_AGENT=<your name> git commit -m "…"      # matches the claim holder' +
+        '\n        LANE=<Lx> git commit -m "…"                   # claims lane Lx outright' +
+        '\n      Otherwise stage only your own files, or wait for that lane to release (docs/14).',
     )
   }
 
@@ -398,4 +355,9 @@ function main() {
   console.log(`  \x1b[32mclear\x1b[0m${warnings > 0 ? `, ${warnings} warning(s)` : ''}\n`)
 }
 
-main()
+/* Run the CLI only when this file IS the command. Without the guard, importing
+   the module from a test would execute `main()` — reading git state and calling
+   `process.exit`, which kills the test run rather than testing anything. */
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main()
+}
