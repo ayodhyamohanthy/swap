@@ -1,10 +1,3 @@
-# 10 — Build Plan (new header + L9 seed tasks)
-
-Paste this at the TOP of the existing docs/10-BUILD-PLAN.md, then convert
-the existing lane tasks below it into [ ] / [x] checkboxes. Do not delete
-existing task content — only reformat it.
-
----
 
 # 10 — Build Plan
 Format: each lane owns a checklist. "build"/"continue" = first [ ] in
