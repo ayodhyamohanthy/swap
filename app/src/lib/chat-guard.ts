@@ -45,12 +45,55 @@ function squishEvasion(value: string): string {
   return joined.replace(/[@$01]/g, (ch) => LEET[ch] ?? ch)
 }
 
+/**
+ * Rebuild a phone number from a message that spells part of it out.
+ *
+ * The original version mapped each *word* to a digit and dropped everything
+ * else, so `digitsFromWords('nine eight 200 12345')` returned `'8'` — the two
+ * literal digit groups were discarded, and `'call nine eight 200 12345'`
+ * sailed past `PHONE` because neither the original nor the reconstruction
+ * contained ten consecutive digits. `tests/chat-guard.test.ts` asserted that as
+ * correct behaviour, which is how a working bypass became a documented feature.
+ *
+ * The fix keeps literal digits and folds words in among them, in the order they
+ * appear, so the mixed form reconstructs to `9820012345`. The word-only
+ * behaviour is unchanged, and so is the reason it was originally
+ * word-only (docs/09): gluing *every* number in a message together turns a
+ * train number plus a berth into a phantom phone, which is why the pure-run
+ * rule exists. This widens it to the mixed case, which is the actual evasion.
+ */
 function digitsFromWords(value: string): string {
-  return value
+  /* Keep the separators so word-runs and digit-runs can be told apart, then map
+     each piece: a digit run passes through, a word that names a digit becomes
+     one, and anything else becomes nothing. Splitting on a *capture* group
+     rather than on a class is what makes that possible — an earlier version
+     split on `[^a-z]+`, discarding literal digits entirely, and a fix that
+     switched to `(\d+)` without a leading separator dropped the *words* instead,
+     so `nine eight two zero zero one two three four five` reconstructed to
+     `''`. Both versions were caught by the tests that already existed. */
+  const parts = value
     .toLowerCase()
-    .split(/[^a-z]+/)
-    .map((word) => NUM_WORDS[word] ?? '')
-    .join('')
+    .split(/([^a-z]+)/)
+    .map((part) => {
+      /* A "digit run" part can carry separators inside it — splitting on
+         `[^a-z]+` puts `200 12345` in one piece — so strip the non-digits
+         before deciding, rather than testing the raw piece against `^\d+$`
+         and silently discarding a real phone number. */
+      if (/^\d+$/.test(part.replace(/[^0-9]/g, '')) && /\d/.test(part)) {
+        return part.replace(/[^0-9]/g, '')
+      }
+      return NUM_WORDS[part] ?? ''
+    })
+  /* Glue the parts together ONLY when the message actually spells digits out.
+     With no digit words present, joining every number in the sentence is what
+     produced the phantom phones docs/09 warns about: a train number, a date and
+     a berth concatenate to something phone-shaped, and a PNR is already ten
+     digits on its own. The mixed evasion has a digit word in it, so this still
+     catches it while leaving ordinary chat alone. */
+  const hasDigitWord = Object.keys(NUM_WORDS).some((word) =>
+    new RegExp(`(^|[^a-z])${word}([^a-z]|$)`, 'i').test(value),
+  )
+  return hasDigitWord ? parts.join('') : ''
 }
 
 export function guardMessage(text: unknown): GuardResult {
