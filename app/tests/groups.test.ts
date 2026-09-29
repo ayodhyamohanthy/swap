@@ -170,9 +170,9 @@ describe('group checkout (docs/01, docs/04 C)', () => {
     setOpenToSwap(trip.id, true)
     return trip.id
   }
-  async function acceptedMemberRequest(tripId: string) {
+  async function acceptedMemberRequest(tripId: string, acceptorId?: string) {
     const request = createRequest({ trip_id: tripId, choices: ['UB'] })
-    sendRequest(request.id)
+    sendRequest(request.id, acceptorId ? [acceptorId] : undefined)
     const offer = offersFor(request.id)[0]
     acceptOffer(offer.id)
     return request
@@ -234,14 +234,19 @@ describe('group checkout (docs/01, docs/04 C)', () => {
   it('covers up to 3 member locks, then the 4th pays per-request', async () => {
     const tripIds = [await memberTrip('B1', '11', 'LB'), await memberTrip('B1', '12', 'LB'), await memberTrip('B2', '21', 'LB'), await memberTrip('B2', '22', 'LB')]
     const group = createGroup('Sharma family', tripIds)
-    await acceptorTrip()
+    /* One peer berth per member. Every trip on this device belongs to the same
+       local account, so four requests aimed at ONE acceptor would hit that
+       acceptor's daily inbound cap (docs/03, default 3 — pinned by
+       tests/abuse-limits.test.ts) before this test ever reached the group's
+       three-lock cover cap, which is what it is actually about. */
+    const acceptors = [await acceptorTrip(), await acceptorTrip(), await acceptorTrip(), await acceptorTrip()]
     /* Pay the group trip first. */
     const paid = beginCheckout(group.id, 'razorpay')
     confirmCaptured(group.id, 'order_demo_grp')
     expect(paid.total).toBe(19900)
     const locked: string[] = []
-    for (const tripId of tripIds) {
-      const request = await acceptedMemberRequest(tripId)
+    for (const [index, tripId] of tripIds.entries()) {
+      const request = await acceptedMemberRequest(tripId, acceptors[index])
       if (locked.length < 3) {
         expect(lockCoveredRequest(request.id)?.status).toBe('locked')
         locked.push(request.id)

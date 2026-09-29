@@ -41,6 +41,10 @@ function rowCopy(row: UpdateRow, t: ReturnType<typeof useI18n>['t']): string {
       const trip = row.trip_id ? getTrip(row.trip_id) : undefined
       return t('updates.chartOut', { train: trip?.train_no ?? '' })
     }
+    case 'waitlist_chart': {
+      const trip = row.trip_id ? getTrip(row.trip_id) : undefined
+      return t('updates.waitlistChart', { train: trip?.train_no ?? '' })
+    }
     case 'credit_added':
       return t('updates.creditAdded', { amount })
     case 'credit_expiring':
@@ -90,6 +94,7 @@ function UpdateLink({ row, copy, read }: { row: UpdateRow; copy: string; read: b
         </Link>
       ) : null
     case 'chart_out':
+    case 'waitlist_chart':
       return row.trip_id ? (
         <Link to="/trips/$tripId" params={{ tripId: row.trip_id }} className={classes} onClick={open}>
           <RowShell unread={!read}>{copy}</RowShell>

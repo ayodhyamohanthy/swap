@@ -547,6 +547,7 @@
     "markRead": "Mark all read",
     "open": "Open",
     "chartOut": "Chart is out for {train}",
+    "waitlistChart": "Chart is out for {train}. Your berth is still waitlisted — swapping opens once it is confirmed.",
     "creditAdded": "₹{amount} credit added",
     "creditExpiring": "₹{amount} credit ends in {days} days",
     "requestExpired": "A swap request has ended."

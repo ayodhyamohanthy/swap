@@ -2,6 +2,7 @@ import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-r
 import type { ReactNode } from 'react'
 import appCss from '../styles.css?url'
 import { AppShell } from '@/components/app-shell'
+import { JobRunner } from '@/components/job-runner'
 import { ServiceWorkerRegistrar } from '@/components/service-worker'
 import { ToastProvider } from '@/components/ui/toast'
 import { BOOT_SCRIPT, DEFAULT_LANG, I18nProvider, translate } from '@/lib/i18n'
@@ -62,6 +63,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
         <I18nProvider>
           <ToastProvider>
             <AppShell>{children}</AppShell>
+            <JobRunner />
           </ToastProvider>
         </I18nProvider>
         <Scripts />

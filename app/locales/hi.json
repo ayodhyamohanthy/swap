@@ -547,6 +547,7 @@
     "markRead": "सभी पढ़े हुए मानें",
     "open": "खोलें",
     "chartOut": "{train} का चार्ट बन गया",
+    "waitlistChart": "{train} का चार्ट बन गया। आपकी बर्थ अभी भी वेटलिस्ट में है — पुष्टि होने पर स्वैप खुलेगा।",
     "creditAdded": "₹{amount} क्रेडिट जुड़ गया",
     "creditExpiring": "₹{amount} क्रेडिट {days} दिन में खत्म होगा",
     "requestExpired": "एक स्वैप अनुरोध खत्म हो गया।"
