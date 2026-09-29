@@ -68,6 +68,18 @@ const MANUAL = [
 /* Files that live here but are not standalone burn-down steps. */
 const NOT_STEPS = new Set(['burndown-dry-run.mjs', 'no-net.mjs', 'translator-lib.mjs'])
 
+/* A scratch file by name is not a burn-down step, and must not be able to wedge
+   the harness. This is not hypothetical: `tests/azure-burndown-dryrun.test.ts`
+   writes `ghost-spender.tmp.mjs` to prove the unlisted-script check fires, and
+   when that run was killed before its `finally` ran, the leftover made every
+   later run of this harness fail — the guard had become the outage. A file that
+   is provably a temporary will not be treated as a real step, so an interrupted
+   test run cannot break the next one. `.tmp.` is the repo-wide scratch idiom
+   (translator-draft.mjs writes `tmp/<code>.json`, and other lanes use the same). */
+function isScratch(name) {
+  return name.endsWith('.tmp.mjs')
+}
+
 /** Content digest of a tree, so a rewrite with identical bytes is not a change. */
 function treeDigest(dir) {
   const lines = []
@@ -158,7 +170,9 @@ console.log(`DRYRUN-OK scripts=${runs.length} network=${network} writes=0 spend=
 
 /* A new burn-down script nobody dry-ran is the failure this file exists to
  * prevent, so it fails here rather than being quietly left out of the table. */
-const present = readdirSync(HERE).filter((name) => name.endsWith('.mjs') && !NOT_STEPS.has(name))
+const present = readdirSync(HERE).filter(
+  (name) => name.endsWith('.mjs') && !NOT_STEPS.has(name) && !isScratch(name),
+)
 const unlisted = present.filter((name) => !SPENDERS.some((step) => step.script === name))
 if (unlisted.length > 0) {
   console.error(

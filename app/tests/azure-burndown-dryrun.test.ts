@@ -53,13 +53,16 @@ describe('Azure burn-down — the $0 promise is checked, not claimed', () => {
 
   it('fails when a burn-down script is not registered in the harness', () => {
     /* A new spending script nobody dry-ran is the hole this file exists to
-       close, so it is proved with a real file rather than asserted in prose. */
-    const ghost = join(AZURE, 'ghost-spender.tmp.mjs')
+       close, so it is proved with a real file rather than asserted in prose.
+       The fixture is deliberately NOT named `.tmp.mjs`: scratch files are exempt
+       from the check (see the leftover test below), so a `.tmp` fixture would
+       pass for the wrong reason and prove nothing. */
+    const ghost = join(AZURE, 'ghost-spender-probe.mjs')
     writeFileSync(ghost, 'console.log("[ghost] nothing, but unlisted")\n')
     try {
       const result = run('burndown-dry-run.mjs')
       expect(result.status).toBe(1)
-      expect(result.out).toContain('ghost-spender.tmp.mjs')
+      expect(result.out).toContain('ghost-spender-probe.mjs')
       expect(result.out).toMatch(/SPENDERS|MANUAL/)
     } finally {
       rmSync(ghost, { force: true })
@@ -188,13 +191,35 @@ describe('docs/12 and the README do not describe a burn-down that no longer exis
 describe('the harness only runs scripts that exist', () => {
   it('registers every .mjs in app/azure that can spend', () => {
     /* A guard written against a hardcoded list is a guard that goes stale the
-       moment someone adds a file, so the check reads the directory instead. */
-    const scripts = readdirSync(AZURE).filter((name) => name.endsWith('.mjs'))
+       moment someone adds a file, so the check reads the directory instead.
+       `.tmp.mjs` is excluded for the same reason the harness excludes it: a
+       scratch file is not a step, and one left behind by a killed test run must
+       not make this suite (or the harness) fail forever. */
+    const scripts = readdirSync(AZURE).filter(
+      (name) => name.endsWith('.mjs') && !name.endsWith('.tmp.mjs'),
+    )
     const source = readFileSync(join(AZURE, 'burndown-dry-run.mjs'), 'utf8')
     for (const name of scripts) {
       if (name === 'burndown-dry-run.mjs' || name === 'no-net.mjs' || name === 'translator-lib.mjs') continue
       expect(source, `${name} is not registered in SPENDERS or MANUAL`).toContain(name)
     }
   })
+
+  it('a leftover scratch file cannot wedge the harness', () => {
+    /* This is a real incident, not a hypothetical: the unlisted-script test above
+       writes a fixture in this directory, and when that run was killed before its
+       `finally` executed, the leftover made EVERY later harness run exit 1 — the
+       guard had become the outage it existed to prevent. So the scratch
+       exemption is asserted directly, with the file really on disk. */
+    const scratch = join(AZURE, 'leftover-check.tmp.mjs')
+    writeFileSync(scratch, 'console.log("[scratch]")\n')
+    try {
+      const result = run('burndown-dry-run.mjs')
+      expect(result.status, result.out).toBe(0)
+      expect(result.out).toContain('DRYRUN-OK')
+    } finally {
+      rmSync(scratch, { force: true })
+    }
+  }, 90_000)
 })
 
