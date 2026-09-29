@@ -31,7 +31,7 @@ import {
   type ActivityCategory,
   type ActivityTone,
 } from '@/lib/admin'
-import { useI18n, type MessageKey } from '@/lib/i18n'
+import { actorRoleLabel, useI18n, type MessageKey } from '@/lib/i18n'
 import { useAppState } from '@/lib/use-store'
 
 /* Admin A2 "Activity log" (design 15). Every state change in the app writes a
@@ -239,7 +239,7 @@ function AdminActivity() {
                  rather than the When column: it is who acted, not when, and the
                  When track is too narrow to hold a third value without running
                  into the icon. */
-              const staffRole = row.actor_role === 'user' ? null : row.actor_role
+              const staffRole = row.actor_role === 'user' ? null : actorRoleLabel(lang, row.actor_role)
               const tokens = [detail, staffRole].filter(Boolean).join(' · ')
 
               return (

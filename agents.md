@@ -16,7 +16,7 @@ dependency that is not free for us, changing a non-negotiable rule in this
 file, or editing a file owned by another *active* lane (use a `request:` line).
 
 1. `git pull --rebase`, `git status --short`, hot-file check
-   `find app/src app/tests app/locales -newermt '-15 min' -type f`.
+   `find app/src app/tests app/locales -mmin -15 -type f`.
 2. Read `docs/14-LANES.md`. Pick the **first lane that is `free`** (or the
    lane you already hold). Claim it: `active: <your platform>, <ISO time>`.
    If every lane is `active` by other agents, take the top item from the

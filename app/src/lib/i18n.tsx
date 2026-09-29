@@ -122,6 +122,23 @@ export function quotaLabel(lang: LangCode, value: Quota): string {
 }
 
 /**
+ * The staff role on an `activity_log` row (`ActorRole`).
+ *
+ * Only two of the three roles ever reach a screen — the common `user` case
+ * renders nothing — so both are real copy rather than an enum dumped into the
+ * audit log. `support` is labelled "System" deliberately: every row carrying it
+ * is written by `server/jobs.ts` with `actor_id: 'system'`, so no person acted,
+ * and an audit trail should not imply one. If a human support desk ever writes
+ * that role, this is the one place to relabel.
+ *
+ * An unrecognised role falls back to its raw token, never to a blank cell —
+ * a missing translation must not hide the fact that something happened.
+ */
+export function actorRoleLabel(lang: LangCode, value: string): string {
+  return (CATALOGS[lang].admin.roles as Record<string, string>)[value] ?? value
+}
+
+/**
  * The BCP-47 tag for a shipped language. Kept in one place so adding a third
  * language is a one-line change rather than a hunt for every `lang === 'hi'`.
  */

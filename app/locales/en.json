@@ -740,7 +740,7 @@
     "firstOnTrain": "First on their train today",
     "firstOnTrainNone": "No match searches yet today.",
     "firstOnTrainUnknown": "searches are left out — the match count is not recorded.",
-    "searchPh": "Search action, user or train",
+    "searchPh": "Search action, train or last 4 of PNR",
     "filterAll": "All actions",
     "catAll": "All",
     "catLabel": "Category",
@@ -749,6 +749,10 @@
     "catSignins": "Sign-ins",
     "catAccount": "Account",
     "catOther": "Other",
+    "roles": {
+      "admin": "Admin",
+      "support": "System"
+    },
     "act": {
       "pnr_added": "Added PNR",
       "trip_removed": "Removed trip",
