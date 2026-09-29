@@ -50,10 +50,18 @@ DROP POLICY IF EXISTS profiles_match_read ON public.profiles;
 DROP POLICY IF EXISTS bookings_match_read ON public.bookings;
 DROP POLICY IF EXISTS passengers_match_read ON public.passengers;
 
+-- `p.label` is deliberately NOT exposed. It is a free-text column on
+-- `passengers` (defaulting to 'Passenger 1', and settable by whoever writes the
+-- row), and this view is what every matcher on the platform reads. Nothing in
+-- the app renders it — `CandidateSpec` has no such field and no query selects it
+-- — so it was pure exposure: a passenger who typed a full name or a phone number
+-- into their own label would publish it to every signed-in user on the train,
+-- which is the one thing rule 13 forbids. A view that is called "match-safe"
+-- should not need its readers to know which of its columns are safe.
 CREATE OR REPLACE VIEW public.match_cards WITH (security_invoker = true) AS
   SELECT b.id AS booking_id, b.train_no, b.train_name, b.journey_date,
     b.from_code, b.to_code, b.class, b.is_chair_car,
-    p.id AS passenger_id, p.label, p.coach, p.berth_type, p.status, p.quota,
+    p.id AS passenger_id, p.coach, p.berth_type, p.status, p.quota,
     pr.first_name, pr.last_initial
   FROM public.bookings b
   JOIN public.passengers p ON p.booking_id = b.id
