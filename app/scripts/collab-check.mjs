@@ -152,16 +152,39 @@ function checkGenerated() {
 function activeLanes() {
   const board = readFileSync(join(REPO, 'docs', '14-LANES.md'), 'utf8')
   const active = new Set()
-  /* The state cell is matched as free text, not as a fixed column. Entries
-     legitimately read `active: <agent> — claimed <time>` or
-     `active: <agent>, <time> — <what they are doing>`, and anchoring on the
-     exact column meant a lane claimed with an agent name was invisible to the
-     guard — the guard has to be able to refuse the committer's own lane too. */
+  /* The state is the LAST cell, and a claim is matched only at the START of it.
+     Two earlier shapes were both wrong, in opposite directions. Reading the
+     fifth cell as free text made `slice(4)` empty for the three-column rows
+     (`| L7 | Admin | done. … |`), so a lane claimed there was invisible to the
+     guard; and an unanchored search for `active:` matched the
+     `(was: active: <agent>)` note that every RELEASED row carries, so releasing
+     a lane never cleared the guard and it went on refusing that lane its own
+     files. Anchoring to the start keeps the property the free-text match was
+     written for — the guard can still refuse the committer's own lane. */
   for (const line of board.split('\n')) {
     if (!line.startsWith('| L')) continue
-    const id = (line.split('|')[1] ?? '').trim().split(/\s+/)[0]
-    const state = line.split('|').slice(4).join('|')
-    if (/\bactive\s*:\s*(?!none\b)/i.test(state)) active.add(id)
+    /* The state is the LAST cell, not the fifth. Lane rows do not all have the
+       same number of columns — `| L7 | Admin | done. … |` has three — so
+       `slice(4)` read an empty string for those and the guard never checked them
+       at all: a lane claimed in a three-column row was invisible, which is the
+       same class of bug the free-text match below was written to fix.
+       And the match is anchored to the START of the state, because every
+       released row reads `done. <time> (was: active: <agent>)`. An unanchored
+       search for `active:` therefore re-marks a lane as active the instant it
+       releases, so no lane could ever clear the guard by releasing — the guard
+       was blocking released lanes on their own files, including this one. */
+    const cells = line.split('|')
+    if ((cells[0] ?? '').trim() === '') cells.shift()
+    if (cells.length > 0 && (cells[cells.length - 1] ?? '').trim() === '') cells.pop()
+    const id = (cells[0] ?? '').trim().split(/\s+/)[0]
+    if (!/^L\d+$/.test(id)) continue
+    const state = (cells[cells.length - 1] ?? '').trim()
+    /* `active: none` is docs/13 §5's documented way to RELEASE a lane, so it is
+       not a claim. The old `(?!none\b)` lookahead never fired: `\s*` backtracks
+       to zero spaces and the lookahead then sits on ` n`, which is not `none`,
+       so it succeeded. Both release conventions were therefore unusable. */
+    const claim = state.match(/^active\s*:\s*(\S+)/i)
+    if (claim && !/^none$/i.test(claim[1])) active.add(id)
   }
   if (active.size === 0) return []
   const contract = readFileSync(join(REPO, 'docs', '13-COLLAB-CONTRACT.md'), 'utf8')
