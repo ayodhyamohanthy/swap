@@ -30,7 +30,11 @@ function SwapDoneScreen() {
   const { t } = useI18n()
   const req = demoRequest(id)
   const name = req.acceptorName
-  /* Paid-swap metric, once per swap (StrictMode-safe via session flag). */
+  /* Done-outcome metric, once per swap (StrictMode-safe via session flag).
+     Named for the screen, not the payment: store.setPaymentStatus already
+     owns payment_paid (money shape), and firing the same name here with
+     {state} double-counted every paid swap while mixing two payload shapes
+     under one dashboard grouping. */
   useEffect(() => {
     if (typeof window === 'undefined') return
     const key = `seatswap.paid-done.${id}`
@@ -40,7 +44,7 @@ function SwapDoneScreen() {
     } catch {
       /* private mode */
     }
-    trackEvent('payment_paid', { state })
+    trackEvent('swap_done_viewed', { state })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   if (state === 'credit') return <CreditState />

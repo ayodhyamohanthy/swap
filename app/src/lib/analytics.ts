@@ -1,11 +1,12 @@
 /* SeatSwap analytics events (docs/08). Names match activity_log actions
-   plus share_clicked(platform), install_prompt_accepted, first_screen_viewed.
-   Dev: console.debug only. Prod: no network — caller forwards to the server
-   log endpoint when it exists; by default events stay on-device. */
+   plus share_clicked(platform), install_prompt_accepted, first_screen_viewed,
+   swap_done_viewed. Dev: console.debug only. Prod: no network — caller forwards
+   to the server log endpoint when it exists; by default events stay on-device. */
 
 export const ANALYTICS_EVENTS = [
   'sign_in', 'pnr_added', 'request_sent', 'offer_accepted', 'offer_declined',
   'payment_created', 'payment_paid', 'payment_failed', 'swap_locked',
+  'swap_done_viewed',
   'message_flagged', 'confirmation', 'dispute_opened', 'dispute_resolved',
   'credit_added', 'credit_used', 'credit_expired', 'report_created',
   'user_blocked', 'admin_action', 'share_clicked', 'install_prompt_accepted',
