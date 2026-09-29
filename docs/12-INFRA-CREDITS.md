@@ -23,6 +23,7 @@
 |---|---|---|---|---|
 | Cloudflare Startups | $10,000 | 1 yr / exhausted | Workers, Static Assets, DNS/CDN/WAF, Cron, Queues, R2, KV | Registrar (pay full) |
 | Azure student | $200 | **Dec 16 2026** | One-shot burn-down only (see §3) | Prod hosting, Postgres HA, SMS |
+| Azure for Startups | $5,000 | recheck vendor page (startup terms change) | Burn-down overflow + experiments only — same guardrail as student: prod stays Cloudflare (§1), no prod secret in Azure ever | Prod hosting, Postgres HA, SMS |
 | GitHub Student Pack | — | while student | Copilot, POEditor Plus 1yr, LambdaTest, Polypane, Sentry/Honeybadger, Appfigures | — |
 | Supabase Startup | ~Team 6mo | apply after Pack | Remove Free limits, zero rewrite | — |
 | Play Store | $25 once | — | TWA via PWABuilder (optional) | Apple $99/yr — skip, PWA covers |
@@ -110,16 +111,16 @@ device except as ids + amounts. No SMS anywhere (AGENTS.md 15).
 | Job | Pick | Terms (verify before claim) | Why not the others |
 |---|---|---|---|
 | Product analytics + flags + experiments | **PostHog Cloud**, org `skipwait` | $50k startup credits / 12 mo (founded <2yr, raised <$5M, company-domain account, signed up after Jan 2023) + 1M events/mo free forever, no card. AI-tool bills (Desktop/Slack app/Replay Vision/PostHog AI/Inbox) are NOT credit-eligible since Sep 2026 — keep them off | Replaces Mixpanel + Statsig — one SDK, one bill, 950M-event headroom |
-| Error + perf + uptime | **Sentry**, org `skipwait` | $5k startup credits / 12 mo (founded <2yr, raised <$5M, new payer) + solo-dev free tier. YC/a16z deal exists but does NOT stack — take one | Replaces Datadog/New Relic for v1 — Datadog bills per host, NR needs full-user seats |
+| Error + perf + uptime | **Sentry**, org `skipwait` (`skipwait.sentry.io`, human-confirmed 2026-09-30) | $5k startup credits / 12 mo (founded <2yr, raised <$5M, new payer) + solo-dev free tier. YC/a16z deal exists but does NOT stack — take one | Replaces Datadog/New Relic for v1 — Datadog bills per host, NR needs full-user seats |
 | Messaging (receipts, credit-expiry, chart push) | **Zoho Mail + Web Push** (wallet §6) | Mail free 5 users; push unlimited free | **No Customer.io** — startup year-free (up to 12 mo, 30k profiles) needs <$10M raised + never-a-customer; you don't need Journeys/pipelines yet. Revisit only for lifecycle mail |
 | Billing | **Razorpay + PayPal only** | Test mode free; live = per-txn fee | **No Chargebee** — recurring-MRR billing you don't have (₹99/₹199 are one-time) |
-| Status / deploys / edge | **Cloudflare + GitHub** | $10k credits + Pages/Workers | Datadog service-accounts + NR agents are ops-heavy for 1 person |
+| Status / deploys / edge | **Cloudflare + GitHub** | $10k credits + Pages/Workers | Datadog (org `mayodhya` exists, human-confirmed 2026-09-30 — stays unused for v1) service-accounts + NR agents are ops-heavy for 1 person |
 
 Backups (claim, do NOT dual-instrument): **Mixpanel Startup Plan** (1yr
 free, 1B events/yr, founded <5yr, ≤$8M, new payer, must send data in 90
-days) and **Statsig Startup** ($50k/12 mo, 1B events, founded <5yr,
+days; project `4032091`, human-confirmed 2026-09-30) and **Statsig Startup** ($50k/12 mo, 1B events, founded <5yr,
 <$50M — best past 25k MAU; Developer 2M events/mo free covers you until
-then). **New Relic Students** free tier stays standby — no agent yet.
+then; org `skipwait`, human-confirmed 2026-09-30). **New Relic Students** free tier stays standby — no agent yet.
 
 Claim order: PostHog startup ($50k) → Sentry startup ($5k) →
 Mixpanel/Statsig backups → Customer.io only if lifecycle mail becomes real.
