@@ -35,10 +35,7 @@ this one wins and the other file is a bug — fix it.
   in code, package.json, or config. RESERVE/BENCH vendors require Ayu
   moving the row to WIRED first. An agent never adds a vendor.
 - NEVER build persistent infrastructure on expiring credits (docs/12 §0).
-- MOBILE-FIRST is a contract, not a preference: docs/17-MOBILE-FIRST.md.
-  360px baseline, 44px touch targets, 16px inputs, safe-area insets,
-  ≤200KB gz initial JS. /designs is truth for UI. A screen that only
-  works on desktop is a failed task.
+- Mobile-first PWA. /designs is truth for UI. Responsive at all widths.
 - Privacy: pnr_hash + last4 only. PII never leaves the device
   (telemetry.ts scrubMeta). No emails/names/PNRs in logs or analytics.
 - Data access goes through the query layer in app/src/lib/ — never
@@ -52,9 +49,5 @@ this one wins and the other file is a bug — fix it.
   otherwise (this bug already happened once).
 
 ## Disaster / exit thinking
-- Nightly pg_dump → R2 via the GitHub Actions workflow
-  seatswap-backup.yml is our insurance (docs/16-EXIT-PLAYBOOK.md).
-  Never disable or "simplify away" the backup workflow.
-
-
-
+- Nightly pg_dump → R2 is our insurance (docs/16-EXIT-PLAYBOOK.md).
+  Never disable or "simplify away" the backup cron.
