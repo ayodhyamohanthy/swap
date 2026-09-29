@@ -27,7 +27,14 @@ function isDev(): boolean {
   } catch { /* non-vite runtime */ }
   try {
     return (globalThis as unknown as { process?: { env?: Record<string, string> } }).process?.env?.NODE_ENV !== 'production'
-  } catch { return true }
+  } catch {
+    /* Fail CLOSED. This switch gates `console.debug` of caller-supplied event
+       meta — ids, amounts, ranks — so an unreadable environment must not be
+       read as permission to log. The old `return true` meant the one runtime
+       where NEITHER env source could be read was the one that logged, which is
+       the opposite of the safe default for a privacy-adjacent switch. */
+    return false
+  }
 }
 
 /** Debug in dev, silent no-network no-op in prod (docs/08 low cost). */

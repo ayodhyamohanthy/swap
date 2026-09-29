@@ -33,11 +33,37 @@ async function logEffect(
   return done.persisted
 }
 
+/**
+ * These are cron effects, not user actions, and the database knows the
+ * difference: `wallet_tx` deliberately has **no** INSERT policy for
+ * `authenticated` (a client must never mint credit, and `tests/schema.test.ts`
+ * pins that), and `notifications` grants `SELECT, UPDATE` only. So a job
+ * running with the caller's token — which is what `getSupabase()` gives it —
+ * has every one of its writes rejected by RLS.
+ *
+ * That means the function did its arithmetic correctly, issued the writes, and
+ * reported `persisted: 0` for a job that can never persist anything: a silent
+ * no-op wearing the costume of a success. Worse, it accepted caller-supplied
+ * `userId` / `organiserId` values and would have written to them if the grants
+ * ever loosened.
+ *
+ * So a job that has real work to do requires a service-role client, and says
+ * so instead of pretending. `SERVICE_ROLE_KEY` is the same env var the admin
+ * console already needs, so this adds no new secret and no new dependency.
+ * Without it the jobs stay local-only (docs/08: the device is the system of
+ * record until a backend exists), which is what they effectively were anyway.
+ */
+function requireServiceRole(client: SupaClient | null): SupaClient | null {
+  if (!client) return null
+  if (!process.env.SERVICE_ROLE_KEY) return null
+  return client
+}
+
 export const expireRequestsAfterJourneyEnd = createServerFn({ method: 'POST' })
   .validator((input: { nowMs: number; journeys: Array<{ id: string; journeyEndMs: number }> }) => input)
   .handler(async ({ data }) => {
     const expired = data.journeys.filter((j) => isRequestExpired(data.nowMs, j.journeyEndMs)).map((j) => j.id)
-    const client = await getSupabase()
+    const client = requireServiceRole(await getSupabase())
     let persisted = 0
     if (client) {
       const done = await persistMulti(
@@ -57,7 +83,7 @@ export const autoConfirm12hAfterArrival = createServerFn({ method: 'POST' })
   .validator((input: { nowMs: number; swaps: Array<{ id: string; arrivalMs: number; answered: 0 | 1 | 2; acceptorId?: string }> }) => input)
   .handler(async ({ data }) => {
     const confirmed = data.swaps.filter((s) => shouldAutoConfirm(data.nowMs, s.arrivalMs, s.answered))
-    const client = await getSupabase()
+    const client = requireServiceRole(await getSupabase())
     let persisted = 0
     if (client) {
       for (const swap of confirmed) {
@@ -78,7 +104,7 @@ export const expireCreditDaily = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const expired = data.grants.filter((g) => isCreditExpired(data.nowMs, g.earnedMs)).map((g) => g.id)
     const remind = data.grants.filter((g) => needsCreditReminder(data.nowMs, g.expiresAtMs)).map((g) => g.id)
-    const client = await getSupabase()
+    const client = requireServiceRole(await getSupabase())
     let persisted = 0
     if (client) {
       for (const id of expired) {
@@ -92,7 +118,7 @@ export const chartTimeNotify = createServerFn({ method: 'POST' })
   .validator((input: { trips: Array<{ id: string; userId: string; prevChart: boolean; nextChart: boolean }> }) => input)
   .handler(async ({ data }) => {
     const notify = data.trips.filter((t) => shouldNotifyChartTime(t.prevChart, t.nextChart))
-    const client = await getSupabase()
+    const client = requireServiceRole(await getSupabase())
     let persisted = 0
     if (client) {
       for (const trip of notify) {
@@ -123,7 +149,7 @@ export const expireUnusedGroupCover = createServerFn({ method: 'POST' })
     const convertible = data.groups.filter(
       (g) => g.paid && isUnusedGroupCover(data.nowMs, g.journeyEndMs, g.lockedCount),
     )
-    const client = await getSupabase()
+    const client = requireServiceRole(await getSupabase())
     let persisted = 0
     if (client) {
       const exp = new Date(data.nowMs)
