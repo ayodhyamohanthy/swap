@@ -9,7 +9,7 @@
 
    Credit is never cash and there is deliberately no path back to a bank here. */
 
-import { credit, confirmationsFor, recordConfirmation, type ConfirmationRow } from './store'
+import { credit, confirmationsFor, paymentFor, recordConfirmation, type ConfirmationRow } from './store'
 import { cancelAfterPay, resolveConfirmations, type ConfirmOutcome, type Resolution } from './outcomes'
 import { getRequest, settleRequest, type SwapRequest } from './requests'
 
@@ -39,8 +39,26 @@ export function applyResolution(requestId: string, resolution: Resolution): Answ
   if (!request) return { resolution: null }
   if (request.status !== 'locked' && request.status !== 'disputed') return { resolution: null }
   if (resolution.status === 'locked') return { resolution: null }
+  /* Rule 6 refunds money that was actually collected. `locked` is reachable
+     without a payment of its own — a group trip pays ₹199 once and covers up to
+     three member swaps, and `lockCoveredRequest` locks them with no payment row
+     — so a covered swap that then fails must NOT credit ₹99 that was never
+     charged. That is not a rounding argument, it is ₹99 minted from nothing:
+     permanently overstating the traveller's balance and understating revenue by
+     the same amount, with a `credit_added` log row asserting it happened.
+
+     Credit that is still owed for a covered swap comes from the ₹199 already
+     paid, so the group trip is settled as voided (its members drop out of the
+     covered count) and no phantom credit is issued.
+
+     The acceptor's ₹50 is NOT filtered: rule 3 pays it for a swap that was
+     accepted, and an acceptor who gave up a berth did so regardless of who
+     paid for the transaction. Only the requester-side ₹99 is conditional on
+     having been charged. */
+  const paid = paymentFor(requestId)?.status === 'paid'
+  const credits = paid ? resolution.credits : resolution.credits.filter((entry) => entry.to === 'acceptor')
   const updated = settleRequest(requestId, resolution.status)
-  for (const entry of resolution.credits) {
+  for (const entry of credits) {
     credit({
       to: entry.to,
       amountPaise: entry.amountPaise,

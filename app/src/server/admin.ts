@@ -14,6 +14,12 @@ import {
   type RowPatch,
   type SupaClient,
 } from './functions'
+/* The price constants, not literals. `CREDIT_AMOUNTS` in lib/store.ts validates
+   incoming amounts against the same two numbers, so a literal here could drift
+   from the gate that would reject the write — a credit of 9800 would be
+   planned here and refused on insert, which is a confusing failure rather than
+   an obvious one. */
+import { PRICE_PAISE, THANK_YOU_PAISE } from '@/lib/money'
 
 export type StaffRole = 'admin' | 'support'
 
@@ -86,19 +92,39 @@ export function planAdminAction(
         inserts: [],
         activityAction: 'user_blocked',
       }
-    case 'credit_added':
-      /* Rule 6: a paid swap that did not happen moves ₹99 to requester credit. */
+    case 'credit_added': {
+      /* Rule 6: a paid swap that did not happen moves ₹99 to requester credit.
+
+         The credit belongs to a SPECIFIC traveller, and `wallet_tx.user_id` is
+         `NOT NULL REFERENCES auth.users(id)`. This planner used to write
+         `opts.payerId ?? null`, and the one call site that reaches it
+         (`admin.swaps.tsx`, move-to-credit) passes no `payerId` — so the insert
+         failed on NOT NULL *after* the `voided` update had already been
+         persisted, and `persistInserts` writes the `credit_added` activity row
+         regardless of whether the row landed. The result: the swap is voided,
+         the ₹99 is gone, and the audit log states credit was issued. The
+         operator sees `persisted: false` and has no reason to look further.
+
+         So this refuses rather than half-does. Throwing before any write means
+         nothing is persisted and nothing is logged, which is the only outcome
+         an operator can act on. The console surfaces the failure as "did not go
+         through" rather than reporting a success it cannot back. */
+      const payerId = opts.payerId
+      if (!payerId) {
+        throw new Error('admin_credit_needs_payer')
+      }
       return {
         updates: [{ table: 'swap_requests', id: target, patch: { status: 'voided' } }],
         inserts: [{
           table: 'wallet_tx',
           row: {
-            user_id: opts.payerId ?? null, amount_paise: 9900, kind: 'swap_to_credit',
+            user_id: payerId, amount_paise: PRICE_PAISE, kind: 'swap_to_credit',
             ref_request_id: target, expires_at: twelveMonthsOut(),
           },
         }],
         activityAction: 'credit_added',
       }
+    }
     case 'admin_adjust':
       /* Staff correction with a mandatory reason; any nonzero amount.
          Rule 4: credit always expires 12 months after it is granted — staff
@@ -122,7 +148,7 @@ export function planAdminAction(
         inserts: opts.acceptorId ? [{
           table: 'wallet_tx',
           row: {
-            user_id: opts.acceptorId, amount_paise: 5000, kind: 'acceptor_credit',
+            user_id: opts.acceptorId, amount_paise: THANK_YOU_PAISE, kind: 'acceptor_credit',
             ref_request_id: target, expires_at: twelveMonthsOut(),
           },
         }] : [],
@@ -141,7 +167,7 @@ export function planAdminAction(
           inserts.push({
             table: 'wallet_tx',
             row: {
-              user_id: opts.payerId, amount_paise: 9900, kind: 'swap_to_credit',
+              user_id: opts.payerId, amount_paise: PRICE_PAISE, kind: 'swap_to_credit',
               ref_request_id: opts.requestId, expires_at: twelveMonthsOut(),
             },
           })
@@ -150,7 +176,7 @@ export function planAdminAction(
           inserts.push({
             table: 'wallet_tx',
             row: {
-              user_id: opts.acceptorId, amount_paise: 5000, kind: 'acceptor_credit',
+              user_id: opts.acceptorId, amount_paise: THANK_YOU_PAISE, kind: 'acceptor_credit',
               ref_request_id: opts.requestId, expires_at: twelveMonthsOut(),
             },
           })
