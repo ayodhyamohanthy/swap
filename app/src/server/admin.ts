@@ -52,9 +52,73 @@ function adminActivity(uid: string, action: string, target: string, reason?: str
   }
 }
 
+/**
+ * Validate an admin console payload before any of it is planned or written.
+ *
+ * Every `createServerFn` in this file used an identity `.validator(...)`, so
+ * nothing checked the shape of `data`. That is not a theoretical gap: `target`
+ * reaches an RPC argument (`admin_set_paused`), a PostgREST `.eq('id', …)`
+ * filter, `activity_log.entity_id`, and — for `admin_adjust` — a `user_id`
+ * column. `reason` is operator free text that lands in the audit log verbatim
+ * (docs/08 makes `activity_log` the system of record, and a 10 MB "reason" is a
+ * way to fill it).
+ *
+ * The database is the backstop for all of this — the CHECK and uuid constraints
+ * reject the rest — so these are defence in depth, and deliberately shaped to
+ * give the *same* answer the database would rather than a new one: a bad target
+ * fails here with a clear message instead of there with a constraint violation.
+ *
+ * Ids are uuid-shaped because every `target` in this file is one (a user, a
+ * request, a dispute, a report). The local-path ids are prefixed (`req_…`,
+ * `grp_…`) but they never reach a server fn — `runAdminAction` only calls one
+ * when a backend is configured.
+ */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const MAX_REASON = 500
+
+function validateTarget(target: unknown): string {
+  if (typeof target !== 'string' || !UUID.test(target)) {
+    throw new Error('invalid_target')
+  }
+  return target
+}
+
+function validateReason(reason: unknown): string | undefined {
+  if (reason === undefined || reason === null) return undefined
+  if (typeof reason !== 'string') throw new Error('invalid_reason')
+  const trimmed = reason.trim()
+  if (trimmed.length === 0) return undefined
+  /* Long enough to say what happened, short enough that `activity_log` stays a
+     log rather than a mailbox. */
+  if (trimmed.length > MAX_REASON) throw new Error('reason_too_long')
+  return trimmed
+}
+
+function validateOptionalUuid(value: unknown, code: string): string | undefined {
+  if (value === undefined || value === null) return undefined
+  if (typeof value !== 'string' || !UUID.test(value)) throw new Error(code)
+  return value
+}
+
+/** Only the two states docs/03's outcomes table names. */
+function validateResolution(value: unknown): 'confirmed' | 'voided' | undefined {
+  if (value === undefined || value === null) return undefined
+  if (value !== 'confirmed' && value !== 'voided') throw new Error('invalid_resolution')
+  return value
+}
+
 /** requireRole('admin'|'support') — throws forbidden unless the RPC agrees. */
 export const requireRole = createServerFn({ method: 'POST' })
-  .validator((input: { role: StaffRole }) => input)
+  .validator((input: { role: StaffRole }) => {
+    /* The identity validator this replaces accepted any string, so a typo or a
+       crafted value reached `staffUid`, which passes the string straight to the
+       `has_role` RPC. The database still decided the answer — this only stops
+       a nonsense role from costing a round trip. */
+    if (input?.role !== 'admin' && input?.role !== 'support') {
+      throw new Error('invalid_role')
+    }
+    return { role: input.role }
+  })
   .handler(async ({ data }) => {
     const { uid } = await staffUid(data.role)
     return { ok: true as const, uid }
@@ -195,29 +259,48 @@ export function planAdminAction(
 
 function adminFn(action: AdminAction) {
   return createServerFn({ method: 'POST' })
-    .validator((input: { target: string; reason?: string; acceptorId?: string; payerId?: string; requestId?: string; amountPaise?: number; resolution?: 'confirmed' | 'voided' }) => input)
+    .validator((input: { target: string; reason?: string; acceptorId?: string; payerId?: string; requestId?: string; amountPaise?: number; resolution?: 'confirmed' | 'voided' }) => ({
+      /* Validated IN the validator, not in the handler. The handler version
+         was a real gap this lane's own guard caught: `adminFn` kept the
+         identity `(input) => input` while its handler went on to call
+         `validateTarget`, so the check ran but the validator still passed
+         anything through. TanStack runs the validator before the handler, which
+         is the point of it. */
+      target: validateTarget(input?.target),
+      reason: validateReason(input?.reason),
+      acceptorId: validateOptionalUuid(input?.acceptorId, 'invalid_acceptor_id'),
+      payerId: validateOptionalUuid(input?.payerId, 'invalid_payer_id'),
+      requestId: validateOptionalUuid(input?.requestId, 'invalid_request_id'),
+      amountPaise: input?.amountPaise,
+      resolution: validateResolution(input?.resolution),
+    }))
     .handler(async ({ data }) => {
       const { client, uid } = await staffUid('admin')
-      if ((action === 'credit_added' || action === 'admin_adjust') && !data.reason) {
+      /* `amountPaise` and `resolution` are read further down by
+         `planAdminAction`; they are not needed as locals here, and naming them
+         would only be noise. `target` / `reason` / the ids are, because the
+         handler builds queries from them directly. */
+      const { target, reason, acceptorId, payerId, requestId } = data
+      if ((action === 'credit_added' || action === 'admin_adjust') && !reason) {
         throw new Error('reason_required')
       }
       /* Blocking runs through its own role-checked RPC (settings rows are
          owner-writable only, so a plain update would fail RLS here). */
       if (action === 'user_blocked') {
-        const blockActivity = adminActivity(uid, 'user_blocked', data.target, data.reason)
+        const blockActivity = adminActivity(uid, 'user_blocked', target, reason)
         const rpc = client.rpc.bind(client) as unknown as (
           fn: string, args: Record<string, string | boolean>,
         ) => Promise<{ error: unknown }>
-        const { error } = await rpc('admin_set_paused', { p_target: data.target, p_paused: true })
+        const { error } = await rpc('admin_set_paused', { p_target: target, p_paused: true })
         if (error) throw new Error('block_failed')
         const logged = await persistInserts(client, [], blockActivity)
-        return { ok: true as const, persisted: logged.persisted as boolean, failed: logged.failed, action, target: data.target }
+        return { ok: true as const, persisted: logged.persisted as boolean, failed: logged.failed, action, target }
       }
-      const plan = planAdminAction(action, data.target, {
-        reason: data.reason, acceptorId: data.acceptorId, payerId: data.payerId,
-        requestId: data.requestId, amountPaise: data.amountPaise, resolution: data.resolution,
+      const plan = planAdminAction(action, target, {
+        reason, acceptorId, payerId,
+        requestId, amountPaise: data.amountPaise, resolution: data.resolution,
       })
-      const activity = adminActivity(uid, plan.activityAction, data.target, data.reason)
+      const activity = adminActivity(uid, plan.activityAction, target, reason)
       const updated = await persistMulti(client, plan.updates, activity)
       const inserted = plan.inserts.length > 0
         ? await persistInserts(client, plan.inserts, activity)
@@ -226,7 +309,7 @@ function adminFn(action: AdminAction) {
         ok: true as const,
         persisted: (updated.persisted && inserted.persisted) as boolean,
         failed: [...updated.failed, ...inserted.failed],
-        action, target: data.target,
+        action, target,
       }
     })
 }
