@@ -740,7 +740,7 @@
     "firstOnTrain": "आज अपनी ट्रेन पर सबसे पहले",
     "firstOnTrainNone": "आज अभी कोई मैच खोज नहीं हुई।",
     "firstOnTrainUnknown": "खोजें शामिल नहीं — मैच संख्या दर्ज नहीं है।",
-    "searchPh": "कार्रवाई, उपयोगकर्ता या ट्रेन खोजें",
+    "searchPh": "कार्रवाई, ट्रेन या PNR के अंतिम 4 अंक खोजें",
     "filterAll": "सभी कार्रवाइयाँ",
     "catAll": "सभी",
     "catLabel": "श्रेणी",
@@ -749,6 +749,10 @@
     "catSignins": "साइन-इन",
     "catAccount": "खाता",
     "catOther": "अन्य",
+    "roles": {
+      "admin": "एडमिन",
+      "support": "सिस्टम"
+    },
     "act": {
       "pnr_added": "PNR जोड़ा",
       "trip_removed": "यात्रा हटाई",

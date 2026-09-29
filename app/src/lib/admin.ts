@@ -1041,11 +1041,10 @@ export interface ActivityFilter {
  * Note what "the actor id" is NOT: it is an opaque account id, never a name.
  * `ActivityRow` has no name field at all — the same missing-peer-row blocker as
  * `admin.users.tsx` and `get_matches()` — so a search for "Riya P" matches
- * nothing, and `admin.searchPh` ("Search action, user or train") promises a
- * capability this function cannot have. The train half is real: `train_no`
- * lives inside `meta`, and the whole of `meta` is stringified into the haystack
- * below. A `request:` line on the lane board asks L10 to reword that
- * placeholder.
+ * nothing. `admin.searchPh` says what this function can actually reach: the
+ * action name, the train (`train_no` lives inside `meta`) and the masked PNR
+ * tail (`pnr_added` logs `last4`). A full 10-digit PNR is not searchable at
+ * all — it is never stored, only four characters of it are.
  */
 export function filterActivity(rows: ActivityRow[], filter: ActivityFilter): ActivityRow[] {
   const q = filter.query.trim().toLowerCase()
