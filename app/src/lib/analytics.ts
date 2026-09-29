@@ -1,7 +1,12 @@
 /* SeatSwap analytics events (docs/08). Names match activity_log actions
    plus share_clicked(platform), install_prompt_accepted, first_screen_viewed,
-   swap_done_viewed. Dev: console.debug only. Prod: no network — caller forwards
-   to the server log endpoint when it exists; by default events stay on-device. */
+   swap_done_viewed. Dev: console.debug only. Every event is appended to the
+   on-device log, which is the record of truth for the funnel either way. A
+   forwarder runs only when `VITE_POSTHOG_KEY` is set (docs/12 §7 + §8) —
+   keyless, this file makes no network call at all, and the payload is scrubbed
+   of PII before it leaves. */
+
+import { forwardEvent } from '@/lib/telemetry'
 
 export const ANALYTICS_EVENTS = [
   'sign_in', 'pnr_added', 'request_sent', 'offer_accepted', 'offer_declined',
@@ -41,6 +46,7 @@ function isDev(): boolean {
 export function trackEvent(event: AnalyticsEvent, meta: AnalyticsPayload['meta'] = {}): void {
   if (isDev()) console.debug(`[analytics] ${event}`, meta)
   appendEvent({ event, ts: Date.now(), meta })
+  void forwardEvent(event, meta)
 }
 
 export function isAnalyticsEvent(value: unknown): value is AnalyticsEvent {
