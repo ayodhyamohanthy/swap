@@ -16,6 +16,7 @@ import { needsCreditReminder } from './jobs'
 import { trackEvent } from './analytics'
 import { GROUP_MAX_SWAPS } from './money'
 import { getGroup, groupForTrip } from './groups'
+import { isBlocked, tripHandle } from './safety'
 import { logActivity, listTrips, getTrip, getSnapshot, isSeen, markSeen, paymentFor, settings, tripRating, activityLog, type AppState, type Trip } from './store'
 
 export type RequestStatus =
@@ -293,6 +294,11 @@ function candidateFor(trip: Trip): CandidateSpec | null {
     received_today: receivedToday(trip.id),
     max_requests_per_day: settings().max_requests_per_day,
     hidden_for_abuse: hiddenForAbuse(trip.id),
+    /* "Report & block" (docs/04 step 12) — read from the block list this device
+       wrote, so a traveller you blocked cannot be offered back to you on the
+       next request. `rankMatches` already dropped `blocked` candidates; until
+       now nothing on the device could set it. */
+    blocked: isBlocked(tripHandle(trip.id)),
     paused: false,
     /* Neutral on purpose. These are the *other* traveller's acceptor filters
        (docs/04 B2) and this device has no idea what they are — the local pool

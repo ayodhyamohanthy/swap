@@ -13,7 +13,7 @@ import { useOnline } from '@/lib/use-online'
 import { demoRequest } from '@/lib/demo-swap'
 import { acceptedOffer, getRequest, offersFor, revealedBerths } from '@/lib/requests'
 import { getSupabase } from '@/lib/supabase'
-import { fileReport, blockUser } from '@/lib/safety'
+import { fileReport, blockUser, tripHandle } from '@/lib/safety'
 import { getOrCreateChat, fetchMessages, sendMessage, isValidUuid } from '@/lib/chat-sync'
 
 interface Msg {
@@ -270,7 +270,9 @@ function ChatScreen() {
             ? (offersFor(req.id).find((o) => o.id === req.locked_offer_id) ?? acceptedOffer(req.id))
             : undefined
           const reporterId = currentUserId ?? req?.requester_id ?? 'local_user'
-          const reportedId = offer?.acceptor_trip_id ? `trip:${offer.acceptor_trip_id}` : 'counterparty'
+          const reportedId = offer?.acceptor_trip_id
+            ? tripHandle(offer.acceptor_trip_id)
+            : 'counterparty'
           void fileReport({
             reporterId,
             reportedId: reportedId !== reporterId ? reportedId : `${reportedId}_other`,
