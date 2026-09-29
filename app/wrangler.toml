@@ -39,11 +39,23 @@ not_found_handling = "single-page-application"
 # VITE_SUPABASE_URL = "https://xyzcompany.supabase.co"
 # VITE_SUPABASE_ANON_KEY = "eyJ..."
 # VITE_VAPID_PUBLIC_KEY = "B..."
+#
+# Telemetry (docs/12 §7 + §8, lib/telemetry.ts). Both are PUBLIC: a PostHog
+# project key ships inside every posthog-js bundle and a Sentry DSN is a
+# write-only ingest address. They are `VITE_*` build-time variables — set them
+# in the build environment (.env.local locally, the hosting build vars in
+# prod), because Vite inlines them into the bundle before `wrangler deploy`
+# runs. `wrangler secret put` cannot feed a client bundle, and this worker
+# serves static assets only, so `[vars]` below is inert for them:
+#   VITE_POSTHOG_KEY   = "phc_..."   (unset ⇒ analytics stay on-device)
+#   VITE_POSTHOG_HOST  = "https://us.i.posthog.com"   (optional; EU: eu.i...)
+#   VITE_SENTRY_DSN    = "https://<key>@<org>.ingest.sentry.io/<project>"
 
 # Secrets (wrangler secret put — never in this file):
 # RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET / RAZORPAY_WEBHOOK_SECRET
 # PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET / PAYPAL_WEBHOOK_ID
-# VAPID_PRIVATE_KEY, POSTHOG_KEY, SENTRY_DSN
+# VAPID_PRIVATE_KEY
+# Not a secret, so not listed here: PostHog/Sentry client keys (see above).
 
 # Cron for app/src/server/jobs.ts (enable when secrets land):
 # [[triggers.crons]] crons = ["*/15 * * * *"]
