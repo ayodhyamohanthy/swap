@@ -242,7 +242,8 @@
     "noRequests": "No requests yet. Ask for a swap from your trip.",
     "ask": "Ask for a swap",
     "faster": "Someone else was faster.",
-    "waitingPayment": "Waiting for payment."
+    "waitingPayment": "Waiting for payment.",
+    "yesterday": "Yesterday"
   },
   "profile": {
     "title": "Profile",
