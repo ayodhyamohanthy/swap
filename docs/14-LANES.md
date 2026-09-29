@@ -345,16 +345,6 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
   (`admin.role.user|admin|support`) would close it. Low priority: it is one word
   per row, and only on rows a passenger never sees.
 
-- 2026-09-29 L5 → L4 (owns `routes/pay.*`): **latent float format, not a live
-  bug — file, don't fix blind.** `routes/pay.$requestId.tsx` interpolates
-  `quote.creditUsed / 100` and `quote.due / 100` raw (no `Math.round`, no
-  `formatRupees`). Exact today: every paise value on this path is a multiple
-  of 100 (9900/19900 amounts, 5000 earns), so `/100` is integral — verified,
-  not assumed. It breaks the day a non-multiple-of-100 paise value reaches
-  the quote. One-line hardening when you next touch the file; L5 does not
-  edit L4's routes. Found by the fullstack audit (all gates green, probe
-  clean), which is why this is a request and not a commit.
-
 ## Backlog (unclaimed, ready to pull)
 
 1. ~~L1: real app icons, `screenshots/` for install UI, manifest `id/shortcuts/screenshots`.~~ **done 2026-09-28 (L1).** Real icon set (deterministic zero-dependency generator: `scripts/png.mjs` + `scripts/make-icons.mjs` → 192/512/maskable/apple-touch, full-bleed alpha verified); `screenshots/` captured from the real build by `scripts/make-screenshots.mjs` and declared through `pwa.assets.mjs`; manifest gained `id`, two `shortcuts` and `screenshots`, each guarded in `scripts/verify-dist.mjs` (IHDR size, `form_factor`, label, shortcut URL and icon existence).
