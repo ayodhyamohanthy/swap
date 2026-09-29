@@ -879,10 +879,13 @@ export function attachToAccount(userId: string): Trip[] {
 }
 
 export function detachFromAccount(): Trip[] {
-  const local = snapshot.trips.map((trip) => ({ ...trip, user_id: null }))
-  commit({ ...snapshot, trips: local, settings: { ...snapshot.settings, user_id: null } })
-  logActivity('sign_out', { local_trips: local.length })
-  return local
+  /* Sign-out ends the session, not ownership. Clearing every trip's user_id
+     would make account A's trips look like unsigned local trips and let the
+     next account claim and upload them. Keep that provenance on-device. */
+  const retained = snapshot.trips
+  commit({ ...snapshot, settings: { ...snapshot.settings, user_id: null } })
+  logActivity('sign_out', { local_trips: retained.length })
+  return retained
 }
 
 export interface SyncPayload {
@@ -893,11 +896,17 @@ export interface SyncPayload {
 
 /** Step 3 will POST this after sign-in. Steps 1-2 never leave the device. */
 export function exportForSync(): SyncPayload {
-  const bookings = snapshot.trips.map(({ id, passengers: _passengers, ...rest }) => ({
+  /* Include genuinely local trips plus rows owned by the active account. A
+     different account may use this device, but must never receive prior
+     account-owned trips in its sync payload. */
+  const eligibleTrips = snapshot.trips.filter(
+    (trip) => trip.user_id === null || trip.user_id === snapshot.settings.user_id,
+  )
+  const bookings = eligibleTrips.map(({ id, passengers: _passengers, ...rest }) => ({
     local_id: id,
     ...rest,
   }))
-  const passengers = snapshot.trips.flatMap((trip) =>
+  const passengers = eligibleTrips.flatMap((trip) =>
     trip.passengers.map((passenger) => ({ ...passenger, local_booking_id: trip.id })),
   )
   return { bookings, passengers, activity: snapshot.activity }

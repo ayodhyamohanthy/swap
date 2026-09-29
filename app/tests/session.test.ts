@@ -12,9 +12,9 @@ import {
   resetSessionForTests,
 } from '@/lib/session'
 
-async function seedTrip() {
+async function seedTrip(pnr = '4512789630') {
   return addTrip({
-    pnr: '4512789630',
+    pnr,
     train_no: '12951',
     journey_date: '2026-11-12',
     class: '3A',
@@ -37,12 +37,25 @@ describe('session attach/detach', () => {
     expect(settings().user_id).toBe('user-1')
   })
 
-  it('clears the account link on SIGNED_OUT', async () => {
+  it('ends the session without clearing trip ownership on SIGNED_OUT', async () => {
     await seedTrip()
     emitAuthForTests('SIGNED_IN', { id: 'user-1', email: null })
     emitAuthForTests('SIGNED_OUT', null)
-    expect(listTrips()[0].user_id).toBeNull()
+    expect(listTrips()[0].user_id).toBe('user-1')
     expect(settings().user_id).toBeNull()
+  })
+
+  it('never attaches or syncs a previous account’s trips to the next account', async () => {
+    const priorAccountTrip = await seedTrip()
+    emitAuthForTests('SIGNED_IN', { id: 'user-1', email: null })
+    emitAuthForTests('SIGNED_OUT', null)
+
+    await seedTrip('4512789656')
+    emitAuthForTests('SIGNED_IN', { id: 'user-2', email: null })
+
+    expect(listTrips().find((trip) => trip.id === priorAccountTrip.id)?.user_id).toBe('user-1')
+    expect(listTrips().find((trip) => trip.pnr_last4 === '9656')?.user_id).toBe('user-2')
+    expect(pushLocalTrips().payload.bookings.map((booking) => booking.pnr_last4)).toEqual(['9656'])
   })
 
   it('notifies listeners in subscription order', async () => {
