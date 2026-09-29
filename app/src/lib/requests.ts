@@ -548,12 +548,23 @@ export function lockRequest(requestId: string, paidOfferId?: string): SwapReques
   if (!accepted) return undefined
   /* Group bundle cap (docs/01): a paid ₹199 trip covers at most
      GROUP_MAX_SWAPS locks; further swaps pay per-request, so a lock backed
-     by its own paid payment always goes through. */
+     by its own paid payment always goes through.
+
+     Returning `undefined` rather than throwing, and that is load-bearing.
+     `confirmCaptured` calls this AFTER marking the payment paid, so a throw
+     here propagates out of a payment that has already been captured: the caller
+     catches it, the request is still `accepted_awaiting_payment`, the ₹99 is
+     neither locked nor credited, and the outcome path that would refund it
+     under rule 6 needs `locked`/`disputed` — which is never reached. The money
+     is simply unaccounted for. The other "cannot lock" case below returns
+     `undefined` for exactly this reason; this one did not, so it was the odd
+     case out. `lockCoveredRequest` is where the cap is surfaced to a user as
+     an error, which is the place that can afford to refuse. */
   if (request.group_id) {
     const group = getGroup(request.group_id)
     const ownPaid = paymentFor(requestId)?.status === 'paid'
     if (group?.paid && !ownPaid && groupLockedCount(request.group_id) >= GROUP_MAX_SWAPS) {
-      throw new Error('group_swap_cap')
+      return undefined
     }
   }
   const updated: SwapRequest = {

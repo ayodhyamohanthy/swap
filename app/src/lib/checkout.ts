@@ -20,9 +20,10 @@ import {
   type PaymentRow,
 } from './store'
 import { buildQuote } from './payments'
+import { GROUP_MAX_SWAPS } from './money'
 import { isSupabaseConfigured } from './supabase'
 import { getGroup, isGroupRequestId, markGroupPaid } from './groups'
-import { getRequest, lockRequest, type RequestStatus, type SwapRequest } from './requests'
+import { getRequest, groupLockedCount, lockRequest, type RequestStatus, type SwapRequest } from './requests'
 
 export type CheckoutProvider = 'razorpay' | 'paypal' | 'credit'
 
@@ -240,6 +241,16 @@ export function lockCoveredRequest(requestId: string): SwapRequest {
   if (!request.group_id) throw new CheckoutError('group_unpaid')
   const group = getGroup(request.group_id)
   if (!group?.paid) throw new CheckoutError('group_unpaid')
+  /* The cap is checked HERE, explicitly, rather than being left to a throw from
+     inside `lockRequest`. That throw used to be the only signal, and it cost
+     the captured-payment path its refund: `confirmCaptured` calls `lockRequest`
+     after the money is already marked paid, so anything thrown from there
+     strands a real ₹99. This function has no payment behind it — nothing has
+     been charged yet — so refusing loudly here is correct and costs nobody
+     money. */
+  if (groupLockedCount(group.id) >= GROUP_MAX_SWAPS) {
+    throw new CheckoutError('group_swap_cap')
+  }
   const locked = lockRequest(requestId)
   if (!locked) throw new CheckoutError('not_awaiting_payment')
   return locked

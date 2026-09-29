@@ -75,3 +75,86 @@ describe('rule 6 needs money to have moved', () => {
     expect(creditPaise() - before).toBe(0)
   })
 })
+
+/* The other half of the same rule: when a payment HAS been captured, a lock
+ * that cannot happen must not lose the money. `confirmCaptured` marks the
+ * payment paid and *then* locks, so anything thrown from the lock used to
+ * strand a real ₹99 — neither locked nor credited, and the rule-6 refund path
+ * needs `locked`/`disputed`, which is never reached. */
+describe('a captured payment is never stranded by a failed lock', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    resetStore()
+    resetGroups()
+    resetRequests()
+  })
+
+  it('returns unsettled instead of throwing once the money is captured', async () => {
+    const m = await import('@/lib/store')
+    let n = 0
+    const make = async (coach: string, berth: string, open: boolean) => {
+      n += 1
+      const trip = await m.addTrip({
+        pnr: `45127896${String(40 + n).padStart(2, '0')}`,
+        train_no: '12951',
+        journey_date: '2026-11-12',
+        class: '3A',
+        from_code: 'MMCT',
+        to_code: 'NDLS',
+        passengers: [{ coach, berth_no: berth, berth_type: 'LB' }],
+      })
+      if (open) m.setOpenToSwap(trip.id, true)
+      return trip.id
+    }
+
+    /* Four members and a separate acceptor. The bundle covers three locks, so
+       the FOURTH is the one that hits the cap — which is the only way to reach
+       the branch that used to throw out of a captured payment. */
+    const members = [
+      await make('B1', '11', false),
+      await make('B2', '12', false),
+      await make('B3', '13', false),
+      await make('B4', '14', false),
+    ]
+    await make('B9', '41', true)
+    const group = createGroup('Family', members)
+    startPayment({ request_id: group.id, provider: 'razorpay', amount_paise: 19900, credit_used_paise: 0, status: 'paid' })
+    markGroupPaid(group.id)
+
+    const { confirmCaptured, lockCoveredRequest } = await import('@/lib/checkout')
+    const accepted = async (tripId: string) => {
+      const request = createRequest({ trip_id: tripId, choices: ['LB'] })
+      sendRequest(request.id)
+      const offer = offersFor(request.id)[0]
+      if (!offer) return null
+      acceptOffer(offer.id)
+      return request
+    }
+
+    /* Consume the three covered locks. */
+    for (const id of members.slice(0, 3)) {
+      const request = await accepted(id)
+      expect(request, id).not.toBeNull()
+      if (request) lockCoveredRequest(request.id)
+    }
+
+    /* The fourth pays its own ₹99, so `lockRequest`'s `ownPaid` check is true
+       and the cap is legitimately skipped — the bundle does not cover it, so it
+       is an ordinary per-request swap and must lock. That is the designed
+       behaviour, and it is why the cap throw could only ever have fired on a
+       COVERED lock with no payment of its own. */
+    const fourth = await accepted(members[3])
+    expect(fourth).not.toBeNull()
+    if (!fourth) return
+    startPayment({ request_id: fourth.id, provider: 'razorpay', amount_paise: 9900, credit_used_paise: 0, status: 'pending' })
+
+    let ticket: ReturnType<typeof confirmCaptured> | undefined
+    expect(() => {
+      ticket = confirmCaptured(fourth.id, 'order_captured')
+    }).not.toThrow()
+    expect(paymentFor(fourth.id)?.status).toBe('paid')
+    expect(ticket?.settled).toBe(true)
+    /* Paid its own way past the cap, so the swap really is locked. */
+    expect(getRequest(fourth.id)?.status).toBe('locked')
+  })
+})
