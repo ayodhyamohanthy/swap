@@ -16,7 +16,7 @@ import { needsCreditReminder } from './jobs'
 import { trackEvent } from './analytics'
 import { GROUP_MAX_SWAPS } from './money'
 import { getGroup, groupForTrip } from './groups'
-import { logActivity, listTrips, getTrip, getSnapshot, isSeen, markSeen, paymentFor, settings, tripRating, type AppState, type Trip } from './store'
+import { logActivity, listTrips, getTrip, getSnapshot, isSeen, markSeen, paymentFor, settings, tripRating, activityLog, type AppState, type Trip } from './store'
 
 export type RequestStatus =
   | 'draft'
@@ -215,15 +215,43 @@ export function sentToday(): number {
   return ensureLoaded().requests.filter((request) => isToday(request.sent_at, key)).length
 }
 
-/** Offers this trip has already received today. The acceptor cap itself
-    (docs/03, default 3) belongs on the server match query — `rankMatches`
-    enforces it correctly once real peer rows exist, and the local pool cannot
-    answer it without inventing other travellers' settings. */
+/** Offers this trip has already received today — the per-booking measure the
+    match query scores candidates with (docs/03's inbound cap). */
 export function receivedToday(tripId: string): number {
   const key = dayKey(new Date())
   return ensureLoaded().offers.filter(
     (offer) => offer.acceptor_trip_id === tripId && isToday(offer.created_at, key),
   ).length
+}
+
+/** Offers this traveller has received today across all their bookings.
+    `max_requests_per_day` is an account setting (docs/02 `settings`), so the
+    acceptor's own board is gated on the account, not on one ticket. */
+export function receivedTodayForUser(): number {
+  const key = dayKey(new Date())
+  return ensureLoaded().offers.filter((offer) => isToday(offer.created_at, key)).length
+}
+
+/** docs/03: "backed out 3 times in 30 days → hidden from matches for 30 days".
+    Counted from the `acceptor_backed_out` rows this device wrote for that
+    booking. Unlike the acceptor *filters*, which are a stranger's preferences
+    and stay neutral in `candidateFor()`, a back-out is behaviour this device
+    observed, so reading it here invents nothing. */
+export const BACKOUT_LIMIT = 3 as const
+export const BACKOUT_WINDOW_DAYS = 30 as const
+
+export function hiddenForAbuse(tripId: string, atMs: number = Date.now()): boolean {
+  const windowStart = atMs - BACKOUT_WINDOW_DAYS * 86_400_000
+  const backouts = activityLog()
+    .filter(
+      (row) =>
+        row.action === 'acceptor_backed_out' &&
+        row.entity === 'booking' &&
+        row.entity_id === tripId,
+    )
+    .map((row) => Date.parse(row.created_at))
+    .filter((ms) => Number.isFinite(ms) && ms >= windowStart)
+  return backouts.length >= BACKOUT_LIMIT
 }
 
 /** True when today's outgoing budget is spent, so sending is closed. */
@@ -262,6 +290,14 @@ function candidateFor(trip: Trip): CandidateSpec | null {
     open_to_swap: trip.open_to_swap,
     rating: avg === null ? 0 : Math.min(10, Math.max(0, avg * 2)),
     together_seats: togetherSeats,
+    /* The inbound cap, filled from rows this device wrote plus the account's own
+       setting (docs/03 default 3, docs/02 `settings.max_requests_per_day`) —
+       the Settings screen's "More requests per day" switch had no reader until
+       here. `rankMatches` drops a candidate at the cap, so an over-requested
+       berth stops appearing in the match list. */
+    received_today: receivedToday(trip.id),
+    max_requests_per_day: settings().max_requests_per_day,
+    hidden_for_abuse: hiddenForAbuse(trip.id),
     paused: false,
     /* Neutral on purpose. These are the *other* traveller's acceptor filters
        (docs/04 B2) and this device has no idea what they are — the local pool
@@ -692,6 +728,33 @@ export function settleRequest(
   return updated
 }
 
+/** The journey ended with nobody swapping: `searching ──> expired` (docs/03),
+    and nothing was ever charged (rule 2). A request still waiting for payment
+    expires on the same edge — paying after the train has left would lock a
+    swap nobody can physically make. Offers go with it so the acceptor's screen
+    stops promising a journey that is over. */
+export function expireRequest(requestId: string): SwapRequest | undefined {
+  const request = getRequest(requestId)
+  if (!request) return undefined
+  if (request.status !== 'searching' && request.status !== 'accepted_awaiting_payment') {
+    return undefined
+  }
+  const updated: SwapRequest = { ...request, status: 'expired', updated_at: now() }
+  commit({
+    ...ensureLoaded(),
+    requests: snapshot.requests.map((row) => (row.id === requestId ? updated : row)),
+    offers: snapshot.offers.map((offer) => {
+      if (offer.request_id !== requestId) return offer
+      if (offer.status === 'sent' || offer.status === 'accepted') {
+        return { ...offer, status: 'expired' as const }
+      }
+      return offer
+    }),
+  })
+  logActivity('request_expired', {}, { type: 'swap_request', id: requestId })
+  return updated
+}
+
 /** The accepted offer: who said yes and what they hold (for the pay screen). */
 export function acceptedOffer(requestId: string): SwapOffer | undefined {
   return offersFor(requestId).find((offer) => offer.status === 'accepted')
@@ -781,6 +844,13 @@ export function incomingFor(tripId: string): IncomingRequest | undefined {
   if (response === 'none') {
     const prefs = settings()
     if (prefs.paused) return undefined
+    /* docs/03 abuse limits on the acceptor's own board: a traveller who backed
+       out 3 times in 30 days is hidden from matches, so no new request arrives
+       for them to answer; and the account stops at its own daily inbound cap
+       (the Settings switch's other half). Both gate NEW rows only, like the
+       filters above. */
+    if (hiddenForAbuse(tripId)) return undefined
+    if (receivedTodayForUser() >= prefs.max_requests_per_day) return undefined
     if (prefs.women_only && !DEMO_INCOMING.is_woman) return undefined
     if (prefs.families_only && !DEMO_INCOMING.is_family) return undefined
     if (prefs.same_coach_only && normalizeCoach(DEMO_INCOMING.coach) !== normalizeCoach(passenger.coach)) {
@@ -872,6 +942,7 @@ export type UpdateKind =
   | 'incoming_declined'
   | 'incoming_faster'
   | 'chart_out'
+  | 'waitlist_chart'
   | 'credit_added'
   | 'credit_expiring'
   | 'request_expired'
@@ -961,6 +1032,21 @@ function updatesFrom(
   /* Chart is out (docs/04 growth loop): one row per trip whose chart flipped. */
   for (const trip of app.trips) {
     if (!trip.chart_prepared) continue
+    /* The reader for "tell me when my berth is confirmed" (docs/04 A4). The
+       chart flip is the only confirmation-ish moment a device gets — automatic
+       PNR lookup is out of scope (docs/01), so a waitlisted ticket is still
+       waitlisted when the chart is drawn. The row then says what the ticket
+       actually says, instead of inviting a swap the traveller cannot make. */
+    if (trip.reminder_on && trip.passengers[0]?.status !== 'CNF') {
+      rows.push({
+        id: `u_wl_${trip.id}`,
+        kind: 'waitlist_chart',
+        request_id: null,
+        trip_id: trip.id,
+        created_at: trip.created_at,
+      })
+      continue
+    }
     rows.push({
       id: `u_chart_${trip.id}`,
       kind: 'chart_out',

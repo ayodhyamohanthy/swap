@@ -107,24 +107,31 @@ describe('a captured payment is never stranded by a failed lock', () => {
       return trip.id
     }
 
-    /* Four members and a separate acceptor. The bundle covers three locks, so
+    /* Four members and one peer berth each. The bundle covers three locks, so
        the FOURTH is the one that hits the cap — which is the only way to reach
-       the branch that used to throw out of a captured payment. */
+       the branch that used to throw out of a captured payment. Each member
+       asks its own acceptor because four requests to one berth would trip that
+       berth's daily inbound cap (docs/03) instead. */
     const members = [
       await make('B1', '11', false),
       await make('B2', '12', false),
       await make('B3', '13', false),
       await make('B4', '14', false),
     ]
-    await make('B9', '41', true)
+    const acceptors = [
+      await make('B9', '41', true),
+      await make('B9', '42', true),
+      await make('B9', '43', true),
+      await make('B9', '44', true),
+    ]
     const group = createGroup('Family', members)
     startPayment({ request_id: group.id, provider: 'razorpay', amount_paise: 19900, credit_used_paise: 0, status: 'paid' })
     markGroupPaid(group.id)
 
     const { confirmCaptured, lockCoveredRequest } = await import('@/lib/checkout')
-    const accepted = async (tripId: string) => {
+    const accepted = async (tripId: string, acceptorId: string) => {
       const request = createRequest({ trip_id: tripId, choices: ['LB'] })
-      sendRequest(request.id)
+      sendRequest(request.id, [acceptorId])
       const offer = offersFor(request.id)[0]
       if (!offer) return null
       acceptOffer(offer.id)
@@ -132,8 +139,8 @@ describe('a captured payment is never stranded by a failed lock', () => {
     }
 
     /* Consume the three covered locks. */
-    for (const id of members.slice(0, 3)) {
-      const request = await accepted(id)
+    for (const [index, id] of members.slice(0, 3).entries()) {
+      const request = await accepted(id, acceptors[index])
       expect(request, id).not.toBeNull()
       if (request) lockCoveredRequest(request.id)
     }
@@ -143,7 +150,7 @@ describe('a captured payment is never stranded by a failed lock', () => {
        is an ordinary per-request swap and must lock. That is the designed
        behaviour, and it is why the cap throw could only ever have fired on a
        COVERED lock with no payment of its own. */
-    const fourth = await accepted(members[3])
+    const fourth = await accepted(members[3], acceptors[3])
     expect(fourth).not.toBeNull()
     if (!fourth) return
     startPayment({ request_id: fourth.id, provider: 'razorpay', amount_paise: 9900, credit_used_paise: 0, status: 'pending' })

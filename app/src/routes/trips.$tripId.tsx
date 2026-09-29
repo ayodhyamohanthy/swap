@@ -87,8 +87,12 @@ function TripScreen() {
 
       {/* Screen 19 "Chart is out" (design 7c): the push target once the chart
           is prepared and berths are final. `chart_prepared` was on the Trip
-          type with no reader anywhere in the app. */}
-      {trip.chart_prepared ? (
+          type with no reader anywhere in the app.
+
+          CNF only: design 7c's card says the chart is final and swaps are open,
+          which a waitlisted ticket cannot act on. That traveller gets the
+          waitlist card below, and the Updates row says "still waitlisted". */}
+      {trip.chart_prepared && ticketStatus === 'CNF' ? (
         <Card className="mt-3 border-primary/30 bg-wash">
           <CardTitle>{t('growth.chartTitle')}</CardTitle>
           <CardBody>{t('growth.chartBody')}</CardBody>

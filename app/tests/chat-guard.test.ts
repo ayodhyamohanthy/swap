@@ -61,7 +61,18 @@ describe('guardMessage', () => {
 
   it('reads phone numbers spelled out as words', () => {
     expect(guardMessage('nine eight two zero zero one two three four five').flagged).toBe(true)
-    expect(guardMessage('call nine eight 200 12345').flagged).toBe(false)
+  })
+
+  it('reads a number that is PART words, PART digits', () => {
+    /* This line used to assert `false`. `digitsFromWords` dropped the literal
+       digit groups and reconstructed only `'8'`, so `nine eight 200 12345`
+       reached `PHONE` as both `'9 8 200 12345'` and `'8'` — neither ten
+       digits long. That is not a trade-off, it is a bypass, and the test
+       recorded it as expected behaviour so it would survive review. */
+    expect(guardMessage('call nine eight 200 12345').flagged).toBe(true)
+    expect(guardMessage('my number is nine eight 200 12345').flagged).toBe(true)
+    /* Letters, not words-with-digits, still evade — see the next test for why
+       the reconstruction cannot simply be widened further. */
   })
 
   it('does not glue unrelated numbers into phantom phones', () => {

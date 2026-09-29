@@ -59,8 +59,104 @@ function requireServiceRole(client: SupaClient | null): SupaClient | null {
   return client
 }
 
+/**
+ * Payload validation for the job wrappers.
+ *
+ * These took identity validators, so `data.journeys` and friends were whatever
+ * the caller sent: a `journeys` entry without `id` produced `.map(j => j.id)`
+ * over `undefined`, and a non-array `journeys` threw inside the filter rather
+ * than at the boundary. The date cores are pure and well tested, so this is
+ * about the envelope, not the logic.
+ *
+ * It matters more than usual for these functions: they are the ones that would
+ * carry a service-role client, so a payload that reached a query builder
+ * unexamined would be running with privileges the caller does not have.
+ */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+/** Bounded so a crafted payload cannot be a memory or round-trip cost. */
+const MAX_ROWS = 500
+
+function uuid(value: unknown, code: string): string {
+  if (typeof value !== 'string' || !UUID.test(value)) throw new Error(code)
+  return value
+}
+
+function epochMs(value: unknown, code: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error(code)
+  return value
+}
+
+function rows<T>(value: unknown, code: string, check: (row: unknown) => T): T[] {
+  if (!Array.isArray(value) || value.length > MAX_ROWS) throw new Error(code)
+  return value.map(check)
+}
+
+function journey(input: unknown): { id: string; journeyEndMs: number } {
+  const row = input as { id?: unknown; journeyEndMs?: unknown }
+  return { id: uuid(row?.id, 'invalid_id'), journeyEndMs: epochMs(row?.journeyEndMs, 'invalid_time') }
+}
+
+function swap(input: unknown): { id: string; arrivalMs: number; answered: 0 | 1 | 2; acceptorId?: string } {
+  const row = input as { id?: unknown; arrivalMs?: unknown; answered?: unknown; acceptorId?: unknown }
+  const answered = row?.answered
+  if (answered !== 0 && answered !== 1 && answered !== 2) throw new Error('invalid_answered')
+  const out: { id: string; arrivalMs: number; answered: 0 | 1 | 2; acceptorId?: string } = {
+    id: uuid(row?.id, 'invalid_id'),
+    arrivalMs: epochMs(row?.arrivalMs, 'invalid_time'),
+    answered,
+  }
+  if (row?.acceptorId !== undefined && row?.acceptorId !== null) {
+    out.acceptorId = uuid(row.acceptorId, 'invalid_acceptor_id')
+  }
+  return out
+}
+
+function grant(input: unknown): { id: string; earnedMs: number; expiresAtMs: number } {
+  const row = input as { id?: unknown; earnedMs?: unknown; expiresAtMs?: unknown }
+  return {
+    id: uuid(row?.id, 'invalid_id'),
+    earnedMs: epochMs(row?.earnedMs, 'invalid_time'),
+    expiresAtMs: epochMs(row?.expiresAtMs, 'invalid_time'),
+  }
+}
+
+function chartRow(input: unknown): { id: string; userId: string; prevChart: boolean; nextChart: boolean } {
+  const row = input as { id?: unknown; userId?: unknown; prevChart?: unknown; nextChart?: unknown }
+  if (typeof row?.prevChart !== 'boolean' || typeof row?.nextChart !== 'boolean') {
+    throw new Error('invalid_flags')
+  }
+  return {
+    id: uuid(row?.id, 'invalid_id'),
+    userId: uuid(row?.userId, 'invalid_user_id'),
+    prevChart: row.prevChart,
+    nextChart: row.nextChart,
+  }
+}
+
+function groupRow(input: unknown): { id: string; organiserId: string; journeyEndMs: number; lockedCount: number; paid: boolean } {
+  const row = input as {
+    id?: unknown; organiserId?: unknown; journeyEndMs?: unknown
+    lockedCount?: unknown; paid?: unknown
+  }
+  const locked = row?.lockedCount
+  if (typeof locked !== 'number' || !Number.isInteger(locked) || locked < 0) {
+    throw new Error('invalid_locked_count')
+  }
+  if (typeof row?.paid !== 'boolean') throw new Error('invalid_paid_flag')
+  return {
+    id: uuid(row?.id, 'invalid_group_id'),
+    organiserId: uuid(row?.organiserId, 'invalid_user_id'),
+    journeyEndMs: epochMs(row?.journeyEndMs, 'invalid_time'),
+    lockedCount: locked,
+    paid: row.paid,
+  }
+}
+
 export const expireRequestsAfterJourneyEnd = createServerFn({ method: 'POST' })
-  .validator((input: { nowMs: number; journeys: Array<{ id: string; journeyEndMs: number }> }) => input)
+  .validator((input: { nowMs: number; journeys: Array<{ id: string; journeyEndMs: number }> }) => ({
+    nowMs: epochMs(input?.nowMs, 'invalid_time'),
+    journeys: rows(input?.journeys, 'invalid_journeys', journey),
+  }))
   .handler(async ({ data }) => {
     const expired = data.journeys.filter((j) => isRequestExpired(data.nowMs, j.journeyEndMs)).map((j) => j.id)
     const client = requireServiceRole(await getSupabase())
@@ -80,7 +176,10 @@ export const expireRequestsAfterJourneyEnd = createServerFn({ method: 'POST' })
   })
 
 export const autoConfirm12hAfterArrival = createServerFn({ method: 'POST' })
-  .validator((input: { nowMs: number; swaps: Array<{ id: string; arrivalMs: number; answered: 0 | 1 | 2; acceptorId?: string }> }) => input)
+  .validator((input: { nowMs: number; swaps: Array<{ id: string; arrivalMs: number; answered: 0 | 1 | 2; acceptorId?: string }> }) => ({
+    nowMs: epochMs(input?.nowMs, 'invalid_time'),
+    swaps: rows(input?.swaps, 'invalid_swaps', swap),
+  }))
   .handler(async ({ data }) => {
     const confirmed = data.swaps.filter((s) => shouldAutoConfirm(data.nowMs, s.arrivalMs, s.answered))
     const client = requireServiceRole(await getSupabase())
@@ -100,7 +199,10 @@ export const autoConfirm12hAfterArrival = createServerFn({ method: 'POST' })
   })
 
 export const expireCreditDaily = createServerFn({ method: 'POST' })
-  .validator((input: { nowMs: number; grants: Array<{ id: string; earnedMs: number; expiresAtMs: number }> }) => input)
+  .validator((input: { nowMs: number; grants: Array<{ id: string; earnedMs: number; expiresAtMs: number }> }) => ({
+    nowMs: epochMs(input?.nowMs, 'invalid_time'),
+    grants: rows(input?.grants, 'invalid_grants', grant),
+  }))
   .handler(async ({ data }) => {
     const expired = data.grants.filter((g) => isCreditExpired(data.nowMs, g.earnedMs)).map((g) => g.id)
     const remind = data.grants.filter((g) => needsCreditReminder(data.nowMs, g.expiresAtMs)).map((g) => g.id)
@@ -115,7 +217,9 @@ export const expireCreditDaily = createServerFn({ method: 'POST' })
   })
 
 export const chartTimeNotify = createServerFn({ method: 'POST' })
-  .validator((input: { trips: Array<{ id: string; userId: string; prevChart: boolean; nextChart: boolean }> }) => input)
+  .validator((input: { trips: Array<{ id: string; userId: string; prevChart: boolean; nextChart: boolean }> }) => ({
+    trips: rows(input?.trips, 'invalid_trips', chartRow),
+  }))
   .handler(async ({ data }) => {
     const notify = data.trips.filter((t) => shouldNotifyChartTime(t.prevChart, t.nextChart))
     const client = requireServiceRole(await getSupabase())
@@ -143,7 +247,10 @@ export const expireUnusedGroupCover = createServerFn({ method: 'POST' })
     (input: {
       nowMs: number
       groups: Array<{ id: string; organiserId: string; journeyEndMs: number; lockedCount: number; paid: boolean }>
-    }) => input,
+    }) => ({
+      nowMs: epochMs(input?.nowMs, 'invalid_time'),
+      groups: rows(input?.groups, 'invalid_groups', groupRow),
+    }),
   )
   .handler(async ({ data }) => {
     const convertible = data.groups.filter(

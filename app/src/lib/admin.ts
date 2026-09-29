@@ -1150,6 +1150,7 @@ const ACTIVITY_CATEGORY_BY_ACTION: Record<string, ActivityCategory> = {
   request_paused: 'requests',
   request_resumed: 'requests',
   request_withdrawn: 'requests',
+  request_expired: 'requests',
   offer_accepted: 'requests',
   offer_declined: 'requests',
   acceptor_backed_out: 'requests',
