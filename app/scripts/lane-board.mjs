@@ -178,3 +178,54 @@ export function clashesFor(files, lanes, declaration = {}) {
   }
   return clashes
 }
+
+
+/* ---- vendor whitelist (docs/12 §2) ----
+ * docs/12 §2 says an agent never adds a vendor: RESERVE needs Ayu moving the
+ * row to WIRED, BENCH is an account with no SDK decision, UNCLAIMED is
+ * nothing at all. The build-plan sweep item asked for a guard, not a one-off
+ * grep, so the decision lives here (no imports) where tests/collab-check.test.ts
+ * can exercise it, and collab-check.mjs feeds it both package.json manifests
+ * and every import specifier found under the code roots. */
+export const FORBIDDEN_VENDORS = [
+  ['azure', 'RESERVE'],
+  ['chargebee', 'RESERVE'],
+  ['customerio', 'RESERVE'],
+  ['mixpanel', 'BENCH'],
+  ['statsig', 'BENCH'],
+  ['datadog', 'BENCH'],
+  ['newrelic', 'UNCLAIMED'],
+]
+
+const vendorNamePatterns = FORBIDDEN_VENDORS.map(([vendor, status]) => {
+  const core =
+    vendor === 'customerio'
+      ? 'customer[.-]?io'
+      : vendor === 'newrelic'
+        ? 'new-?relic'
+        : vendor === 'datadog'
+          ? '(?:datadog|dd-trace)'
+          : vendor
+  return { vendor, status, re: new RegExp('(^|/)@?' + core + '([/.@-]|$)', 'i') }
+})
+
+export function vendorViolations(dependencies = {}, specifiers = []) {
+  const hits = []
+  for (const name of Object.keys(dependencies)) {
+    for (const { vendor, status, re } of vendorNamePatterns) {
+      if (re.test(name)) {
+        hits.push({ kind: 'dependency', name, vendor, status })
+        break
+      }
+    }
+  }
+  for (const spec of specifiers) {
+    for (const { vendor, status, re } of vendorNamePatterns) {
+      if (re.test(spec)) {
+        hits.push({ kind: 'import', name: spec, vendor, status })
+        break
+      }
+    }
+  }
+  return hits
+}

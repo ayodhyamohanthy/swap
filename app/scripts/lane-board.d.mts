@@ -58,3 +58,16 @@ export function clashesFor(
   lanes: LaneSurface[],
   declaration?: LaneDeclaration,
 ): string[]
+
+/** Vendor rows from docs/12 §2 whose status is BENCH/RESERVE/UNCLAIMED, as
+ *  [vendor token, status]; an agent never adds one, so the check fails on it. */
+export const FORBIDDEN_VENDORS: [vendor: string, status: string][]
+
+/** Violations of the docs/12 §2 whitelist: one hit per BENCH/RESERVE/UNCLAIMED
+ *  vendor SDK found among `dependencies` (by package name) or `specifiers`
+ *  (import specifiers found in code). Each hit names the vendor and the row
+ *  status that has to move to WIRED before the SDK may ship. */
+export function vendorViolations(
+  dependencies?: Record<string, string>,
+  specifiers?: string[],
+): { kind: 'dependency' | 'import'; name: string; vendor: string; status: string }[]

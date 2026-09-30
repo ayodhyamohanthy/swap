@@ -29,6 +29,7 @@ import {
   ownedByLane,
   parseActiveLanes,
   parseSurfaces,
+  vendorViolations,
 } from '../scripts/lane-board.mjs'
 
 /* node: modules come via getBuiltinModule — a static `import 'node:fs'` is
@@ -282,5 +283,42 @@ describe('clashesFor — who owns what, and who may commit it', () => {
 
   it('is quiet when no lane is active', () => {
     expect(clashesFor(['app/src/lib/admin.ts', 'app/scripts/a.mjs'], [], {})).toEqual([])
+  })
+})
+
+describe('vendor whitelist (docs/12 §2)', () => {
+  it('flags a BENCH vendor SDK by exact name', () => {
+    expect(vendorViolations({ mixpanel: '^1.0.0' })).toEqual([
+      { kind: 'dependency', name: 'mixpanel', vendor: 'mixpanel', status: 'BENCH' },
+    ])
+  })
+
+  it('flags a scoped RESERVE SDK and a UNCLAIMED one', () => {
+    const hits = vendorViolations({ '@azure/functions': '^4.0.0', newrelic: '^11.0.0' })
+    expect(hits).toHaveLength(2)
+    expect(hits[0]).toMatchObject({ kind: 'dependency', name: '@azure/functions', vendor: 'azure', status: 'RESERVE' })
+    expect(hits[1]).toMatchObject({ name: 'newrelic', vendor: 'newrelic', status: 'UNCLAIMED' })
+  })
+
+  it('flags a vendor SDK imported in code', () => {
+    expect(vendorViolations({}, ['dd-trace'])).toEqual([
+      { kind: 'import', name: 'dd-trace', vendor: 'datadog', status: 'BENCH' },
+    ])
+  })
+
+  it('leaves the WIRED vendors alone', () => {
+    expect(
+      vendorViolations({
+        '@supabase/supabase-js': '^2.0.0',
+        razorpay: '^2.9.0',
+        '@paypal/paypal-server-sdk': '^1.0.0',
+        posthog: '^1.0.0',
+        '@sentry/react': '^9.0.0',
+      }),
+    ).toEqual([])
+  })
+
+  it('does not flag a name that only contains a vendor token as a suffix', () => {
+    expect(vendorViolations({ 'premixpanel-scraper': '^1.0.0' })).toEqual([])
   })
 })
