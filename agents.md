@@ -10,6 +10,11 @@ this one wins and the other file is a bug — fix it.
 3. docs/14-LANES.md — claim your lane before touching files
 4. docs/10-BUILD-PLAN.md — find your next task
 
+Collision check (mandatory, before touching files — another agent may be
+mid-edit): `find app/src app/tests app/locales -mmin -15 -type f` (BSD-safe
+form; never `-newermt`, which macOS `find` rejects and which fails silent
+by listing nothing).
+
 ## Commands from Ayu
 - "build" / "continue" → open docs/10-BUILD-PLAN.md, find the FIRST
   unchecked [ ] item in YOUR lane, implement it fully, check it off [x]
