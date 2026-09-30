@@ -1,0 +1,61 @@
+# seatswap-backup-prod — nightly pg_dump of seatswap-prod → gzip → R2.
+# Spec: docs/16-EXIT-PLAYBOOK.md (standing insurance) + docs/12 §8 (secrets).
+#
+# - Runs 22:00 UTC daily (= 03:30 IST) + manually via workflow_dispatch.
+# - pg_dump runs on the GitHub runner (NOT a Cloudflare Worker — Workers
+#   cannot execute pg_dump). Needs ONLY secret *names*; values live in repo
+#   Settings → Secrets → Actions, never in this file.
+# - Retention (30 days) is an R2 lifecycle rule, set once in the CF
+#   dashboard (bucket → Settings → Object lifecycle → delete after 30
+#   days) — it cannot live in this file.
+# - Failure alert goes through Zoho ZeptoMail to ALERT_EMAIL. The sender
+#   must be an address verified in ZeptoMail (ALERT_EMAIL works once its
+#   domain is verified there); ZeptoMail rejects unverified senders.
+name: seatswap-backup-prod
+
+on:
+  schedule:
+    - cron: '0 22 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Install pg client + awscli
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client awscli
+
+      - name: Dump prod and compress
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          pg_dump "$SUPABASE_DB_URL" | gzip > "/tmp/seatswap-$(date -u +%F).sql.gz"
+          ls -la /tmp/seatswap-*.sql.gz
+
+      - name: Upload to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          aws s3 cp "/tmp/seatswap-$(date -u +%F).sql.gz" \
+            "s3://seatswap-backups-prod/seatswap-$(date -u +%F).sql.gz" \
+            --endpoint-url "$R2_ENDPOINT"
+
+      - name: Alert on failure (ZeptoMail)
+        if: failure()
+        env:
+          ZEPTOMAIL_TOKEN: ${{ secrets.ZEPTOMAIL_TOKEN }}
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+        run: |
+          set -euo pipefail
+          curl -sS -o /dev/null -w "%{http_code}\n" https://api.zeptomail.com/v1.1/email \
+            -H "Authorization: Zoho-enczapikey $ZEPTOMAIL_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"from\":{\"address\":\"$ALERT_EMAIL\"},\"to\":[{\"email_address\":{\"address\":\"$ALERT_EMAIL\"}}],\"subject\":\"[seatswap] nightly backup FAILED (run $GITHUB_RUN_ID)\",\"textbody\":\"seatswap-backup-prod failed. See https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\"}"

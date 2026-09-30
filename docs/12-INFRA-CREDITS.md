@@ -99,6 +99,7 @@ a burn-down script; translator drafts go to `app/azure/tmp/` for POEditor
 | ZEPTOMAIL_TOKEN | worker secret + GH Actions secret | Zoho ZeptoMail |
 | R2 binding: BACKUPS | wrangler.toml binding | CF bucket seatswap-backups-prod |
 | SUPABASE_DB_URL | GH Actions secret only | Supabase → direct connection string (port 5432) — backups only |
+| SUPABASE_DB_URL_STAGING | local env + GH Actions secret | Supabase seatswap-staging → direct connection string (port 5432) — schema mirror (app/scripts/staging-mirror.mjs) + restore drills only |
 | R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_ENDPOINT | GH Actions secrets | CF → R2 API token scoped to seatswap-backups-prod |
 | ALERT_EMAIL | GH Actions secret | Ayu's ops inbox |
 
