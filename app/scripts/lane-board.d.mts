@@ -58,3 +58,34 @@ export function clashesFor(
   lanes: LaneSurface[],
   declaration?: LaneDeclaration,
 ): string[]
+
+/** One docs/12 §2 ledger row: vendor name and WIRED/RESERVE/BENCH/UNCLAIMED/PARTIAL. */
+export interface VendorRow {
+  vendor: string
+  status: string
+}
+
+/** npm package fragments for vendors that must never ship (docs/12 §2 is the source of truth for statuses). */
+export const VENDOR_PACKAGES: Record<string, string[]>
+
+/** Ledger vendors that are programs, not shippable SDKs. */
+export const NON_PACKAGE_VENDORS: string[]
+
+/**
+ * docs/12 §2 vendor ledger rows. `unknown` holds `vendor: status` pairs with
+ * a status this guard does not understand — reported, never defaulted.
+ */
+export function parseVendorLedger(ledgerText: string): {
+  rows: VendorRow[]
+  unknown: string[]
+}
+
+/** Non-WIRED ledger vendors found in deps/imports, plus unmapped vendors. */
+export function vendorViolations(
+  ledgerText: string,
+  depNames: string[],
+  importSources: string[],
+): {
+  violations: string[]
+  uncovered: string[]
+}

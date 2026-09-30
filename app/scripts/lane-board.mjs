@@ -178,3 +178,93 @@ export function clashesFor(files, lanes, declaration = {}) {
   }
   return clashes
 }
+
+/**
+ * docs/12 §2 vendor ledger rows: `{ vendor, status }`.
+ *
+ * Only the table inside the §2 section counts (the same vendor names recur
+ * in prose elsewhere). Status is one of WIRED / RESERVE / BENCH / UNCLAIMED /
+ * PARTIAL — anything else means the table gained a status this parser does
+ * not understand, and that is reported, not defaulted.
+ *
+ * @param {string} ledgerText  contents of docs/12-INFRA-CREDITS.md
+ * @returns {{ rows: Array<{ vendor: string, status: string }>, unknown: string[] }}
+ */
+export function parseVendorLedger(ledgerText) {
+  const lines = ledgerText.split('\n')
+  const start = lines.findIndex((l) => /^## §2\b/.test(l))
+  const end = lines.findIndex((l, i) => i > start && /^## /.test(l))
+  const rows = []
+  const unknown = []
+  for (const line of lines.slice(start + 1, end === -1 ? undefined : end)) {
+    const cells = line.split('|').map((c) => c.trim())
+    if (cells.length < 6 || cells[1] === '' || cells[1] === 'Vendor') continue
+    if (/^---/.test(cells[1])) continue
+    const vendor = cells[1]
+    const status = cells[4]
+    if (!['WIRED', 'RESERVE', 'BENCH', 'UNCLAIMED', 'PARTIAL'].includes(status)) {
+      unknown.push(`${vendor}: ${status}`)
+      continue
+    }
+    rows.push({ vendor, status })
+  }
+  return { rows, unknown }
+}
+
+/**
+ * npm package fragments for vendors that must never ship in the bundle.
+ * docs/12 §2 statuses are the source of truth; this map is only the
+ * mechanical vendor-name → package-name bridge. The test asserts every
+ * non-WIRED ledger vendor either has fragments here or is named in
+ * NON_PACKAGE_VENDORS, so adding a vendor row without updating this map
+ * fails the suite instead of silently unguarding the new row.
+ */
+export const VENDOR_PACKAGES = {
+  azure: ['@azure/', 'azure-'],
+  mixpanel: ['mixpanel-browser', '@mixpanel/browser'],
+  statsig: ['statsig-js', '@statsig/'],
+  datadog: ['@datadog/'],
+  'new relic': ['newrelic'],
+  chargebee: ['chargebee'],
+  'customer.io': ['customerio'],
+}
+
+/** Ledger vendors that are programs, not shippable SDKs — nothing to scan for. */
+export const NON_PACKAGE_VENDORS = ['student pack']
+
+/**
+ * Non-WIRED ledger vendors found in dependency names or import specifiers.
+ * Returns strings like `Mixpanel (RESERVE/BENCH): mixpanel-browser in
+ * package.json`. Empty means the tree honors the whitelist.
+ *
+ * @param {string} ledgerText  contents of docs/12-INFRA-CREDITS.md
+ * @param {string[]} depNames  dependencies + devDependencies names
+ * @param {string[]} importSources  module specifiers from import statements
+ * @returns {{ violations: string[], uncovered: string[] }}
+ */
+export function vendorViolations(ledgerText, depNames, importSources) {
+  const { rows, unknown } = parseVendorLedger(ledgerText)
+  const violations = []
+  const uncovered = [...unknown]
+  const haystacks = [...depNames, ...importSources].map((s) => s.toLowerCase())
+  for (const { vendor, status } of rows) {
+    if (status === 'WIRED') continue
+    const key = vendor.toLowerCase()
+    if (NON_PACKAGE_VENDORS.includes(key)) continue
+    const fragments = VENDOR_PACKAGES[key]
+    if (!fragments) {
+      uncovered.push(`${vendor}: no package map`)
+      continue
+    }
+    for (const frag of fragments) {
+      const f = frag.toLowerCase()
+      if (depNames.some((d) => d.toLowerCase() === f || d.toLowerCase().startsWith(f))) {
+        violations.push(`${vendor} (${status}): ${frag} in package.json`)
+      }
+      if (importSources.some((s) => s.toLowerCase().includes(f))) {
+        violations.push(`${vendor} (${status}): ${frag} imported in app/src`)
+      }
+    }
+  }
+  return { violations, uncovered }
+}

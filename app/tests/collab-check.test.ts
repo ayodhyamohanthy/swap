@@ -23,12 +23,16 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  NON_PACKAGE_VENDORS,
+  VENDOR_PACKAGES,
   clashesFor,
   declaredBy,
   globToRegExp,
   ownedByLane,
   parseActiveLanes,
   parseSurfaces,
+  parseVendorLedger,
+  vendorViolations,
 } from '../scripts/lane-board.mjs'
 
 /* node: modules come via getBuiltinModule — a static `import 'node:fs'` is
@@ -282,5 +286,84 @@ describe('clashesFor — who owns what, and who may commit it', () => {
 
   it('is quiet when no lane is active', () => {
     expect(clashesFor(['app/src/lib/admin.ts', 'app/scripts/a.mjs'], [], {})).toEqual([])
+  })
+})
+
+describe('parseVendorLedger — docs/12 §2 is the whitelist source of truth', () => {
+  const LEDGER = [
+    '## §2 Vendor ledger',
+    '| Vendor | Credit / plan | Job | Status | Never for |',
+    '|---|---|---|---|---|',
+    '| PostHog | skipwait $50k | analytics | WIRED | errors |',
+    '| Mixpanel | backup | fallback | BENCH | — |',
+    '| Chargebee | free | billing | RESERVE | charges |',
+    '## §2.1 Expiry calendar',
+  ].join('\n')
+
+  it('reads vendor + status from the §2 table only', () => {
+    const { rows, unknown } = parseVendorLedger(LEDGER)
+    expect(unknown).toEqual([])
+    expect(rows).toEqual([
+      { vendor: 'PostHog', status: 'WIRED' },
+      { vendor: 'Mixpanel', status: 'BENCH' },
+      { vendor: 'Chargebee', status: 'RESERVE' },
+    ])
+  })
+
+  it('reports a status the guard does not understand instead of defaulting it', () => {
+    const { rows, unknown } = parseVendorLedger(
+      LEDGER.replace('| Mixpanel | backup | fallback | BENCH | — |', '| Mixpanel | backup | fallback | MAYBE | — |'),
+    )
+    expect(rows.map((r) => r.vendor)).not.toContain('Mixpanel')
+    expect(unknown).toEqual(['Mixpanel: MAYBE'])
+  })
+})
+
+describe('vendorViolations — no RESERVE/BENCH/UNCLAIMED SDK ships', () => {
+  const LEDGER = [
+    '## §2 Vendor ledger',
+    '| Vendor | Credit / plan | Job | Status | Never for |',
+    '|---|---|---|---|---|',
+    '| PostHog | $50k | analytics | WIRED | errors |',
+    '| Mixpanel | backup | fallback | BENCH | — |',
+    '| Chargebee | free | billing | RESERVE | charges |',
+    '## §3 Other',
+  ].join('\n')
+
+  it('flags a forbidden package in dependencies and in imports', () => {
+    const { violations, uncovered } = vendorViolations(
+      LEDGER,
+      ['react', 'mixpanel-browser'],
+      ['react', '@mixpanel/browser'],
+    )
+    expect(uncovered).toEqual([])
+    expect(violations).toContain('Mixpanel (BENCH): mixpanel-browser in package.json')
+    expect(violations).toContain('Mixpanel (BENCH): @mixpanel/browser imported in app/src')
+  })
+
+  it('is quiet for WIRED vendors and clean trees', () => {
+    expect(vendorViolations(LEDGER, ['react'], ['react', './posthog']).violations).toEqual([])
+  })
+
+  it('every non-WIRED ledger vendor is mapped or explicitly non-shippable', () => {
+    /* The real docs/12, not a fixture: adding a vendor row without updating
+       VENDOR_PACKAGES fails here instead of silently unguarding the row. */
+    const ledger = readFileSync(join(import.meta.dirname, '..', '..', 'docs', '12-INFRA-CREDITS.md'), 'utf8')
+    const { rows, unknown } = parseVendorLedger(ledger)
+    expect(unknown).toEqual([])
+    const uncovered = rows
+      .filter((r) => r.status !== 'WIRED')
+      .filter((r) => !NON_PACKAGE_VENDORS.includes(r.vendor.toLowerCase()))
+      .filter((r) => VENDOR_PACKAGES[r.vendor.toLowerCase()] === undefined)
+    expect(uncovered).toEqual([])
+  })
+
+  it('the real tree honors the whitelist today', () => {
+    const ledger = readFileSync(join(import.meta.dirname, '..', '..', 'docs', '12-INFRA-CREDITS.md'), 'utf8')
+    const pkg = JSON.parse(
+      readFileSync(join(import.meta.dirname, '..', '..', 'app', 'package.json'), 'utf8'),
+    )
+    const deps = [...Object.keys(pkg.dependencies ?? {}), ...Object.keys(pkg.devDependencies ?? {})]
+    expect(vendorViolations(ledger, deps, []).violations).toEqual([])
   })
 })

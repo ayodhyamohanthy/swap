@@ -32,7 +32,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
    can exercise them without pulling `node:child_process` into the jsdom pool —
    the mistake that broke test collection for six lanes when `translator-lib.mjs`
    did it (docs/11). */
-import { clashesFor, declaredBy, ownedByLane, parseActiveLanes, parseSurfaces } from './lane-board.mjs'
+import { clashesFor, declaredBy, ownedByLane, parseActiveLanes, parseSurfaces, parseVendorLedger, vendorViolations } from './lane-board.mjs'
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '..')
 const REPO = join(APP, '..')
@@ -329,6 +329,33 @@ function main() {
   if (!has('--staged-only')) {
     head('generated files')
     checkGenerated()
+  }
+
+  /* 4. vendor whitelist (docs/12 §2, build plan L9-5): no RESERVE/BENCH/
+     UNCLAIMED vendor SDK in package.json or app imports. Statuses live in
+     the ledger; lane-board.mjs holds the vendor → package bridge. */
+  head('vendors (docs/12 §2 whitelist)')
+  try {
+    const ledger = readFileSync(join(REPO, 'docs', '12-INFRA-CREDITS.md'), 'utf8')
+    const pkg = JSON.parse(readFileSync(join(APP, 'package.json'), 'utf8'))
+    const depNames = [...Object.keys(pkg.dependencies ?? {}), ...Object.keys(pkg.devDependencies ?? {})]
+    const importSources = []
+    const walkSrc = (dir) => {
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry)
+        if (statSync(full).isDirectory()) { walkSrc(full); continue }
+        if (!/\.[jt]sx?$/.test(entry)) continue
+        const src = readFileSync(full, 'utf8')
+        for (const m of src.matchAll(/from\s+['"]([^'"]+)['"]/g)) importSources.push(m[1])
+      }
+    }
+    walkSrc(join(APP, 'src'))
+    const { violations, uncovered } = vendorViolations(ledger, depNames, importSources)
+    for (const u of uncovered) bad(`vendor ledger status this guard does not understand: ${u}`)
+    if (violations.length === 0) ok('no non-WIRED vendor SDK in dependencies or imports')
+    else for (const v of violations) bad(v)
+  } catch (err) {
+    bad(`vendor check failed to run: ${String(err && err.message ? err.message : err)}`)
   }
 
   /* 5. green rule */
