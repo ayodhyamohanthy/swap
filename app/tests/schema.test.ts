@@ -474,14 +474,17 @@ describe('a payment targets exactly one of request or group (docs/01)', () => {
     )
   })
 
-  /* KNOWN GAP, filed as a request line in docs/14-LANES.md. The local-first
-     mirror's PaymentRow has only `request_id` and no `group_id`, and
-     beginGroupCheckout() passes the group id (`grp_...`, from lib/groups.ts)
-     into that column. So a group payment cannot be represented the way the
-     database requires: the value is not a uuid and points at no swap_requests
-     row. Local-only today, so nothing is broken yet — it breaks the moment
-     group payments sync, which is why it is recorded here rather than fixed
-     blind with no database to verify against. */
+  /* FIXED 2026-09-30 (was a KNOWN GAP filed as a request line in
+     docs/14-LANES.md): the local mirror now carries both target columns,
+     startPayment() enforces the same XOR here that the CHECK enforces in
+     the database, and paymentFor() matches either column — behaviour
+     guarded in tests/pay-gate.test.ts. */
+
+  it('mirrors both target columns in the local-first row', () => {
+    const store = readFileSync(join(import.meta.dirname, '..', 'src', 'lib', 'store.ts'), 'utf8')
+    expect(store).toMatch(/request_id: string \| null/)
+    expect(store).toMatch(/group_id: string \| null/)
+  })
 })
 
 /* ------------------------------------------------------------------ *

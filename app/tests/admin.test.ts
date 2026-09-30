@@ -355,6 +355,7 @@ describe('collectedPaise (design 17 Amount, rule 1)', () => {
   const paid = (amount: number, credit: number, status: PaymentRow['status'] = 'paid'): PaymentRow => ({
     id: 'pay_1',
     request_id: 'req_1',
+    group_id: null,
     payer_id: null,
     provider: 'razorpay',
     provider_ref: null,
@@ -1514,6 +1515,7 @@ function paymentRow(over: Partial<PaymentRow> = {}): PaymentRow {
   return {
     id: 'pay_1',
     request_id: 'req_a1b2c3d4',
+    group_id: null,
     payer_id: null,
     provider: 'razorpay',
     provider_ref: null,
@@ -1773,6 +1775,7 @@ describe("paymentsToCsv — design 18's columns", () => {
   const row: AdminPaymentRow = {
     id: 'pay_1',
     request_id: 'req_a1b2c3d4',
+    group_id: null,
     swap: '#a1b2c3d4',
     provider: 'razorpay',
     amount_paise: PRICE_PAISE,
