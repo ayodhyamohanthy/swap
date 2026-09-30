@@ -1,8 +1,1 @@
-# SeatSwap — all agents, all models: read agents.md, then docs/01–14 in order.
-designs/*.jpg is visual reference (agents.md wins on conflict).
-MANDATORY: docs/13-COLLAB-CONTRACT.md — claim ONE lane in docs/14-LANES.md
-before editing; touch only that lane's files; a cross-lane need becomes a
-`request:` line, never an edit. Session start: git pull --rebase, git status
---short, hot-file check. Green rule: typecheck + test + build before commit.
-Only student/startup-credit or free products; never add a paid dependency,
-SMS or paid OTP. Never git add -A.
+Read AGENTS.md at the repo root. It is the only source of truth. Do not proceed without it.

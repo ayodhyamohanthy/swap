@@ -4,20 +4,8 @@
 # fallbacks) and become live when env/secrets land. See docs/12 §8.
 name = "seatswap"
 compatibility_date = "2026-09-01"
-# server/jobs.ts, server/payments-helpers.ts and lib/supabase.ts use
-# node:crypto, Buffer and process.env. Without this flag the Worker bundle
-# builds but those imports throw at runtime on the first webhook.
-compatibility_flags = ["nodejs_compat"]
-# The server half of the app. Until this line existed, every build produced
-# dist/server/server.js (23 server functions + all the payment logic) and
-# deployed only dist/cf, so nothing could ever POST to /api/public/webhooks/*
-# — see app/src/worker.ts for what the entry does and what it refuses to do.
-main = "./src/worker.ts"
 
 [assets]
-# Required once a Worker exists: the Worker is now asked first and hands back
-# every non-/api/public request, so it needs the asset binding to answer them.
-binding = "ASSETS"
 # `dist/cf` is dist/client minus `_redirects`, staged by scripts/postbuild.mjs.
 # Workers Static Assets reads `_redirects` itself and rejects the Netlify/Surge
 # catch-all `/* /index.html 200` as an infinite loop (API error 100324: it
@@ -51,31 +39,23 @@ not_found_handling = "single-page-application"
 # VITE_SUPABASE_URL = "https://xyzcompany.supabase.co"
 # VITE_SUPABASE_ANON_KEY = "eyJ..."
 # VITE_VAPID_PUBLIC_KEY = "B..."
-
-# PostHog (docs/12 §7 — the ONE analytics backend). NOT a secret: browser
-# capture posts to a public, write-only ingest endpoint with a project token
-# (`phc_…`), which is the same class of value as the Supabase anon key above.
-# It goes here as a public var, not in the secrets block below — and the
-# difference matters: `lib/posthog.ts` reads it from the BROWSER bundle via
-# `import.meta.env.VITE_POSTHOG_KEY`, so a `wrangler secret` of the same name
-# would never reach the code that needs it. Until this is set, forwarding is
-# inert by design (`posthogKey()` is '' and nothing is queued or sent).
-# The traveller also has to opt in: Settings → Share anonymous usage data.
-# VITE_POSTHOG_KEY = "phc_..."
-# VITE_POSTHOG_HOST = "https://us.i.posthog.com"  # EU/self-hosted only
+#
+# Telemetry (docs/12 §7 + §8, lib/telemetry.ts). Both are PUBLIC: a PostHog
+# project key ships inside every posthog-js bundle and a Sentry DSN is a
+# write-only ingest address. They are `VITE_*` build-time variables — set them
+# in the build environment (.env.local locally, the hosting build vars in
+# prod), because Vite inlines them into the bundle before `wrangler deploy`
+# runs. `wrangler secret put` cannot feed a client bundle, and this worker
+# serves static assets only, so `[vars]` below is inert for them:
+#   VITE_POSTHOG_KEY   = "phc_..."   (unset ⇒ analytics stay on-device)
+#   VITE_POSTHOG_HOST  = "https://us.i.posthog.com"   (optional; EU: eu.i...)
+#   VITE_SENTRY_DSN    = "https://<key>@<org>.ingest.sentry.io/<project>"
 
 # Secrets (wrangler secret put — never in this file):
 # RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET / RAZORPAY_WEBHOOK_SECRET
 # PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET / PAYPAL_WEBHOOK_ID
 # VAPID_PRIVATE_KEY
-# SENTRY_DSN
-#
-# `POSTHOG_KEY` is deliberately NOT here. It was listed in this block before
-# the forwarder existed, which read as "put this secret in and analytics start";
-# the forwarder instead needs the public VITE_ var above. A server-side proxy
-# (which would want a secret) was considered and not built: this deploy is
-# static assets with no worker entry, and a proxy is not needed for a
-# write-only public token.
+# Not a secret, so not listed here: PostHog/Sentry client keys (see above).
 
 # Cron for app/src/server/jobs.ts (enable when secrets land):
 # [[triggers.crons]] crons = ["*/15 * * * *"]
