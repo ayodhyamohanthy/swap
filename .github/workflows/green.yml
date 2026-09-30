@@ -3,12 +3,34 @@ name: green
 # The green rule (docs/11): typecheck + full test + build must pass.
 # Runs on every push and PR to main — this is what makes "continue" safe:
 # a red lane cannot reach main unnoticed.
+#
+# TWO NOTES FOR WHOEVER CLEARS THE BILLING LOCK (L9, build-plan item 1):
+#
+# 1. `npm ci` WILL resolve. Checked offline against the committed lock rather
+#    than assumed: root `workspaces: ["app"]`, lockfileVersion 3, and all 27 of
+#    `app/package.json`'s deps present in the lock at the declared version with
+#    a resolved package entry each. A stale lock is the usual reason a first CI
+#    run goes red for a reason that is not the code, and it is not this one.
+# 2. `name: green` is the string GitHub reports for this check. docs/15-NAMING
+#    and docs/10 item 1 both call this workflow `seatswap-ci`, and nothing has
+#    ever been called that. Left as `green` because a required status check is
+#    keyed on this exact string — renaming it to match the docs could silently
+#    stop a merge gate from ever being satisfied. Filed on the board instead.
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  # Added by L9 (build-plan item 1). Without this the only way to find out
+  # whether CI works is to land on main — the one place a red result is
+  # expensive — and the lanes work on `docs/instructions-v2`, which the two
+  # filters above do not match, so nothing has ever exercised this workflow.
+  workflow_dispatch:
+
+# The job reads the repo and runs the gates. It never writes.
+permissions:
+  contents: read
 
 jobs:
   gates:
@@ -22,6 +44,13 @@ jobs:
       - run: npm ci
       - name: typecheck
         run: npm run typecheck --workspace seatswap-app
+      # `npm run test` pins `maxWorkers: 4` in app/vitest.config.ts (that file
+      # follows L1). docs/14 records the failure mode: under contention those
+      # workers fail to start, the run drops files, and it can still report
+      # "N passed" — a green that is not a green. On a dedicated runner that is
+      # unlikely and has not been measured, so the setting is left alone rather
+      # than guessed at. What matters when reading this log is the FILE count
+      # against `ls app/tests/*.test.*`, not the exit code on its own.
       - name: tests
         run: npm run test --workspace seatswap-app
       - name: build (includes verify-dist)
