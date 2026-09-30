@@ -44,10 +44,16 @@ your lane. Check it [x] in the same commit that completes it.
       docs/12 §2 whitelist
       (sweep found none — 27 deps + 663 imports, all clean; the rule is
       `collab-check` check 6, fed by `scripts/vendor-whitelist.mjs`)
-- [ ] Mobile-first audit: run every existing screen against
+- [x] Mobile-first audit: run every existing screen against
       docs/17-MOBILE-FIRST.md (360px baseline, 44px targets, 16px
       inputs, safe-area insets, manifest maskable icons, bundle
       ≤200KB gz); file one fix task per violation in the owning lane
+      (audited 0078bcf: all six compliant — viewport-fit=cover, .tap
+      48px / Input min-h-12, --text-body 1rem = 16px, safe-area-inset-bottom
+      on the bottom nav, maskable-512 in the manifest. The budget was the
+      one rule docs/17 calls "CI-enforceable" that nothing enforced; it
+      measured 189.3 KB gz of 200 and is now checked by verify-dist §5b.
+      One contract-vs-guard contradiction filed as a request.)
 - [ ] Payments: make Razorpay the single primary gateway for domestic
       AND international; demote PayPal to fallback path only; update
       docs/06-PAYMENTS.md to match

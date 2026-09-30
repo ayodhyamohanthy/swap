@@ -3,7 +3,9 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { gzipSync } from 'node:zlib'
 
+import { budgetVerdict, initialScripts, initialStylesheets } from './bundle-budget.mjs'
 import { cacheNames, swFilename, workboxOptions } from '../pwa.workbox.mjs'
 
 /* TanStack Start writes the static PWA to dist/client (server bundle: dist/server). */
@@ -174,6 +176,48 @@ console.log(
   `[verify] shell html ${(html.length / 1024).toFixed(1)} KB · built assets ${(assetBytes / 1024).toFixed(1)} KB · worker ${(sw.length / 1024).toFixed(1)} KB`,
 )
 check(html.length < 40_000, 'the shell HTML looks too big for a slow-3G first paint')
+
+/* 5b. docs/17's performance budget: "Initial JS ≤ 200KB gzipped". This is the
+   number the contract names and the one the phone actually waits on before the
+   first screen paints — distinct from the total-of-every-chunk figure above,
+   which includes route chunks that load on navigation. It went unenforced
+   until now; measured at 188.6 KB gz on 0078bcf, i.e. 5.7% headroom. */
+const scripts = initialScripts(html)
+/* A budget check that measures nothing passes for the wrong reason — the same
+   failure the vendor guard and the azure harness both had to be taught. */
+check(
+  scripts.length > 0,
+  'index.html declares no initial scripts — the bundle budget cannot be measured',
+)
+let initialJsBytes = 0
+const scriptRows = []
+for (const href of scripts) {
+  const file = join(dist, href.replace(/^\//, ''))
+  if (!existsSync(file)) {
+    check(false, `index.html preloads ${href}, which is missing from the build`)
+    continue
+  }
+  const gz = gzipSync(readFileSync(file), { level: 9 }).length
+  initialJsBytes += gz
+  scriptRows.push(`${(gz / 1024).toFixed(1)} KB gz ${href}`)
+}
+const verdict = budgetVerdict(initialJsBytes)
+const stylesheets = initialStylesheets(html)
+let cssBytes = 0
+for (const href of stylesheets) {
+  const file = join(dist, href.replace(/^\//, ''))
+  if (existsSync(file)) cssBytes += gzipSync(readFileSync(file), { level: 9 }).length
+}
+console.log(
+  `[verify] initial JS ${(verdict.totalBytes / 1024).toFixed(1)} KB gz / ${(verdict.budgetBytes / 1024).toFixed(0)} KB budget ` +
+    `(headroom ${(verdict.headroomBytes / 1024).toFixed(1)} KB) · initial CSS ${(cssBytes / 1024).toFixed(1)} KB gz`,
+)
+for (const row of scriptRows) console.log(`[verify]   ${row}`)
+check(
+  verdict.ok,
+  `initial JS is ${(verdict.totalBytes / 1024).toFixed(1)} KB gz, over docs/17's ${(verdict.budgetBytes / 1024).toFixed(0)} KB budget ` +
+    `by ${(-verdict.headroomBytes / 1024).toFixed(1)} KB — code-split or drop a dependency`,
+)
 
 if (problems.length > 0) {
   console.error('\n[verify] failed:')
