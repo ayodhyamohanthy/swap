@@ -12,7 +12,7 @@ import { demoRequest } from '@/lib/demo-swap'
    summary. Both answers lead to the summary — this screen only records that
    the two travellers tried to meet on board. */
 export const Route = createFileRoute('/swaps/$id/meet')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'swaps' } satisfies RouteChrome,
   component: MeetScreen,
 })
 function MeetScreen() {

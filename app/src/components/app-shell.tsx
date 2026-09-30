@@ -9,7 +9,8 @@ import { cn } from '@/lib/utils'
 
 /* Navigation rules (AGENTS.md 12): exactly three bottom tabs — Home / Swaps /
    Profile. Setup screens (language, note, privacy, alerts, sign-in) show no tab
-   bar. */
+   bar. Everything else is a tabbed screen; `back` adds the chevron the designs
+   draw on top of the tabs (3c, 22b). */
 
 export type TabId = 'home' | 'swaps' | 'profile'
 
@@ -17,6 +18,12 @@ export interface RouteChrome {
   /** tabs = top bar + bottom tabs · plain = back button, no tabs · setup = bare */
   chrome?: 'tabs' | 'plain' | 'setup'
   tab?: TabId
+  /** Back chevron on a *tabbed* screen. `plain` already implies it; the designs
+      also draw "<  SeatSwap" above a tab bar — 3c (pay ₹99), 22b (delete
+      account), 1c (your berth) — so the chevron and the tabs are separate
+      decisions. L3 once asked for a `sub` mode for this; the ink says the fix
+      is a flag, not a fourth mode. */
+  back?: boolean
   /** Gear icon on the right of the top bar (Home and Profile designs). */
   showSettings?: boolean
   /** Bell on the right of the top bar linking to /updates — design 11a and
@@ -197,7 +204,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <chrome.header />
         ) : (
           <TopBar
-            back={mode === 'plain'}
+            back={mode === 'plain' || chrome.back === true}
             showSettings={chrome.showSettings}
             showUpdates={chrome.showUpdates}
             tagline={chrome.tagline}

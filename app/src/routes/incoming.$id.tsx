@@ -15,7 +15,7 @@ import { useRequestsState } from '@/lib/use-store'
    first accept (rule 8). */
 
 export const Route = createFileRoute('/incoming/$id')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'swaps' } satisfies RouteChrome,
   component: IncomingScreen,
 })
 

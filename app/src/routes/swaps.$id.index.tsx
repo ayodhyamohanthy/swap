@@ -29,7 +29,7 @@ import { listTrips } from '@/lib/store'
    records the side's own answer through answerSwap, so rule 6 still decides
    the money: voided only when both sides agree the swap didn't happen. */
 export const Route = createFileRoute('/swaps/$id/')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'swaps' } satisfies RouteChrome,
   validateSearch: (s: Record<string, unknown>): { view?: 'problem' } => ({
     view: s.view === 'problem' ? 'problem' : undefined,
   }),

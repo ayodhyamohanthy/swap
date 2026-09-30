@@ -6,16 +6,18 @@ import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { useI18n } from '@/lib/i18n'
 import { resetGroups } from '@/lib/groups'
 import { resetInvites } from '@/lib/invites'
+import { resetOutbox } from '@/lib/outbox'
 import { resetRequests } from '@/lib/requests'
+import { resetBlocks } from '@/lib/safety'
 import { resetStore } from '@/lib/store'
 
 /* Screen 62 "Delete account" (design 22b). Wipes every local-first module on
    this device — trips, activity log, wallet, seen flags, settings, requests,
-   family trips and share codes — then lands on `/goodbye`. Deleting is
-   irreversible, so the destructive button asks first. */
+   family trips, share codes, chat outbox and blocks — then lands on `/goodbye`.
+   Deleting is irreversible, so the destructive button asks first. */
 
 export const Route = createFileRoute('/profile/delete')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'profile', back: true } satisfies RouteChrome,
   component: DeleteAccountScreen,
 })
 
@@ -28,6 +30,8 @@ function DeleteAccountScreen() {
     resetRequests()
     resetGroups()
     resetInvites()
+    resetBlocks()
+    resetOutbox()
     navigate({ to: '/goodbye' })
   }
 

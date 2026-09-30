@@ -1,9 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useState } from 'react'
 import type { RouteChrome } from '@/components/app-shell'
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/lib/i18n'
+import { consentGranted, setConsent, startForwarding } from '@/lib/posthog'
 import { logActivity, updateSettings } from '@/lib/store'
 import { disablePushSubscription, ensurePushSubscription } from '@/lib/push'
 import { useSettings } from '@/lib/use-store'
@@ -13,7 +15,7 @@ import { useSettings } from '@/lib/use-store'
    synced to the `settings` table after sign-in (docs/02). */
 
 export const Route = createFileRoute('/profile/settings')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'profile' } satisfies RouteChrome,
   component: SettingsScreen,
 })
 
@@ -43,6 +45,11 @@ function SettingsScreen() {
   const { t } = useI18n()
   const toast = useToast()
   const settings = useSettings()
+  /* Read from storage, not from `settings`, because consent lives with the
+     forwarder and must not be part of the synced acceptor-filter settings (a
+     traveller who opted out on this device should not have it follow them to
+     a new account). */
+  const [analyticsOn, setAnalytics] = useState(consentGranted)
 
   function save(patch: Parameters<typeof updateSettings>[0], message?: string) {
     updateSettings(patch)
@@ -92,6 +99,19 @@ function SettingsScreen() {
           save({ notify_push: next }, t('settings.saved'))
           /* Push follows the toggle, best-effort and offline-safe. */
           void (next ? ensurePushSubscription() : disablePushSubscription())
+        }}
+      />
+      <Row
+        title={t('settings.analytics')}
+        body={t('settings.analyticsBody')}
+        checked={analyticsOn}
+        onChange={(next) => {
+          setConsent(next)
+          /* Re-read from storage rather than trusting `next`, so the switch can
+             never show a state the forwarder does not have. */
+          setAnalytics(consentGranted())
+          if (consentGranted()) startForwarding()
+          if (!next) toast.show(t('settings.analyticsOff'))
         }}
       />
     </div>

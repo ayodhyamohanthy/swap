@@ -14,7 +14,7 @@ import { acceptedOffer, offersFor, revealedBerths } from '@/lib/requests'
    swapped vs earned-50 vs added-to-credit vs answers-don't-match vs
    partner-cancelled. Credit is never cash and never goes back to the bank. */
 export const Route = createFileRoute('/swaps/$id/done')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'swaps' } satisfies RouteChrome,
   validateSearch: (s: Record<string, unknown>) => ({
     state: s.state === 'earned' ? ('earned' as const)
       : s.state === 'credit' ? ('credit' as const)

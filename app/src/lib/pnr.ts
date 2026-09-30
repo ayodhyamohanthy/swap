@@ -306,3 +306,45 @@ export function parsePassengerList(text: unknown, travelClass?: unknown): Parsed
   }
   return found
 }
+
+/* ------------------------------------------------------------------ *
+ * Home quick-entry → Add PNR handoff                                  *
+ * ------------------------------------------------------------------ */
+
+const HANDOFF_KEY = 'seatswap.pnr.handoff'
+
+/**
+ * Hand the digits typed on Home to the Add PNR screen.
+ *
+ * Not a URL query: an address bar is kept in browser history, shown in the tab
+ * switcher and sent on as a referrer, and a PNR is the one credential this app
+ * promises never to hold in plain text (rule 13) — `pnr_hash` + `pnr_last4` is
+ * all the store keeps. Same tab, same session, cleared on arrival.
+ */
+export function stagePnr(digits: string): void {
+  try {
+    sessionStorage.setItem(HANDOFF_KEY, digits)
+  } catch {
+    /* Private mode with storage blocked: Home still validates the digits, the
+       traveller types them once more. Never fail the navigation. */
+  }
+}
+
+/** Peek, without consuming: React runs a state initialiser twice under
+    StrictMode, and the second run must see the same number. */
+export function readStagedPnr(): string {
+  try {
+    return sessionStorage.getItem(HANDOFF_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+/** Called once the Add PNR screen has mounted. */
+export function clearStagedPnr(): void {
+  try {
+    sessionStorage.removeItem(HANDOFF_KEY)
+  } catch {
+    /* Already gone. */
+  }
+}

@@ -20,7 +20,7 @@ import { useCreditPaise } from '@/lib/use-store'
    gateway when keys exist and otherwise leaves the payment pending for the
    status screen — it never claims a payment happened. */
 export const Route = createFileRoute('/pay/$requestId/method')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'swaps' } satisfies RouteChrome,
   validateSearch: (s: Record<string, unknown>) => ({
     useCredit: s.useCredit === 0 || s.useCredit === '0' ? 0 : 1,
   }),
@@ -130,7 +130,13 @@ function MethodScreen() {
         <CardBody>{t('pay.due', { amount: quote.due / 100 })}</CardBody>
       </Card>
 
-      <p className="mt-5 text-caption font-semibold uppercase tracking-wide text-muted">{t('pay.inIndia')}</p>
+      {/* `text-note`, not the 12px step: these two labels name the gateway the
+          payer is about to hand money to (rule 9's mandated "International
+          traveller?" line is one of them), and docs/07 §Responsive floors
+          copy a passenger reads to decide at 14px. */}
+      <p className="mt-5 text-note font-semibold uppercase tracking-wide text-muted">
+        {t('pay.inIndia')}
+      </p>
       <Card className="mt-1">
         {[...UPI_APPS, ...OTHERS].map((method) => (
           <button
@@ -148,7 +154,9 @@ function MethodScreen() {
         ))}
       </Card>
 
-      <p className="mt-5 text-caption font-semibold uppercase tracking-wide text-muted">{t('pay.intl')}</p>
+      <p className="mt-5 text-note font-semibold uppercase tracking-wide text-muted">
+        {t('pay.intl')}
+      </p>
       <Card className="mt-1">
         <CardBody>
           <Button
@@ -159,7 +167,7 @@ function MethodScreen() {
           >
             {t('pay.payPal')}
           </Button>
-          <p className="mt-2 text-caption text-muted">{t('pay.paypalNote', { amount: quote.due / 100, usd })}</p>
+          <p className="mt-2 text-note text-muted">{t('pay.paypalNote', { amount: quote.due / 100, usd })}</p>
         </CardBody>
       </Card>
 

@@ -1,5 +1,5 @@
 # 11 — Multi-Agent Collaboration Protocol
-
+Operational rules live in AGENTS.md; this file covers lane protocol only.
 Several coding agents (different models, different platforms) work in this repo
 at the same time. This file is mandatory preparation alongside docs/01-10.
 Ignoring it has already caused lost work and red builds.

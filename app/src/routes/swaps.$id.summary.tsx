@@ -17,7 +17,7 @@ import { getTrip } from '@/lib/store'
    separate AppFooter — design 9c shows nothing below the ticket but the
    actions, and the same two sentences twice reads like a printing error. */
 export const Route = createFileRoute('/swaps/$id/summary')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'swaps' } satisfies RouteChrome,
   component: SummaryScreen,
 })
 function SummaryScreen() {

@@ -1,9 +1,18 @@
 /* Report/block persistence (docs/04 A12): incidents are never lost — every
    call lands in activity_log (the admin Reports feed) and mirrors into the
-   reports/blocks tables when a Supabase client is available. */
+   reports/blocks tables when a Supabase client is available. A block mirrors
+   onto this device too, because the local matcher is what the traveller who
+   pressed "Report & block" then runs into. */
 
 import { beforeEach, describe, expect, it } from 'vitest'
-import { blockUser, fileReport, type SafetyClient } from '@/lib/safety'
+import {
+  blockUser,
+  fileReport,
+  isBlocked,
+  resetBlocks,
+  tripHandle,
+  type SafetyClient,
+} from '@/lib/safety'
 import { activityLog, resetStore } from '@/lib/store'
 
 interface FakeCall {
@@ -131,5 +140,55 @@ describe('blockUser', () => {
     expect(result.persisted).toBe(false)
     expect(calls).toHaveLength(0)
     expect(activityLog().some((r) => r.action === 'block')).toBe(false)
+  })
+})
+
+/* The device-side half of a block. `rankMatches` has dropped `blocked`
+   candidates since it was written, and nothing on the device could ever set
+   the field — so the chat button filed an incident and then kept offering the
+   same traveller back. These tests pin that a block is recorded here, offline
+   and on a failed sync, exactly like the activity row beside it. */
+describe('block mirror on this device', () => {
+  beforeEach(() => {
+    resetStore()
+    resetBlocks()
+  })
+
+  it('records the block with no Supabase client', async () => {
+    await blockUser({ blockerId: 'u_me', blockedId: 'u_them' }, null)
+    expect(isBlocked('u_them')).toBe(true)
+    expect(isBlocked('u_me')).toBe(false)
+  })
+
+  it('records the block when the database write fails', async () => {
+    const { client } = fakeClient({ message: 'rls' })
+    const result = await blockUser({ blockerId: 'u_me', blockedId: 'u_them' }, client)
+    expect(result.persisted).toBe(false)
+    expect(isBlocked('u_them')).toBe(true)
+  })
+
+  it('records nothing for a self-block', async () => {
+    const { client } = fakeClient()
+    await blockUser({ blockerId: 'u_me', blockedId: 'u_me' }, client)
+    expect(isBlocked('u_me')).toBe(false)
+  })
+
+  it('survives a repeat block without doubling the row', async () => {
+    await blockUser({ blockerId: 'u_me', blockedId: 'u_them' }, null)
+    await blockUser({ blockerId: 'u_me', blockedId: 'u_them' }, null)
+    expect(isBlocked('u_them')).toBe(true)
+    expect(activityLog().filter((r) => r.action === 'block')).toHaveLength(2)
+  })
+
+  it('clears with resetBlocks (account deletion)', async () => {
+    await blockUser({ blockerId: 'u_me', blockedId: 'u_them' }, null)
+    resetBlocks()
+    expect(isBlocked('u_them')).toBe(false)
+  })
+
+  it('names a booking the way the matcher reads it', () => {
+    /* The chat button writes `trip:<id>`; candidateFor() reads it back. If one
+       side changed the prefix the block would stop biting in silence. */
+    expect(tripHandle('tr_9f2')).toBe('trip:tr_9f2')
   })
 })

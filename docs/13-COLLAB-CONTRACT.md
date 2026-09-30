@@ -1,5 +1,5 @@
 # 13 — Multi-Platform Collaboration Contract (MANDATORY for every AI platform)
-
+Operational rules live in AGENTS.md; this file covers lane protocol only.
 > Purpose: many agents (Cline, Codex, Claude, Gemini, Copilot, Cursor,
 > Windsurf, Aider, Muse) work this repo **at the same time**. Without
 > ownership, two agents rebuild the same screen and lose work. This file
