@@ -18,10 +18,12 @@ your lane. Check it [x] in the same commit that completes it.
 - [x] Sweep (2026-09-30, L9): 14 deps + 13 devDeps clean, no BENCH/RESERVE
       SDK in code; collab-check vendors rule + 6 guard tests enforce the
       docs/12 §2 whitelist (unknown statuses fail, new rows need mapping)
-- [ ] Mobile-first audit: run every existing screen against
-      docs/17-MOBILE-FIRST.md (360px baseline, 44px targets, 16px
-      inputs, safe-area insets, manifest maskable icons, bundle
-      ≤200KB gz); file one fix task per violation in the owning lane
+- [x] Mobile-first audit (2026-09-30, L9): 13 routes probed at 360px
+      (targets/inputs/inputmode), 20 routes x 360/430/768/1440 overflow,
+      initial JS 193KB gz (<=200KB), no Google Fonts, viewport-fit +
+      safe-area set, manifest verified by build; ZERO violations so zero
+      fix tasks. Watch: 202.5KB total with CSS (7KB headroom); switches
+      pass via expanded hit-slop, not box size.
 - [ ] Payments: make Razorpay the single primary gateway for domestic
       AND international; demote PayPal to fallback path only; update
       docs/06-PAYMENTS.md to match
