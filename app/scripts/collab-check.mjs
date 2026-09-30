@@ -12,6 +12,8 @@
  *                       registered, or the tree names a route that is gone.
  *   4. commit message — shape rule (never empty or a single character).
  *   5. green rule     — typecheck + full test suite, unless --fast.
+ *   6. vendors        — docs/12 §2: no dependency or import may name a vendor
+ *                       whose ledger row is not WIRED.
  *
  * Correctness of money/copy/schema stays in the vitest suite; this only adds
  * the collaboration and staleness checks the suite cannot see.
@@ -28,11 +30,12 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-/* The decisions live in a module with no imports, so `tests/collab-check.test.ts`
-   can exercise them without pulling `node:child_process` into the jsdom pool —
-   the mistake that broke test collection for six lanes when `translator-lib.mjs`
-   did it (docs/11). */
+/* The decisions live in modules with no imports, so tests can exercise them
+   without pulling `node:child_process` into the jsdom pool — the mistake that
+   broke test collection for six lanes when `translator-lib.mjs` did it
+   (docs/11). */
 import { clashesFor, declaredBy, ownedByLane, parseActiveLanes, parseSurfaces } from './lane-board.mjs'
+import { findBanned, importSpecifiers, parseVendorLedger } from './vendor-whitelist.mjs'
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '..')
 const REPO = join(APP, '..')
@@ -148,6 +151,92 @@ function checkGenerated() {
     console.log('      run `npm run build` and commit the regenerated tree with the route')
   } else {
     ok(`routeTree.gen.ts covers all ${declared.size} declared routes`)
+  }
+}
+
+/* ---- 6. vendor whitelist (docs/12 §2) ----
+   "only vendors marked WIRED in docs/12 §2 may appear in code, package.json,
+   or config". The vendor names AND their statuses are parsed out of the ledger
+   rather than hardcoded here, so adding a row to docs/12 brings it under the
+   guard with no edit to this file — and moving a row to WIRED is the only thing
+   that permits its SDK. The decisions live in `vendor-whitelist.mjs`, which
+   imports nothing, so a test can reach them (docs/11). */
+function sourceFiles(dir) {
+  const out = []
+  let entries
+  try {
+    entries = readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return out
+  }
+  for (const e of entries) {
+    const full = join(dir, e.name)
+    if (e.isDirectory()) {
+      if (e.name === 'node_modules' || e.name === 'dist') continue
+      out.push(...sourceFiles(full))
+    } else if (/\.tsx?$/.test(e.name)) {
+      out.push(full)
+    }
+  }
+  return out
+}
+
+function dependencyNames() {
+  let pkg
+  try {
+    pkg = JSON.parse(readFileSync(join(APP, 'package.json'), 'utf8'))
+  } catch {
+    return null
+  }
+  const names = []
+  for (const field of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+    names.push(...Object.keys(pkg[field] ?? {}))
+  }
+  return names
+}
+
+function checkVendors() {
+  let ledger
+  try {
+    ledger = readFileSync(join(REPO, 'docs', '12-INFRA-CREDITS.md'), 'utf8')
+  } catch {
+    bad('docs/12-INFRA-CREDITS.md is unreadable — the vendor whitelist cannot be checked')
+    return
+  }
+
+  const vendors = parseVendorLedger(ledger)
+  /* Zero vendors is NOT a pass. A parser that has stopped recognising the
+     ledger table reports exactly the same thing as a clean repo, and the two
+     mean opposite things: "nothing to see" versus "this check is blind". */
+  if (vendors.length === 0) {
+    bad('parsed 0 vendors from docs/12 §2 — the ledger format changed, so this check is blind')
+    return
+  }
+
+  const deps = dependencyNames()
+  if (deps === null) {
+    bad('app/package.json is unreadable or not JSON — the vendor whitelist cannot be checked')
+    return
+  }
+
+  const specifiers = []
+  for (const file of sourceFiles(join(APP, 'src'))) {
+    specifiers.push(...importSpecifiers(readFileSync(file, 'utf8')))
+  }
+
+  const banned = findBanned([...deps, ...specifiers], vendors)
+  if (banned.length > 0) {
+    for (const b of banned) {
+      bad(`${b.pkg} names ${b.vendor}, whose docs/12 §2 status is ${b.status}`)
+    }
+    console.log('      only WIRED vendors may appear in code, package.json or config (docs/12 §2)')
+    console.log('      a RESERVE/BENCH vendor needs its ledger row moved to WIRED first — by Ayu')
+  } else {
+    const wired = vendors.filter((v) => v.status === 'WIRED').length
+    ok(
+      `${vendors.length} vendors in docs/12 §2 (${wired} WIRED) — ` +
+        `${deps.length} deps + ${specifiers.length} imports, none off-whitelist`,
+    )
   }
 }
 
@@ -329,6 +418,12 @@ function main() {
   if (!has('--staged-only')) {
     head('generated files')
     checkGenerated()
+  }
+
+  /* 6. vendor whitelist (docs/12 §2) */
+  if (!has('--staged-only')) {
+    head('vendor whitelist (docs/12 §2)')
+    checkVendors()
   }
 
   /* 5. green rule */

@@ -14,9 +14,11 @@ your lane. Check it [x] in the same commit that completes it.
       (workflow_dispatch) succeeds end-to-end
 - [ ] Claim Student Pack domain (Namecheap .me or Name.com) → Cloudflare
       DNS, TTL 300 (Ayu does the claim; agent wires DNS + wrangler routes)
-- [ ] Sweep: verify no BENCH/RESERVE vendor SDK exists in package.json
+- [x] Sweep: verify no BENCH/RESERVE vendor SDK exists in package.json
       or code; remove any found; add collab-check rule enforcing the
       docs/12 §2 whitelist
+      (sweep found none — 27 deps + 663 imports, all clean; the rule is
+      `collab-check` check 6, fed by `scripts/vendor-whitelist.mjs`)
 - [ ] Mobile-first audit: run every existing screen against
       docs/17-MOBILE-FIRST.md (360px baseline, 44px targets, 16px
       inputs, safe-area insets, manifest maskable icons, bundle
