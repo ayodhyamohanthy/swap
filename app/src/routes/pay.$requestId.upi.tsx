@@ -14,7 +14,7 @@ import { PayBlocked } from './pay.$requestId'
    UPI app; this screen holds while the gateway confirms. No second payment
    from here — only status checks and a way back to other methods. */
 export const Route = createFileRoute('/pay/$requestId/upi')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'swaps' } satisfies RouteChrome,
   validateSearch: (s: Record<string, unknown>) => ({
     useCredit: s.useCredit === 0 || s.useCredit === '0' ? 0 : 1,
   }),

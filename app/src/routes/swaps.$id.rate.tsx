@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils'
 /* Screen 46 "Rating" (design 13c): stars + quick chips after a finished swap.
    No free credit is attached to rating — it only helps future matches. */
 export const Route = createFileRoute('/swaps/$id/rate')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'swaps' } satisfies RouteChrome,
   component: RateScreen,
 })
 const CHIPS = ['rating.friendly', 'rating.onTime', 'rating.helpful'] as const

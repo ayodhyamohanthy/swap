@@ -4,8 +4,9 @@ Format: each lane owns a checklist. "build"/"continue" = first [ ] in
 your lane. Check it [x] in the same commit that completes it.
 
 ## L9 — Infra & tooling
-- [ ] Unblock GitHub Actions: clear billing lock or make repo public;
-      seatswap-ci must run green in the cloud on next push
+- [x] Unblock GitHub Actions (2026-09-30, L9): repo is public so the billing
+      lock no longer blocks jobs; landed the rewrite-drop fixes on main and
+      run 36668939334 went green (typecheck + tests + build + collab-check)
 - [ ] Create Supabase project seatswap-staging; mirror schema via
       migrations; agents point at staging by default
 - [ ] Backup workflow: commit .github/workflows/seatswap-backup.yml

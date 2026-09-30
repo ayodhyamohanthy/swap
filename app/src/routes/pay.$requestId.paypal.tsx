@@ -29,7 +29,7 @@ import { PayBlocked } from './pay.$requestId'
    'paid' locks the swap (rule 2). Without a live gateway the button goes to the
    status screen instead, so a demo device can never claim a real payment. */
 export const Route = createFileRoute('/pay/$requestId/paypal')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'swaps' } satisfies RouteChrome,
   validateSearch: (s: Record<string, unknown>) => ({
     useCredit: s.useCredit === 0 || s.useCredit === '0' ? 0 : 1,
     /* PayPal appends token=<order id>&PayerID=<id> on the way back. Spread in

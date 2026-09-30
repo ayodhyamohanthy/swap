@@ -9,7 +9,7 @@ import { Card, CardTitle } from '@/components/ui/card'
 import { Field, Input } from '@/components/ui/input'
 import { trackEvent } from '@/lib/analytics'
 import { useI18n } from '@/lib/i18n'
-import { isValidPnr } from '@/lib/pnr'
+import { isValidPnr, stagePnr } from '@/lib/pnr'
 import { isPastTrip, isSeen, localDateKey, tripsNewestFirst, tripWasSwapped } from '@/lib/store'
 import { useCreditPaise, useRequestsState, useTrips } from '@/lib/use-store'
 
@@ -69,7 +69,8 @@ function HomeScreen() {
       return
     }
     setError(null)
-    navigate({ to: '/trips/add', search: { pnr: digits } })
+    stagePnr(digits)
+    navigate({ to: '/trips/add' })
   }
 
   /* THREE HOMES, one per design state (docs/05):
@@ -99,10 +100,10 @@ function HomeScreen() {
               <Gift aria-hidden className="size-6 shrink-0 text-accent" />
               <span className="flex-1">
                 <b className="block font-head text-section text-ink">{t('home.welcomeBack')}</b>
-                <span className="block text-caption text-ink">
+                <span className="block text-note text-ink">
                   {t('home.creditLine', { amount: Math.round(creditPaise / 100) })}
                 </span>
-                <span className="block text-caption text-muted">{t('home.creditNever')}</span>
+                <span className="block text-note text-muted">{t('home.creditNever')}</span>
               </span>
             </Card>
           ) : null}
@@ -132,7 +133,7 @@ function HomeScreen() {
                 <b className="block font-head text-section text-ink">
                   {t('home.creditLine', { amount: Math.round(creditPaise / 100) })}
                 </b>
-                <span className="block text-caption text-muted">{t('home.creditNever')}</span>
+                <span className="block text-note text-muted">{t('home.creditNever')}</span>
               </span>
               <ChevronRight aria-hidden className="size-5 shrink-0 text-muted" />
             </Link>

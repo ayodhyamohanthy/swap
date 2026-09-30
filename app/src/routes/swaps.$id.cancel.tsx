@@ -12,7 +12,7 @@ import { demoRequest } from '@/lib/demo-swap'
 /* Screen 31 "Cancel this swap?" (design 25c): cancelling after payment moves
    the ₹99 to the requester's credit — never back to the bank (rule 6). */
 export const Route = createFileRoute('/swaps/$id/cancel')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'swaps' } satisfies RouteChrome,
   component: CancelSwapScreen,
 })
 function CancelSwapScreen() {

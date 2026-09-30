@@ -17,7 +17,7 @@ import { useTrip } from '@/lib/use-store'
    removed (docs/04 A4). */
 
 export const Route = createFileRoute('/trips/$tripId')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'home', back: true } satisfies RouteChrome,
   component: TripScreen,
 })
 
@@ -180,7 +180,7 @@ function TripScreen() {
               onCheckedChange={(checked) => setOpenToSwap(trip.id, checked)}
             />
           </Card>
-          <p className="mt-2 text-caption text-muted">{t('trip.noReward')}</p>
+          <p className="mt-2 text-note text-muted">{t('trip.noReward')}</p>
         </>
       ) : null}
 

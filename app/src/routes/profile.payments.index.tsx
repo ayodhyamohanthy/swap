@@ -5,6 +5,6 @@ import type { RouteChrome } from '@/components/app-shell'
 /* Screen 58 "Payments & receipts" (design 29a). Lives at the index route so
    the /$id receipt screen can render under the /profile/payments layout. */
 export const Route = createFileRoute('/profile/payments/')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'profile' } satisfies RouteChrome,
   component: PaymentsScreen,
 })

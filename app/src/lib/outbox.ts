@@ -32,6 +32,11 @@ function writeBox(box: Outbox): void {
   }
 }
 
+/** Test helper + account deletion: the queued message texts leave the device. */
+export function resetOutbox(): void {
+  writeBox({})
+}
+
 /** Queue a message typed while offline. Returns the queue length for the chat. */
 export function enqueue(chatId: string, text: string): number {
   const clean = text.trim()

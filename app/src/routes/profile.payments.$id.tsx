@@ -14,7 +14,7 @@ import { isGroupRequestId } from '@/lib/groups'
    or group payment shows its real totals. */
 
 export const Route = createFileRoute('/profile/payments/$id')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'profile' } satisfies RouteChrome,
   component: ReceiptScreen,
 })
 

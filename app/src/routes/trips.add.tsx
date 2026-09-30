@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Lock, Plus, Trash2 } from 'lucide-react'
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import type { RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
@@ -16,6 +16,8 @@ import {
   isChairCar,
   isValidPnr,
   parseBookingSms,
+  clearStagedPnr,
+  readStagedPnr,
   type BerthType,
   type Quota,
   type TicketStatus,
@@ -29,14 +31,12 @@ import { StoreError, addTrip, logActivity } from '@/lib/store'
    the group and never offered (docs/04 A4). */
 
 export interface TripsAddSearch {
-  pnr?: string
   paste?: 'sms'
 }
 
 export const Route = createFileRoute('/trips/add')({
   staticData: { chrome: 'plain' } satisfies RouteChrome,
   validateSearch: (search: Record<string, unknown>): TripsAddSearch => ({
-    pnr: typeof search.pnr === 'string' ? search.pnr.replace(/\D/g, '').slice(0, 10) : undefined,
     paste: search.paste === 'sms' ? ('sms' as const) : undefined,
   }),
   component: AddTripScreen,
@@ -77,7 +77,7 @@ function AddTripScreen() {
   const search = Route.useSearch()
 
   const [sms, setSms] = useState('')
-  const [pnr, setPnr] = useState(search.pnr ?? '')
+  const [pnr, setPnr] = useState(() => readStagedPnr())
   const [trainNo, setTrainNo] = useState('')
   const [travelDate, setTravelDate] = useState('')
   const [fromCode, setFromCode] = useState('')
@@ -91,6 +91,13 @@ function AddTripScreen() {
 
   const chair = isChairCar(travelClass)
   const berthOptions = useMemo(() => berthTypesFor(travelClass), [travelClass])
+
+  /* The digits came from Home's quick-entry box, not the address bar. Drop the
+     copy as soon as this screen has taken it: a PNR should not outlive the hop,
+     and a reload of this screen starts blank like any other empty form. */
+  useEffect(() => {
+    clearStagedPnr()
+  }, [])
 
   function changeClass(next: TravelClass) {
     const nextChair = isChairCar(next)

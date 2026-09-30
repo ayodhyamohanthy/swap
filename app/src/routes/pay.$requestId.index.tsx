@@ -6,6 +6,6 @@ import type { RouteChrome } from '@/components/app-shell'
    the parent file; this index route renders it under the /pay/$requestId
    layout so the child screens (method / status / done) can render. */
 export const Route = createFileRoute('/pay/$requestId/')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'swaps', back: true } satisfies RouteChrome,
   component: PayScreen,
 })

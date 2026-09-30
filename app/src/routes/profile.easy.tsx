@@ -10,7 +10,7 @@ import { useTrips } from '@/lib/use-store'
    shown to other travellers, so privacy rules are untouched. */
 
 export const Route = createFileRoute('/profile/easy')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'profile' } satisfies RouteChrome,
   component: EasyModeScreen,
 })
 

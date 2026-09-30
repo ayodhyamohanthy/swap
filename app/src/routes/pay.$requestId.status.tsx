@@ -13,7 +13,7 @@ import { PayBlocked } from './pay.$requestId'
    what happened — pending never claims money moved, failed says it did not.
    The webhook is the source of truth; this screen only asks for it. */
 export const Route = createFileRoute('/pay/$requestId/status')({
-  staticData: { chrome: 'plain' } satisfies RouteChrome,
+  staticData: { chrome: 'tabs', tab: 'swaps' } satisfies RouteChrome,
   validateSearch: (s: Record<string, unknown>) => ({
     state: s.state === 'failed' ? ('failed' as const) : ('pending' as const),
   }),

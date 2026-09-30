@@ -81,6 +81,10 @@ deleted after the job. Student credits ($200/$100) same rule. Nothing
 persistent, ever. Runway is long (exp 2027-06-14) and may grow via the
 $150k milestone program, but unlocks are NOT guaranteed — §0 still
 applies in full. Milestone unlocks change the ledger, never the stack.
+Run every burn-down step through `burndown-dry-run.mjs` first ($0 by
+construction — see app/azure/README.md). NEVER write `app/locales/` from
+a burn-down script; translator drafts go to `app/azure/tmp/` for POEditor
++ native review.
 
 ## §8 Env var → vendor key map (the ONLY place this mapping lives)
 | Var | Read by | Source |

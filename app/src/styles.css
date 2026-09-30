@@ -44,8 +44,17 @@
   --text-section: 1.0625rem; /* 17px */
   --text-section--line-height: 1.35;
   --text-section--font-weight: 700;
-  --text-body: 0.9375rem; /* 15px */
+  --text-body: 1rem; /* 16px — docs/07 §Responsive: "body 16px minimum on base".
+   §Type still lists 15; the Responsive section is the newer, stricter line, and
+   16 is also the browser default, so the phone never renders smaller than the
+   passenger's own setting. The conflict is recorded, not hidden. */
   --text-body--line-height: 1.5;
+  /* Fine print a passenger must read to decide (₹ figures, rule 4 credit, the
+     rule 6 no-swap promise). docs/07 §Responsive floors that at 14px, and
+     `caption` is 12 — so decision copy has its own step rather than borrowing
+     the decorative one. */
+  --text-note: 0.875rem; /* 14px */
+  --text-note--line-height: 1.45;
   --text-caption: 0.75rem; /* 12px */
   --text-caption--line-height: 1.45;
 }
