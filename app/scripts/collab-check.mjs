@@ -14,6 +14,8 @@
  *   5. green rule     — typecheck + full test suite, unless --fast.
  *   6. vendors        — docs/12 §2: no dependency or import may name a vendor
  *                       whose ledger row is not WIRED.
+ *   7. staging        — docs/12 §4: no committed file may point at a Supabase
+ *                       project that is not the recorded staging one.
  *
  * Correctness of money/copy/schema stays in the vitest suite; this only adds
  * the collaboration and staleness checks the suite cannot see.
@@ -35,6 +37,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
    broke test collection for six lanes when `translator-lib.mjs` did it
    (docs/11). */
 import { clashesFor, declaredBy, ownedByLane, parseActiveLanes, parseSurfaces } from './lane-board.mjs'
+import { parseProjectRefs, supabaseUrlFindings } from './staging-lib.mjs'
 import { findBanned, importSpecifiers, parseVendorLedger } from './vendor-whitelist.mjs'
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -240,6 +243,71 @@ function checkVendors() {
   }
 }
 
+/* ---- 7. staging by default (docs/12 §4) ----
+   "Agents develop against staging" was prose until now, and prose holds until
+   the first agent who has not read it. What this catches is the expensive
+   version of that: a PROD project URL committed to wrangler.toml `[vars]`, to
+   `.env.example`, or hardcoded in a lib — after which a laptop, a CI job or a
+   deploy writes to the database real passengers are in, and nothing in the
+   output says which project it just touched.
+
+   Refs are parsed from docs/12 §4 rather than hardcoded here, for the reason
+   `checkVendors` gives: a second copy of a mapping is a second thing to rot. The
+   decisions live in `staging-lib.mjs`, which imports nothing.
+
+   A Supabase URL host is the project REF, never the project name, so an
+   unrecorded ref is unclassifiable rather than "probably staging" — refusing it
+   is what makes recording the ref in docs/12 §4 load-bearing. */
+function checkSupabaseEnv() {
+  let ledger
+  try {
+    ledger = readFileSync(join(REPO, 'docs', '12-INFRA-CREDITS.md'), 'utf8')
+  } catch {
+    bad('docs/12-INFRA-CREDITS.md is unreadable — the staging default cannot be checked')
+    return
+  }
+
+  const refs = parseProjectRefs(ledger)
+  /* Zero rows is NOT a pass, for the same reason zero vendors is not: a parser
+     that has stopped recognising the §4 table reports exactly what a clean repo
+     reports, and the two mean opposite things. */
+  if (refs.staging.project === '' && refs.prod.project === '') {
+    bad('parsed no environment rows from docs/12 §4 — the table changed shape, so this check is blind')
+    return
+  }
+
+  /* Committed files that could carry a project URL. `.env.local` is deliberately
+     absent: it is gitignored, and reading it here would put a key in a log. */
+  const files = [join(APP, 'wrangler.toml'), join(APP, '.env.example'), ...sourceFiles(join(APP, 'src'))]
+  let urls = 0
+  const offenders = []
+  for (const file of files) {
+    let text
+    try {
+      text = readFileSync(file, 'utf8')
+    } catch {
+      continue
+    }
+    for (const finding of supabaseUrlFindings(text, refs)) {
+      urls++
+      if (!finding.allowed) offenders.push({ path: relative(REPO, file), ...finding })
+    }
+  }
+
+  if (offenders.length > 0) {
+    for (const o of offenders) {
+      bad(`${o.path} points at ${o.host}, which is ${o.kind} — agents develop against staging (docs/12 §4)`)
+    }
+    console.log('      prod needs an explicit opt-in, not a default; "unknown" means docs/12 §4 records no such ref')
+  } else {
+    const recorded = [refs.staging, refs.prod].filter((r) => r.ref !== null).length
+    ok(
+      `${files.length} committed file(s) scanned, ${urls} Supabase URL(s), none prod and none unrecorded ` +
+        `(${recorded}/2 project refs recorded in docs/12 §4)`,
+    )
+  }
+}
+
 /* ---- active lanes, read out of the board itself ----
    docs/13 §1 holds the lane -> surface map; docs/14 holds who is active right
    now. Parsing both means the guard can never drift from the board: a new lane
@@ -424,6 +492,12 @@ function main() {
   if (!has('--staged-only')) {
     head('vendor whitelist (docs/12 §2)')
     checkVendors()
+  }
+
+  /* 7. staging by default (docs/12 §4) */
+  if (!has('--staged-only')) {
+    head('staging by default (docs/12 §4)')
+    checkSupabaseEnv()
   }
 
   /* 5. green rule */

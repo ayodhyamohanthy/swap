@@ -8,6 +8,31 @@ your lane. Check it [x] in the same commit that completes it.
       seatswap-ci must run green in the cloud on next push
 - [ ] Create Supabase project seatswap-staging; mirror schema via
       migrations; agents point at staging by default
+      (2026-09-30, L9 — two of the three clauses are done; the box stays
+      open because the first is Ayu's and nothing here can do it: no
+      Supabase access token, no `supabase` CLI, no `~/.supabase`, zero GH
+      secrets in this environment. **Done:** the mirror is *proved* rather
+      than assumed — `scripts/staging-lib.mjs` identifies every object a
+      fresh apply creates (112 objects from 112 CREATE statements in
+      `_init.sql`, 0 unrecognised statement kinds) and asserts
+      migration #1 == `schema.sql` == the concatenation of `parts/`, so
+      drift between the three copies now fails a test instead of shipping;
+      `node app/scripts/staging-dry-run.mjs` prints the ordered apply
+      commands and exits non-zero on any blocking finding, with no network
+      reach at all (proved structurally — it imports only `node:fs`,
+      `node:path`, `node:url` — and run under `azure/no-net.mjs` with 0
+      recorded attempts). "Agents point at staging by default" is enforced
+      rather than prose: docs/12 §4 gained a parseable env→project-ref
+      table, and `collab-check` check 7 fails if any committed file names a
+      Supabase project whose ref is not recorded there — mutation-checked
+      against an unknown ref, a blind parser, and a recorded *prod* ref.
+      **Still Ayu:** create seatswap-staging (free plan), then paste its
+      project ref into that table; the dry run prints the exact
+      Management-API `curl` body. **Blocked on L8, filed as requests:**
+      `<repo>/supabase/migrations` does not exist, so a CLI-driven
+      `supabase db push` from the repo root provisions an EMPTY database;
+      and a stale fourth copy at `supabase/schema-steps-1-2.sql` collides
+      with the canonical schema on 10 objects.)
 - [ ] Backup workflow: commit .github/workflows/seatswap-backup.yml
       (file provided in handoff), add the 6 GH Actions secrets per
       docs/12 §8, set R2 30-day lifecycle rule, verify one manual run

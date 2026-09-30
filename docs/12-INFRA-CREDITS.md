@@ -63,6 +63,30 @@ bench, not in package.json.
 - Agents develop against staging. Prod credentials never appear in CI
   logs or .env files committed to git.
 
+"Develop against staging" is enforced, not merely stated: `collab-check`
+refuses a tracked file whose Supabase URL is not the staging ref recorded
+below, and `resolveSupabaseTarget` refuses prod unless it is an explicit
+opt-in. The host in a Supabase URL is the project REF (a random slug) and
+never the project name, so this table is the only place a ref can be tied
+to an environment — record it the moment the project exists. Until then
+every `*.supabase.co` literal in tracked source is "unknown" and refused,
+which is the correct answer while neither project has been created.
+
+| Env     | Supabase project | Project ref (URL host) | Created |
+|---------|------------------|------------------------|---------|
+| staging | seatswap-staging | — none yet             | TODO (Ayu) |
+| prod    | seatswap-prod    | — none yet             | TODO (Ayu) |
+
+Provisioning staging is one command for the human step and fully checked
+around it: `node app/scripts/staging-dry-run.mjs`. It is $0 and has no
+`fetch` at all — `tests/staging-lib.test.ts` runs it under
+`app/azure/no-net.mjs` and asserts zero recorded calls — and it verifies
+the migrations still mirror `schema.sql` before printing the create call,
+the ordered `psql` apply, and where to record the ref. Do NOT use
+`supabase db push` from the repo root: the CLI resolves `supabase/` from
+the project root, and the root's holds one stale file and no `migrations/`,
+so it would provision an empty database.
+
 ## §5 Backups & exit
 Nightly GitHub Actions workflow `seatswap-backup-prod`
 (.github/workflows/seatswap-backup.yml, cron 22:00 UTC = 03:30 IST)
