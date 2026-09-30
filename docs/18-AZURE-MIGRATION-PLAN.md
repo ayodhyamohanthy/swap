@@ -189,8 +189,9 @@ already targets a **different vendor from the database**, which is
 exactly what `docs/16`'s "Never store backups only inside the same vendor
 being backed up" requires. It survives the migration with its secret
 renamed. The `.github/workflows/seatswap-backup.yml` file named in
-`docs/12` §5 and `docs/16` does not exist yet — `.github/workflows/`
-currently holds only `green.yml` — so this is unfinished work either way.
+`docs/12` §5 and `docs/16` now exists and is guarded — see docs/10 item 3.
+Before that pass it sat at `workflows/` in the repo ROOT, which GitHub never
+reads, so the nightly backup had never run and nothing said so.
 
 ---
 

@@ -28,7 +28,7 @@
  */
 
 import { execFileSync, execSync } from 'node:child_process'
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -39,6 +39,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { clashesFor, declaredBy, ownedByLane, parseActiveLanes, parseSurfaces } from './lane-board.mjs'
 import { parseProjectRefs, supabaseUrlFindings } from './staging-lib.mjs'
 import { findBanned, importSpecifiers, parseVendorLedger } from './vendor-whitelist.mjs'
+import { backupFindings, parseBackupContract } from './backup-contract.mjs'
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '..')
 const REPO = join(APP, '..')
@@ -308,6 +309,68 @@ function checkSupabaseEnv() {
   }
 }
 
+/* ---- 8. the nightly backup contract (docs/12 §5, docs/16) ----
+   Build-plan item 3. The workflow needs six secrets that do not exist yet, so
+   it cannot be RUN — and the file handed over for it was wrong in six ways no
+   reader would catch: it sat in a directory GitHub does not read, its
+   `pg_dump | gzip` was unguarded by `pipefail`, its ZeptoMail alert sent a bare
+   token where the API requires the `Zoho-enczapikey` prefix, its only dump
+   check was a size floor on the compressed file, and it omitted the
+   `--clean --if-exists` docs/16's own restore drill needs.
+
+   The decisions live in `backup-contract.mjs`, which imports nothing, so the
+   suite covers them. What this function adds is the part the suite cannot see
+   from a string: the file's LOCATION. The handoff sat at
+   `workflows/seatswap-backup.yml` in the repo root — GitHub reads
+   `.github/workflows/` only — so the nightly backup had never existed, and
+   nothing anywhere said so. */
+function checkBackup() {
+  const read = (rel) => {
+    try {
+      return readFileSync(join(REPO, rel), 'utf8')
+    } catch {
+      return null
+    }
+  }
+  const ledger = read('docs/12-INFRA-CREDITS.md')
+  const exit = read('docs/16-EXIT-PLAYBOOK.md')
+  if (ledger === null || exit === null) {
+    bad('docs/12 or docs/16 is unreadable — the backup contract cannot be checked')
+    return
+  }
+
+  const doc = parseBackupContract(ledger, exit)
+  if (!doc.filePath) {
+    bad('docs/12 §5 no longer names the workflow file path, so this check is blind')
+    return
+  }
+  const workflow = read(doc.filePath)
+  if (workflow === null) {
+    bad(`${doc.filePath} does not exist — docs/10 item 3's nightly backup has never run`)
+    return
+  }
+  if (existsSync(join(REPO, 'workflows', 'seatswap-backup.yml'))) {
+    bad(
+      'a second copy sits at workflows/seatswap-backup.yml — GitHub reads .github/workflows/ only, ' +
+        'so that copy is dead weight that reads as live',
+    )
+  }
+
+  const findings = backupFindings({ workflowText: workflow, ledgerText: ledger, exitText: exit })
+  if (!findings.ok) {
+    for (const p of findings.problems) bad(p)
+  } else {
+    const f = findings.facts
+    ok(
+      `docs/12 §5 contract holds — ${f.workflowName}, cron ${f.expectedCron}, ` +
+        `${f.secretRefs.length} secrets, ${f.unparsedLines} unread line(s)`,
+    )
+  }
+  /* What no file here can do. Printed rather than assumed, because "the check
+     passed" and "the check only covers the half a machine can see" differ. */
+  for (const step of findings.humanSteps) console.log(`      \x1b[33m·\x1b[0m ${step}`)
+}
+
 /* ---- active lanes, read out of the board itself ----
    docs/13 §1 holds the lane -> surface map; docs/14 holds who is active right
    now. Parsing both means the guard can never drift from the board: a new lane
@@ -498,6 +561,12 @@ function main() {
   if (!has('--staged-only')) {
     head('staging by default (docs/12 §4)')
     checkSupabaseEnv()
+  }
+
+  /* 8. the nightly backup contract (docs/12 §5, docs/16) */
+  if (!has('--staged-only')) {
+    head('nightly backup contract (docs/12 §5)')
+    checkBackup()
   }
 
   /* 5. green rule */

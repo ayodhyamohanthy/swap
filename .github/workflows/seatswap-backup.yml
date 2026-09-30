@@ -1,0 +1,322 @@
+# docs/12 §5 + docs/16 §Standing insurance: a nightly logical backup of
+# seatswap-prod to R2, so that losing Supabase is a restore and not a loss.
+#
+# WHY THIS FILE MOVED. It arrived from the handoff as `workflows/seatswap-
+# backup.yml` at the repo ROOT, whose own first line read "Copy to:
+# .github/workflows/seatswap-backup.yml" — and the copy was never made. GitHub
+# Actions reads `.github/workflows/` only, so for as long as it sat at the root
+# this workflow did not exist: build-plan item 3's nightly backup had never
+# run, and nothing on the board said so. `app/scripts/backup-contract.mjs` now
+# fails the suite if this file is not at this exact path, or if a second copy
+# reappears under `workflows/`.
+#
+# WHY A WORKFLOW AND NOT A WORKER: docs/12 §1 — "NOT a Cloudflare Worker —
+# Workers cannot execute the pg_dump binary."
+#
+# THE SIX SECRETS. docs/12 §8 is the only place that mapping lives. This list
+# is checked rather than trusted: `backup-contract.mjs` fails if this file
+# names a secret §8 does not, or omits one §8 marks "GH Actions secret".
+#   SUPABASE_DB_URL       direct connection string (port 5432) — backups only
+#   R2_ACCESS_KEY_ID      R2 API token scoped to seatswap-backups-prod
+#   R2_SECRET_ACCESS_KEY  same token
+#   R2_ENDPOINT           https://<account-id>.r2.cloudflarestorage.com
+#   ZEPTOMAIL_TOKEN       failure alert
+#   ALERT_EMAIL           ops inbox for failure alerts
+# Still owed by hand (docs/10 item 3): add those six in repo Settings →
+# Secrets → Actions, set the R2 30-day lifecycle rule, verify one
+# workflow_dispatch run end to end.
+
+name: seatswap-backup-prod
+
+on:
+  schedule:
+    # docs/12 §5: cron 22:00 UTC = 03:30 IST. Max acceptable data loss: 24h.
+    # GitHub disables a scheduled workflow after 60 days with no repo activity,
+    # and docs/16 says never to disable it by hand — so if this repo ever goes
+    # quiet, the backup stops and the only notice is that it stops.
+    - cron: '0 22 * * *'
+  # docs/10 item 3 requires one manual run verified end to end, which a
+  # schedule cannot provide. docs/16's quarterly restore drill dispatches it.
+  workflow_dispatch:
+
+# The job reads the repo and writes to R2. It never pushes.
+permissions:
+  contents: read
+
+# Two runs at once would dump the same database twice and race on the same
+# object key — the key is date-stamped, so a manual dispatch during the nightly
+# writes to the SAME key. Queue rather than cancel: a cancelled dump is not a
+# dump, and cancelling can leave a partial object behind.
+concurrency:
+  group: seatswap-backup-prod
+  cancel-in-progress: false
+
+env:
+  # Named once so the upload, the verification and the contract check cannot
+  # disagree about where the backup goes.
+  R2_BUCKET: seatswap-backups-prod
+  # India-DC endpoint. Not a secret and deliberately not in docs/12 §8, which
+  # maps tokens to vendors and not hosts.
+  ZEPTOMAIL_API: https://api.zeptomail.in/v1.1/email
+  # ZeptoMail rejects a sender domain it has not verified, so this is a
+  # PLACEHOLDER: the sending domain is build-plan item 4 (Student Pack domain),
+  # which Ayu has not claimed yet. The alert step is otherwise correct and
+  # starts delivering the day that domain is verified in Zoho. `.invalid` is
+  # reserved by RFC 2606 precisely so that a placeholder cannot be mistaken for
+  # a working address. GitHub's own workflow-failure notification (docs/16) is
+  # the backstop until then.
+  ALERT_FROM: alerts@seatswap.invalid
+
+jobs:
+  backup:
+    name: pg_dump seatswap-prod → R2
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout (the §4 project-ref table lives in the repo)
+        uses: actions/checkout@v4
+
+      - name: Preflight — the six secrets exist
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          ZEPTOMAIL_TOKEN: ${{ secrets.ZEPTOMAIL_TOKEN }}
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+        run: |
+          set -euo pipefail
+          # A missing secret substitutes as the empty string, so without this
+          # the first symptom is `pg_dump: no such file` or a 401 from R2 —
+          # neither of which names the actual problem.
+          missing=""
+          for name in SUPABASE_DB_URL R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY \
+                      R2_ENDPOINT ZEPTOMAIL_TOKEN ALERT_EMAIL; do
+            # Indirect expansion: only emptiness is inspected. The value itself
+            # is never echoed — docs/12 §4: prod credentials never appear in CI
+            # logs, and this job never runs `set -x`.
+            if [ -z "${!name:-}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::missing repo secrets:$missing — docs/12 §8 names each one and where it comes from"
+            exit 1
+          fi
+          echo "all 6 secrets present"
+
+      - name: Preflight — the URL is prod, not staging
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          # docs/12 §4: "Agents develop against staging." The single most
+          # dangerous place for that mistake is this secret. A staging URL
+          # pasted here backs up the wrong database and reports success every
+          # night, so the first anyone learns of it is at restore time — the
+          # exact hour the backup was supposed to save. §4's table is the only
+          # place a project ref is tied to an environment, so it is read from
+          # the checkout rather than duplicated here.
+          host=${SUPABASE_DB_URL#*@}
+          host=${host%%/*}
+          host=${host%%:*}
+          ref=''
+          case "$host" in
+            db.*.supabase.co) ref=${host#db.}; ref=${ref%%.supabase.co} ;;
+          esac
+          # §4's table is read by scripts/backup-ref.mjs, which calls the same
+          # parser the test suite covers. Empty output means "not recorded
+          # yet", which is a state and not an error. This was `awk` here until
+          # the suite could not reach it.
+          prod=$(node app/scripts/backup-ref.mjs prod)
+          staging=$(node app/scripts/backup-ref.mjs staging)
+          echo "host=$host ref=${ref:-unrecognised} prod=${prod:-unrecorded} staging=${staging:-unrecorded}"
+          if [ -z "$prod" ]; then
+            echo "::warning::docs/12 §4 records no prod project ref yet, so this run cannot prove SUPABASE_DB_URL is prod rather than staging. Fill that table (build-plan item 2) and this becomes a real check."
+            exit 0
+          fi
+          if [ "$ref" = "$staging" ]; then
+            echo "::error::SUPABASE_DB_URL points at the STAGING ref ($ref). This workflow backs up prod; fix the secret, not this check."
+            exit 1
+          fi
+          if [ -z "$ref" ]; then
+            echo "::error::no project ref in host '$host'. docs/12 §8 asks for the DIRECT connection string (db.<ref>.supabase.co:5432), not the pooler, which cannot hold a consistent snapshot across pg_dump's repeatable-read transaction either."
+            exit 1
+          fi
+          if [ "$ref" != "$prod" ]; then
+            echo "::error::SUPABASE_DB_URL has ref '$ref' but docs/12 §4 records prod as '$prod' — one of the two is wrong"
+            exit 1
+          fi
+          echo "SUPABASE_DB_URL points at the recorded prod ref"
+
+      - name: Install the newest pg_dump
+        run: |
+          set -euo pipefail
+          # pg_dump refuses to dump a server NEWER than itself, so the client
+          # must be at least the server's major. A newer client dumps an older
+          # server happily, so "newest available" is the safe direction — and
+          # the runner image's default tracks the image, not Supabase. PGDG
+          # carries every major, so this needs no edit when Supabase moves
+          # 16 → 17 → 18.
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          # Ask apt for the newest versioned client rather than pinning a
+          # number: a hardcoded 16 would fail the day the server moves to 17,
+          # and the failure would name pg_dump rather than the pin.
+          pkg=$(apt-cache search --names-only '^postgresql-client-[0-9]+$' \
+                  | awk '{print $1}' | sort -V | tail -1)
+          if [ -z "$pkg" ]; then
+            echo "::error::PGDG lists no versioned postgresql-client — the apt source above is wrong, and guessing a version would hide that"
+            exit 1
+          fi
+          echo "installing $pkg"
+          sudo apt-get install -y -qq "$pkg"
+          pg_dump --version
+
+      - name: Ensure the AWS CLI
+        run: |
+          set -euo pipefail
+          # Present on GitHub's ubuntu images. Installed here only if a future
+          # image drops it, because a missing `aws` would otherwise surface
+          # after a successful dump, as "command not found".
+          if ! command -v aws >/dev/null 2>&1; then
+            curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
+            unzip -q awscliv2.zip
+            sudo ./aws/install --update
+            rm -rf aws awscliv2.zip
+          fi
+          aws --version
+
+      - name: Dump seatswap-prod
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          # `pipefail` is load-bearing here, not hygiene. The handoff wrote
+          # `pg_dump … | gzip > f` under plain `-e`, where the pipeline's status
+          # is gzip's — so a dump that died mid-stream exited 0 and shipped a
+          # truncated file as a good backup. That is the one failure this whole
+          # workflow exists to prevent.
+          set -euo pipefail
+          stamp=$(date -u +%F)
+          echo "STAMP=$stamp" >> "$GITHUB_ENV"
+          # --no-owner --no-privileges: the roles and grants belong to Supabase
+          # and do not exist on a fresh project, so restoring them fails.
+          # --clean --if-exists: docs/16's quarterly drill pipes this dump into
+          # seatswap-staging, which already has the schema; without these the
+          # restore stops on the first duplicate object.
+          pg_dump "$SUPABASE_DB_URL" \
+            --format=plain --no-owner --no-privileges --clean --if-exists \
+            | gzip -9 > "seatswap-$stamp.sql.gz"
+          ls -l "seatswap-$stamp.sql.gz"
+
+      - name: Verify the dump is a dump
+        run: |
+          set -euo pipefail
+          # The handoff checked `stat -c%s f -gt 1024` on the COMPRESSED file.
+          # That catches a dump which produced nothing, and nothing else. The
+          # case that matters is a dump that dies mid-stream: it leaves a
+          # COMPLETE and valid gzip stream — `gzip -t` passes it — well over
+          # 1 KB, because a partial dump of a real database is still large.
+          # Measured on fixtures: 8 of 21 tables at 24 KB plain passes both
+          # gzip -t and a size floor. Only the content checks below catch it,
+          # which is why the table count is a floor against the schema's 21
+          # rather than another size.
+          f="seatswap-$STAMP.sql.gz"
+          gzip -t "$f"
+          gzip -dc "$f" > dump.sql
+          raw=$(wc -c < dump.sql)
+          tables=$(grep -c '^CREATE TABLE' dump.sql || true)
+          echo "$f: $(wc -c < "$f") B compressed, $raw B plain, $tables CREATE TABLE"
+          if [ "$raw" -lt 10240 ]; then
+            echo "::error::$f is $raw B uncompressed — that is not a database"
+            exit 1
+          fi
+          # The schema declares 21 tables. A floor rather than an equality, so
+          # adding a table is not a red build, while a truncated dump is.
+          if [ "$tables" -lt 15 ]; then
+            echo "::error::$f has $tables CREATE TABLE statements; the schema has 21, so this dump is incomplete"
+            exit 1
+          fi
+          # Proves the dump is THIS app's database and not some other one that
+          # happened to be reachable from the secret.
+          if ! grep -q 'CREATE TABLE public.swap_requests' dump.sql; then
+            echo "::error::$f has no public.swap_requests — this is not the seatswap schema"
+            exit 1
+          fi
+          rm -f dump.sql
+
+      - name: Upload to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          # Via the environment, not `--endpoint-url`: keeps the endpoint out
+          # of argv, where a CLI error message could quote it back.
+          AWS_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT }}
+          # AWS CLI v2.23+ appends a CRC32 trailer to every upload. R2 rejects
+          # it and fails the PUT with a checksum error that reads like a bad
+          # credential. `when_required` restores the pre-2.23 behaviour.
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+        run: |
+          set -euo pipefail
+          aws s3 cp "seatswap-$STAMP.sql.gz" \
+            "s3://$R2_BUCKET/seatswap-$STAMP.sql.gz" \
+            --no-progress
+
+      - name: Verify the object landed
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT }}
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+        run: |
+          set -euo pipefail
+          local_bytes=$(wc -c < "seatswap-$STAMP.sql.gz")
+          remote_bytes=$(aws s3api head-object \
+            --bucket "$R2_BUCKET" \
+            --key "seatswap-$STAMP.sql.gz" \
+            --query 'ContentLength' --output text)
+          echo "local $local_bytes B, in R2 $remote_bytes B"
+          # head-object alone only proves the KEY exists — a truncated or
+          # zero-byte upload passes it. The size is what proves the bytes.
+          if [ "$local_bytes" != "$remote_bytes" ]; then
+            echo "::error::R2 holds $remote_bytes B for seatswap-$STAMP.sql.gz; local is $local_bytes B"
+            exit 1
+          fi
+          echo "R2 object matches the local file byte for byte"
+
+      - name: Alert on failure
+        # docs/16 §Standing insurance: "ZeptoMail email to ALERT_EMAIL on any
+        # failed run". `failure()` and not `always()`, which would also fire on
+        # success. Last step on purpose: a failed step skips the ones after it,
+        # and GitHub evaluates `if:` per step.
+        if: failure()
+        env:
+          ZEPTOMAIL_TOKEN: ${{ secrets.ZEPTOMAIL_TOKEN }}
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+        run: |
+          set -euo pipefail
+          # STAMP is exported by the dump step, so it is empty if the failure
+          # was earlier (a preflight or apt). Recomputed rather than
+          # interpolated, or the alert arrives with no date on it.
+          stamp="${STAMP:-$(date -u +%F)}"
+          # `Zoho-enczapikey` is part of the scheme, not decoration: ZeptoMail
+          # answers 401 to a bare token, which is what the handoff sent — so
+          # this alert could never have delivered a single failure notice.
+          # `-f` is what makes a rejected send visible; the handoff's
+          # `-s … || true` turned an auth failure into a silent success.
+          curl -fsS -X POST "$ZEPTOMAIL_API" \
+            -H "Authorization: Zoho-enczapikey $ZEPTOMAIL_TOKEN" \
+            -H 'Content-Type: application/json' \
+            --data-binary @- <<JSON
+          {
+            "from": { "address": "$ALERT_FROM", "name": "SeatSwap backups" },
+            "to": [{ "email_address": { "address": "$ALERT_EMAIL" } }],
+            "subject": "[seatswap] nightly backup FAILED $stamp",
+            "textbody": "pg_dump -> R2 failed for $stamp.\n\nRun: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\n\nBackups older than 30 days are deleted by the R2 lifecycle rule, so do not let this sit. Restore drill: docs/16-EXIT-PLAYBOOK.md."
+          }
+          JSON
