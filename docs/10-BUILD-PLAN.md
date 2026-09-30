@@ -6,6 +6,14 @@ your lane. Check it [x] in the same commit that completes it.
 ## L9 — Infra & tooling
 - [ ] Unblock GitHub Actions: clear billing lock or make repo public;
       seatswap-ci must run green in the cloud on next push
+      (**Correction, 2026-09-30 — the box is `[ ]` here and `[x]` on main, and
+      main is right.** `origin/main` closed this: the repo is public, so the
+      billing lock no longer blocks jobs, and run 36668939334 went green. This
+      branch is 11 commits behind that point, so everything below was written
+      against a stale view of the item and is kept only for the two additions
+      main does not have — `workflow_dispatch` and `permissions: contents:
+      read` on `green.yml`. Corrected rather than left describing a blocker
+      that no longer exists.)
       (the buildable half is done; the unlock itself is Ayu's — a billing lock
       or a private repo is not something an agent here can change, and `gh` is
       not installed. **Checked, so the first run is not red for a fixable
@@ -90,7 +98,21 @@ your lane. Check it [x] in the same commit that completes it.
       Zoho; GitHub's own failure notification is the backstop until then.
       One request filed: docs/15-NAMING lists `seatswap-backup-prod` as a
       Cloudflare WORKER, and docs/12 §1 says the backup is "NOT a Cloudflare
-      Worker" — it is the workflow's name.)
+      Worker" — it is the workflow's name.
+      **Merge hazard, found by comparing against `origin/main`:** main carries
+      this file at BOTH `.github/workflows/seatswap-backup.yml` and the root
+      `workflows/seatswap-backup.yml`, and the two copies differ from each
+      other. Main's live copy is partially fixed — it has `pipefail` and the
+      `Zoho-enczapikey` prefix, so a second agent fixed those in parallel — but
+      it still has no `--clean --if-exists`, no `--no-owner`/`--no-privileges`
+      and no upload verification, so docs/16's own restore drill would stop on
+      the first duplicate object. Both lineages add
+      `.github/workflows/seatswap-backup.yml` from the same base, so merging
+      this branch into main is an **add/add conflict** on that path, and the
+      resolution is this branch's version. The root copy is deleted here, so
+      the merge removes main's stray one — which is the duplicate that
+      `collab-check` check 8 exists to catch. Not resolved here: merging main
+      into this branch is a larger call than this lane's standing approval.)
 - [ ] Claim Student Pack domain (Namecheap .me or Name.com) → Cloudflare
       DNS, TTL 300 (Ayu does the claim; agent wires DNS + wrangler routes)
 - [x] Sweep: verify no BENCH/RESERVE vendor SDK exists in package.json
