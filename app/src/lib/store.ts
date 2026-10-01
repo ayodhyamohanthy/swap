@@ -279,7 +279,7 @@ function readJSON<T>(key: string, fallback: T): T {
 function normalisePayment(row: PaymentRow): PaymentRow {
   const requestId = row.request_id ?? null
   const groupId = row.group_id ?? null
-  if (groupId === null && requestId !== null && isGroupRequestId(requestId)) {
+  if (requestId !== null) {
     return { ...row, request_id: null, group_id: requestId }
   }
   /* `payments_target` admits exactly one target, so a row carrying both is not

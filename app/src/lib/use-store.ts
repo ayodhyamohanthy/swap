@@ -55,7 +55,7 @@ export function useSeenFlag(key: string): boolean {
  *  a group's ₹199 at all, while the pay screen it backs was showing "already
  *  paid". A group id is a legitimate payment target (`payments_target`). */
 export function usePaymentFor(targetId: string): PaymentRow | undefined {
-  return useAppState().payments.find((r) => r.request_id === targetId)
+  return pickPaymentFor(useAppState().payments, targetId)
 }
 
 export function usePayments(): PaymentRow[] {
