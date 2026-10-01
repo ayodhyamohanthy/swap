@@ -67,7 +67,7 @@ check(manifest.short_name === 'SeatSwap', 'manifest short_name must be SeatSwap'
 check(manifest.display === 'standalone', 'manifest display must be standalone')
 check(manifest.theme_color === '#1F6B45', 'manifest theme_color must be #1F6B45')
 check(manifest.background_color === '#FAF6EE', 'manifest background_color must be #FAF6EE')
-check(manifest.start_url === '/', 'manifest start_url must be /')
+check(manifest.start_url === '/?source=pwa', 'manifest start_url must be / with the pwa source tag')
 check(manifest.orientation === 'portrait', 'manifest orientation must be portrait')
 check(
   Array.isArray(manifest.icons) && manifest.icons.length >= 3,
@@ -94,7 +94,7 @@ for (const shortcut of manifest.shortcuts ?? []) {
 }
 
 /* 3. Icons + fonts ---------------------------------------------------- */
-for (const icon of ['icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png']) {
+for (const icon of ['icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-192.png', 'icons/maskable-512.png']) {
   check(existsSync(join(dist, icon)), `${icon} is missing from the build`)
 }
 const builtAssets = existsSync(join(dist, 'assets')) ? readdirSync(join(dist, 'assets')) : []
