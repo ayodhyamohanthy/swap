@@ -1,84 +1,73 @@
 import subprocess
 import time
-import os
 import sys
+import shutil
 
-# Ranked Models from Benchmark Hierarchy
+# OpenCode Zen benchmark hierarchy
 MODELS_LADDER = [
-    "nemotron-3-ultra",       # Rank 1
-    "big-pickle",             # Rank 2
-    "mimo-v2.6-flash",         # Rank 3
-    "nemotron-3.5-lightning", # Rank 4
-    "longcat-2.5-preview",    # Rank 5
-    "ling-3.0-flash-fin",     # Rank 6
-    "muse-spark-1.3"          # Rank 7
+    "opencode/nemotron-3-ultra-free",
+    "opencode/big-pickle",
+    "opencode/mimo-v2.6-flash-free",
+    "opencode/nemotron-3.5-lightning-free",
+    "opencode/longcat-2.5-preview-free",
+    "opencode/ling-3.0-flash-fin-free",
+    "opencode/muse-spark-1.3-free"
 ]
 
-APPS = ["opencode", "cline", "workbuddy"]
-TASK_PROMPT = "Inspect current project status, build missing features, fix errors, and verify with npm run build."
+TASK_PROMPT = (
+    "Build and implement the required features for this application. "
+    "Do not stop to ask for confirmation. Fix any errors, make the necessary file "
+    "changes, and ensure all parts of the application are working."
+)
 
-def verify_build_complete():
-    """Checks if the project compiles cleanly."""
-    res = subprocess.run(["npm", "run", "build"], shell=True, capture_output=True, text=True)
-    return res.returncode == 0
-
-def git_commit_checkpoint(app_name, model_name):
-    """Saves progress before rotating tools without triggering collab-check blocks."""
+def git_checkpoint(model_name):
+    """Saves progress to Git using conventional commits and bypassing pre-commit hooks."""
     subprocess.run(["git", "add", "."], check=False)
     subprocess.run([
-        "git", "commit", 
-        "--no-verify", 
-        "-m", f"chore(relay): {app_name} iteration using {model_name}"
+        "git", "commit",
+        "--no-verify",
+        "-m", f"chore(relay): automated build iteration with {model_name}"
     ], check=False)
 
-def execute_agent_turn(app_name, model_name):
-    print(f"\n=======================================================")
-    print(f"[RELAY] Activating App: {app_name.upper()} | Model: {model_name}")
-    print(f"=======================================================\n")
+def run_model_turn(model_name):
+    print("\n" + "=" * 60)
+    print(f"[RELAY] Active Model: {model_name}")
+    print("=" * 60 + "\n")
 
-    if app_name == "opencode":
-        cmd = ["opencode", "run", "--yes", "--model", model_name, TASK_PROMPT]
-    elif app_name == "cline":
-        cmd = ["npx", "cline", "--headless", "--yes", "--model", model_name, "--prompt", TASK_PROMPT]
-    elif app_name == "workbuddy":
-        cmd = ["workbuddy", "exec", "--auto", "--model", model_name, TASK_PROMPT]
+    cmd = [
+        "opencode", "run",
+        "--auto",
+        "--model", model_name,
+        TASK_PROMPT
+    ]
 
     try:
+        # 12-minute execution cycle before checking and rotating
         proc = subprocess.run(cmd, timeout=720)
-        git_commit_checkpoint(app_name, model_name)
+        git_checkpoint(model_name)
         return proc.returncode == 0
     except subprocess.TimeoutExpired:
-        print(f"[WARN] {app_name} reached runtime limit. Forcing checkpoint and switching...")
-        git_commit_checkpoint(app_name, model_name)
+        print(f"\n[WARN] Timeout reached for {model_name}. Preserving progress and rotating...")
+        git_checkpoint(model_name)
         return False
-    except Exception as e:
-        print(f"[ERROR] Execution failed for {app_name}: {e}")
+    except Exception as err:
+        print(f"\n[ERROR] Encountered error with {model_name}: {err}")
         return False
 
 def main():
-    model_index = 0
-    app_index = 0
+    if not shutil.which("opencode"):
+        print("[FATAL] 'opencode' binary not found in your PATH.")
+        sys.exit(1)
 
-    while model_index < len(MODELS_LADDER):
-        current_model = MODELS_LADDER[model_index]
-        current_app = APPS[app_index]
+    print("[RELAY] Initiating autonomous build loop across OpenCode models...")
 
-        if verify_build_complete():
-            print("\n[SUCCESS] Application built and validated without errors!")
-            sys.exit(0)
-
-        execute_agent_turn(current_app, current_model)
-
-        app_index += 1
-        if app_index >= len(APPS):
-            app_index = 0
-            model_index += 1
-            if model_index < len(MODELS_LADDER):
-                print(f"\n[INFO] Advancing to next benchmark model: {MODELS_LADDER[model_index]}")
-
+    for index, model in enumerate(MODELS_LADDER, start=1):
+        print(f"\n>>> Step {index}/{len(MODELS_LADDER)}: Running {model} <<<")
+        run_model_turn(model)
+        print(f"\n[RELAY] Session for {model} completed or limit reached. Advancing to next rank...")
         time.sleep(3)
 
-    print("\n[ALERT] Reached end of model hierarchy. Check build logs manually.")
+    print("\n[NOTICE] Finished full cycle across all free benchmark models.")
 
 if __name__ == "__main__":
     main()

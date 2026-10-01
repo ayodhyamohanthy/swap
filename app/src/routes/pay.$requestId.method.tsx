@@ -131,9 +131,9 @@ function MethodScreen() {
       </Card>
 
       {/* `text-note`, not the 12px step: these two labels name the gateway the
-          payer is about to hand money to (rule 9's mandated "International
-          traveller?" line is one of them), and docs/07 §Responsive floors
-          copy a passenger reads to decide at 14px. */}
+          payer is about to hand money to (Razorpay primary for all, PayPal
+          fallback for international), and docs/07 §Responsive floors copy a
+          passenger reads to decide at 14px. */}
       <p className="mt-5 text-note font-semibold uppercase tracking-wide text-muted">
         {t('pay.inIndia')}
       </p>
