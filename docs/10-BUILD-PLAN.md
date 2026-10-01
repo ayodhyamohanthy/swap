@@ -115,6 +115,82 @@ your lane. Check it [x] in the same commit that completes it.
       into this branch is a larger call than this lane's standing approval.)
 - [ ] Claim Student Pack domain (Namecheap .me or Name.com) → Cloudflare
       DNS, TTL 300 (Ayu does the claim; agent wires DNS + wrangler routes)
+      (the agent-doable half is done and it is not the wiring — it is giving the
+      name one authority and checking the world against it. **Nothing decided
+      the domain: nine tracked files stated it and none of them owned it** —
+      `CNAME`, `app/wrangler.toml` (×2), `app/azure/README.md`,
+      `app/tests/qa-placeholders.test.ts`, `docs/16-BEST-PRACTICES.md`,
+      `docs/17-PRODUCTION-PATH.md`, this file's own Placeholders line, a dated
+      log in `.workbuddy-ai/` and a vendored build-pack copy — while docs/12,
+      the ledger this lane owns, never mentioned it, and "TTL 300" existed only
+      as prose in docs/16-EXIT-PLAYBOOK. (The scan now counts eleven: §4.1 and
+      docs/DECISIONS.md name the domain as well, which is why both sit in the
+      Excluded table — recording a value adds a file that holds it, and a count
+      written in prose does not notice.) docs/12 §4.1 is now the source of
+      truth: the domain, its status, the TTL, where the zone must live, the
+      records Cloudflare must hold, every path that must name it, and the four
+      paths allowed to go stale on a swap.
+      `scripts/domain-lib.mjs` (pure, imports nothing) parses those four tables
+      at check time instead of carrying a second copy of a value this item
+      exists to change; `scripts/domain-dry-run.mjs` compares the tracked files
+      against it, walks the whole repo for a file naming the domain that is in
+      NEITHER §4.1 table, and asks DNS — read-only `node:dns` + `dig`, no
+      credentials, no `fetch`, every query recorded and counted in its exit
+      token. The walk is what makes the ledger self-policing: the drift check
+      can only ever disagree with the paths §4.1 lists, so a ledger missing a
+      row was indistinguishable from a repo with nothing to check — and it
+      caught this pass's own test file hardcoding the name, on the run that
+      introduced it. It walks the filesystem rather than `git grep`, so an
+      untracked scratch file naming the domain reddens `npm run test` for every
+      lane until §4.1 lists it or excludes it with a reason; that is the point,
+      but it is a shared-tree hazard and is named here rather than discovered.
+      92 tests, and the guard's own claims were mutation-checked: 52 defects
+      planted one at a time (a bare `endsWith` that accepts `evilexample.com` as
+      a subdomain of `example.com`, a `dns-ttl` defaulting to 300 nobody chose,
+      "zero rows parsed" read as "nothing to check", a commented routes line
+      counted as live, `--offline` that still queried, drift demoted to a note,
+      the Excluded table parsed and then dropped, a walk that never enters a
+      subdirectory, a byte cap that skips every file, `scanned: 0` accepted as a
+      complete scan), each verified to have APPLIED before its catch was
+      believed — one mutant survived the first pass and a second survived the
+      harness's extension to the new guards, and those two are why
+      `attachVerdict`'s early return and section 5's "the scan read nothing"
+      wording each have their own test. **Re-measured rather than trusted:** the
+      blocker lived in a comment in `app/wrangler.toml` dated 2026-09-29, and
+      comments do not notice when the world changes, so `dig NS` was run again at
+      2026-10-01T13:40Z — still `dns1`/`dns2.registrar-servers.com`, still
+      NameCheap, so the zone is not attachable, the routes line must stay
+      commented, and `wrangler deploy` would fail "zone not found". **Still
+      Ayu:** claim the domain, move its nameservers to the pair Cloudflare
+      assigns, set the TTL to 300 — nothing in this repo can do any of the three,
+      and the dry run now says so naming who owes it. **Owed to L1, not here:**
+      "agent wires DNS + wrangler routes" is L1's file per docs/13, so this lane
+      can only report that the routes line is still commented and name L1 as the
+      one allowed to uncomment it. **Two findings, both filed as requests:**
+      `app/tests/qa-placeholders.test.ts` checks a hardcoded `/toyoufromme/i`
+      regex, so the day the name in §4.1 changes it keeps passing while checking
+      nothing — the new domain will be absent from the bundle because it is
+      nowhere in the source, not because the guard held; and that file is in no
+      lane's ownership map at all (added by `72628db`, whose entire commit
+      message is the character `0`), which is the dead-surface class Check 9 was
+      just written for. Also: item 3's backup alert sender
+      `alerts@seatswap.invalid` can never verify in Zoho because `.invalid` is
+      reserved, so the nightly failure notice stays undeliverable until this
+      item closes. **The item contradicts itself and was decided the small
+      way:** it names a "Student Pack domain (.me or Name.com)" while the repo
+      has already planned `toyoufromme.website`; guessing the name is not this
+      lane's call, so what was built is the swap being *safe* — editing docs/12
+      §4.1 is now the whole change, and everything else is checked against it.
+      Recorded in docs/DECISIONS.md. **Already CI-enforced — the first draft of
+      this line claimed it was not, and the claim was checked rather than
+      kept:** `green.yml` runs `npm run test`, `vitest.config.ts` includes
+      `tests/**`, and `tests/domain-lib.test.ts` runs the dry run against the
+      real repo asserting exit 0, so drift or a file the ledger does not account
+      for fails CI today. What IS deferred while L9 is held `active:` is only
+      the `collab-check` guard (Check 10; Check 9 is that agent's in-flight
+      work), which would surface the same finding locally and under `--fast` —
+      where `SKIP_GREEN` skips typecheck and the suite entirely, so neither the
+      pre-commit path nor CI's own collab-check step currently looks.)
 - [x] Sweep: verify no BENCH/RESERVE vendor SDK exists in package.json
       or code; remove any found; add collab-check rule enforcing the
       docs/12 §2 whitelist

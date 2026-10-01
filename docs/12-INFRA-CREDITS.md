@@ -87,6 +87,111 @@ the ordered `psql` apply, and where to record the ref. Do NOT use
 the project root, and the root's holds one stale file and no `migrations/`,
 so it would provision an empty database.
 
+## §4.1 Domain & DNS
+The app serves from `https://seatswap.ayodhya-711.workers.dev/`. The custom
+domain below is the one build-plan item 4 wires — and **docs/10 lists that name
+under "Placeholders to replace"**, so it is expected to change. That is the
+reason it is recorded here once instead of in every file that needs it: a name
+scheduled for replacement, written down all over this repo with nothing checking
+the copies agree, drifts silently on the day it is swapped, and a `zone_name`
+that disagrees with the zone Cloudflare actually holds fails `wrangler deploy`
+at the worst moment.
+
+The two path tables below ARE the count, and that is deliberate: recording the
+name here and in `docs/DECISIONS.md` added two more files holding it, so any
+number written into this paragraph is already behind by the time it is written.
+A count in prose cannot be checked; the dry run scans the tree and fails on a
+file that is in neither table, so the number is measured on every run instead.
+
+This section is the only source of truth. `scripts/domain-lib.mjs` parses it and
+`node app/scripts/domain-dry-run.mjs` measures the world against it.
+
+| Key | Value |
+|-----|-------|
+| domain | toyoufromme.website |
+| status | placeholder |
+| dns-ttl | 300 |
+| zone-must-be-on | cloudflare |
+| serving-now | seatswap.ayodhya-711.workers.dev |
+
+Required records once the zone is on Cloudflare. TTL is `dns-ttl` above —
+300s, per docs/16-EXIT-PLAYBOOK, so a cutover or an exit propagates in minutes
+rather than a day. Node's resolver does not expose TTL, so the dry run reads it
+from `dig +noall +answer` when `dig` exists and reports TTL as *unverified*
+rather than guessing when it does not.
+
+| Record | Type | Value |
+|--------|------|-------|
+| toyoufromme.website | A / AAAA | proxied to the worker (Cloudflare orange cloud) |
+| www.toyoufromme.website | CNAME | toyoufromme.website |
+
+Every tracked path that names the domain, so a swap is checked everywhere it
+was written. `config` files are held to the exact value (they are what a
+machine reads); `doc` files are only required to still mention it (prose
+describes, it does not configure).
+
+| Path | Kind |
+|------|------|
+| CNAME | config |
+| app/wrangler.toml | config |
+| app/azure/README.md | doc |
+| app/tests/qa-placeholders.test.ts | doc |
+| docs/10-BUILD-PLAN.md | doc |
+| docs/16-BEST-PRACTICES.md | doc |
+| docs/17-PRODUCTION-PATH.md | doc |
+
+Four tracked files name the domain and are deliberately NOT in that table. This
+is a table and not prose because the dry run reads it: it scans the whole repo
+for the name and fails on any file that appears in NEITHER list, so an
+incomplete ledger is a red run rather than a quiet gap. A path excluded here is
+a promise that the name in it is allowed to go stale.
+
+| Excluded path | Why |
+|---------------|-----|
+| docs/12-INFRA-CREDITS.md | this ledger — it is the source of the value, not a copy of it |
+| docs/DECISIONS.md | append-only log — prior lines are never edited, so a name recorded there stays as it was written |
+| .workbuddy-ai/memory/2026-09-29.md | dated measurement log — it records what DNS and GitHub Pages said that day, and rewriting it would falsify the record rather than update a config |
+| lovable build/seatswap-build-pack/docs/10-BUILD-PLAN.md | vendored copy of the handoff build pack; nothing reads it |
+
+`app/tests/qa-placeholders.test.ts` is in the table for the opposite reason from
+everything else in it: it asserts the domain is ABSENT from `app/src/**` and
+from the locale catalogs, so nothing bakes a planned hostname into the client
+bundle. Listing it here says that file must be edited when the domain changes —
+and it must, because its check is a hardcoded `/toyoufromme/i` regex. Swap the
+name in this table and that test keeps passing while checking nothing: the new
+domain would be absent from the bundle because it is nowhere in the source at
+all, not because the guard held. That is a request, not a fix this lane can
+make: the file is not in docs/13's ownership map at all (added by commit
+`72628db`, whose entire message is the character `0`), so no lane is obliged to
+act on it, which is the same "dead surface" class `collab-check`'s Check 9 was
+just written to catch.
+
+**The gate, re-measured rather than trusted.** `dig NS toyoufromme.website`
+returned `dns1.registrar-servers.com` / `dns2.registrar-servers.com` at
+2026-10-01T13:40Z — still NameCheap's defaults, so the zone is NOT on
+Cloudflare and the `routes` line in `app/wrangler.toml` cannot be attached
+("zone not found"). This confirms L1's 2026-09-29 measurement rather than
+assuming it still holds; move the zone's nameservers to Cloudflare and re-run
+the dry run, which is the thing that tells you the deploy is now possible.
+Until then the workers.dev URL above is the live app and `wrangler deploy`
+must not gain an uncommented `routes`.
+
+Two consequences worth recording next to the facts:
+
+- **The root `CNAME` is inert.** Only GitHub Pages reads it, and that site was
+  deleted on 2026-09-29 (see the comment in `app/wrangler.toml`). It is kept
+  because it is the domain's one other machine-readable record and because
+  deleting it is a decision about whether Pages ever returns — not a cleanup an
+  agent should make silently. It also appears in no lane's ownership map
+  (docs/13), so nothing guards it.
+- **Item 3's alert sender depends on this item.** The backup workflow alerts
+  from `alerts@seatswap.invalid`, a placeholder that can never verify because
+  `.invalid` is reserved. ZeptoMail rejects an unverified sending domain, so
+  the real sender is `alerts@<domain>` for whichever domain Ayu settles on —
+  which means the nightly backup's failure alert stays undeliverable until this
+  item closes, and GitHub's own workflow-failure notification is the only
+  backstop.
+
 ## §5 Backups & exit
 Nightly GitHub Actions workflow `seatswap-backup-prod`
 (.github/workflows/seatswap-backup.yml, cron 22:00 UTC = 03:30 IST)
