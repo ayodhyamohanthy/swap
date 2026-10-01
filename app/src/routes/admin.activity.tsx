@@ -92,22 +92,35 @@ const CATEGORY_ICON: Record<ActivityCategory, LucideIcon> = {
 }
 
 /**
- * Design 15's five columns are Time / User / Action / Train / Details. Two of
-   them are not drawn, for one shared reason — `ActivityRow` has no name field,
-   the same missing-peer-row blocker as `admin.users.tsx` and `get_matches()`:
+ * Design 15's five columns are Time / User / Action / Train / Details, and
+   **four of the five are drawn** — this comment used to say two, which was
+   already wrong when the User timeline panel shipped, and said nothing about
+   Train at all. Train IS its own column (`admin.colTrain`), drawn in `f65f8aa`;
+   the note that follows the table — "Details stays in the Action cell rather
+   than becoming a fifth column" — was written before that and still read as a
+   claim that no train column existed. A stale comment directly above a working
+   feature is the same failure this board has already paid for twice (design 17's
+   panel, and backlog 3 here), so it is corrected rather than left to mislead the
+   next reader.
 
-     - **User** ("Riya P") cannot be built at all.
-     - the **User timeline** panel beside the table needs the same name.
+   What the five columns actually became:
 
-   The panel itself does not: it groups by `actor_id`, which every row carries,
-   so it ships below the table. What it will not do is print a name, because
-   there is none to print and `tests/qa-placeholders.test.ts` bans inventing one.
+     - **Time** — its own track at `lg`, folded into the card caption below it.
+     - **Action** — the icon track plus the label, with Details as its caption.
+     - **Train** — its own track, and `activityDetails(row, { omit: ['train_no'] })`
+       keeps the number out of Details so one fact is not printed twice per row.
+     - **Details** — deliberately *not* a fifth column. The design's own rows show
+       short values ("UPI", "A2", "Wants Lower") because they are hand-written; a
+       real row is a `·`-separated list up to 60 chars, and a fifth column on a
+       1080px console would truncate exactly the field an operator came for.
+     - **User** ("Riya P") — the one column that cannot be built. `ActivityRow` has
+       no name field, the same missing-peer-row blocker as `admin.users.tsx` and
+       `get_matches()`. The design's name is a mock, and
+       `tests/qa-placeholders.test.ts` bans inventing one.
 
-   Details stays in the Action cell rather than becoming a fifth column. The
-   design's own rows show short values ("UPI", "A2", "Wants Lower") because
-   they are hand-written; a real row is a `·`-separated list up to 60 chars, and
-   a fifth column on a 1080px console would truncate exactly the field an
-   operator came for. */
+   The User **timeline panel** beside the table in the design is built and ships
+   below it: it groups by `actor_id`, which every row carries, so the panel
+   exists without a name. It cannot print one either — there is none to print. */
 
 function AdminActivity() {
   const { t, date, lang } = useI18n()
@@ -269,7 +282,7 @@ function AdminActivity() {
                     ) : null}
                   </span>
 
-                  {/* `lg:contents` dissolves this wrapper at desktop width, so
+                  {/* `lg:block` dissolves this wrapper at desktop width, so
                       the date and the train become grid items in their own
                       columns; below `lg` it is one wrapped caption line under
                       the card. That is why it has to stay a direct child of the
@@ -322,7 +335,7 @@ function AdminActivity() {
                  can paste into a search, and a design's "Riya P" is a mock. */
               const isAutomation = group.actorId === null
               return (
-                <li key={group.actorId ?? ' automation'}>
+                <li key={group.actorId ?? '\0automation'}>
                   <Card>
                     <CardBody>
                       <div className="flex items-baseline justify-between gap-2">
