@@ -41,7 +41,7 @@ function AdminLayout() {
             <Link
               key={item.path}
               to={item.path}
-              className="rounded-btn border border-line bg-card px-3 py-2 text-body font-semibold text-ink hover:border-primary"
+              className="rounded-btn border border-line bg-card px-3 py-2 text-body font-semibold text-ink hover:border-primary active:border-primary"
             >
               {t(LABEL_KEYS[item.label])}
             </Link>
