@@ -52,6 +52,12 @@ export function ownedByLane(file: string, surface: string): boolean
 /** Lane rows from `docs/13-COLLAB-CONTRACT.md` §1, restricted to `ids`. */
 export function parseSurfaces(contractText: string, ids: string[]): LaneSurface[]
 
+/** Surfaces matching no file in `files`, so they protect nothing. */
+export function deadSurfaces(
+  lanes: LaneSurface[],
+  files: string[],
+): Array<{ id: string; surface: string }>
+
 /** `file -> lane (surface)` for every staged file on someone else's lane. */
 export function clashesFor(
   files: string[],

@@ -24,6 +24,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   clashesFor,
+  deadSurfaces,
   declaredBy,
   globToRegExp,
   ownedByLane,
@@ -36,8 +37,17 @@ import {
    broke test collection for six lanes when `translator-lib.mjs` did it
    (docs/11). This file is about that class of mistake, so it is not going to
    make it. */
-const { readFileSync } = process.getBuiltinModule('node:fs') as typeof import('node:fs')
-const { join } = process.getBuiltinModule('node:path') as typeof import('node:path')
+const { readFileSync, readdirSync } = process.getBuiltinModule('node:fs') as typeof import('node:fs')
+const { join, relative } = process.getBuiltinModule('node:path') as typeof import('node:path')
+
+/* `import.meta.dirname`, matching `tests/backup-contract.test.ts`.
+   `new URL('../../', import.meta.url)` does NOT work here: under the jsdom pool
+   `import.meta.url` is not a `file:` URL, so `fileURLToPath` throws "The URL
+   must be of scheme file" at COLLECTION time — the whole file fails with
+   "(0 test)" rather than one test failing, which reads like a broken test file
+   rather than a broken assumption. */
+const APP = join(import.meta.dirname, '..')
+const REPO = join(APP, '..')
 
 /** A board row in the shape docs/14 actually uses. */
 const row = (cells: string[]) => `| ${cells.join(' | ')} |`
@@ -282,5 +292,124 @@ describe('clashesFor — who owns what, and who may commit it', () => {
 
   it('is quiet when no lane is active', () => {
     expect(clashesFor(['app/src/lib/admin.ts', 'app/scripts/a.mjs'], [], {})).toEqual([])
+  })
+})
+
+describe('deadSurfaces — a surface that matches nothing is not a guard', () => {
+  const lanes = [
+    { id: 'L1', surfaces: ['app/src/components/ui/**', 'app/src/components/pwa*.tsx'] },
+    { id: 'L2', surfaces: ['routes/index.*'] },
+  ]
+  const files = ['app/src/components/ui/button.tsx', 'app/src/routes/index.tsx']
+
+  it('reports the surface that matches no file, and leaves the working ones out', () => {
+    expect(deadSurfaces(lanes, files)).toEqual([
+      { id: 'L1', surface: 'app/src/components/pwa*.tsx' },
+    ])
+  })
+
+  it('catches both defects the shipped contract actually had', () => {
+    /* Both were one character wide. Both left the real file unowned. Nothing
+       reported either, because `clashesFor` can only refuse a file some surface
+       MATCHES — so a surface matching nothing looks exactly like a lane with
+       nothing to do. */
+    const dead = deadSurfaces(
+      [
+        { id: 'L1', surfaces: ['app/src/components/pwa*.tsx'] },
+        { id: 'L2', surfaces: ['routes/index'] },
+      ],
+      [
+        'app/src/components/install-prompt.tsx',
+        'app/src/components/service-worker.tsx',
+        'app/src/routes/index.tsx',
+      ],
+    )
+    expect(dead.map((d) => d.id)).toEqual(['L1', 'L2'])
+  })
+
+  it('is silent once the glob matches', () => {
+    expect(deadSurfaces(lanes, [...files, 'app/src/components/pwa-install.tsx'])).toEqual([])
+  })
+
+  it('calls every surface dead when the file list is empty, rather than passing vacuously', () => {
+    /* An empty list is what a mis-scoped scan produces, and it must not read as
+       "clean" — that is how a guard reports health while reading nothing. */
+    expect(deadSurfaces(lanes, [])).toHaveLength(3)
+  })
+
+  it('reports a lane whose surfaces are all dead', () => {
+    expect(deadSurfaces([{ id: 'L4', surfaces: ['server/paypal-client.tsx'] }], files)).toEqual([
+      { id: 'L4', surface: 'server/paypal-client.tsx' },
+    ])
+  })
+})
+
+/* THE SHIPPED FILES, not fixtures.
+ *
+ * Fixtures cannot tell you the real contract is wrong, and it was: two of its 39
+ * surfaces matched no file at all, so they protected nothing, and no test
+ * noticed — because no test had ever read the real file. `readFileSync` and
+ * `join` were imported at the top of this file and never used until now, which
+ * is that same gap in miniature.
+ *
+ * The file list is walked from disk rather than taken from `git ls-files` (the
+ * guard's universe) because a test may not pull `node:child_process` into the
+ * jsdom pool. Disk is a SUPERSET — it includes gitignored files — so the
+ * stronger tracked-only case is covered by the CLI's own mutation runs instead,
+ * where a surface pointing at `app/.tanstack/**` was measured going red. */
+function sourceFiles(): string[] {
+  const out: string[] = []
+  const skip = new Set([
+    'node_modules', '.git', 'dist', '.tanstack', '.commandcode', '.workbuddy-ai',
+    'lovable build', 'swap',
+  ])
+  const walk = (abs: string) => {
+    let entries
+    try {
+      entries = readdirSync(abs, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const e of entries) {
+      if (skip.has(e.name)) continue
+      const full = join(abs, e.name)
+      if (e.isDirectory()) walk(full)
+      else out.push(relative(REPO, full))
+    }
+  }
+  walk(REPO)
+  return out
+}
+
+describe('the shipped docs/13 §1 — the map the guard actually reads', () => {
+  const contract = readFileSync(join(REPO, 'docs', '13-COLLAB-CONTRACT.md'), 'utf8')
+  const ids = [...new Set([...contract.matchAll(/^\|\s*L(\d+)\b/gm)].map((m) => `L${m[1]}`))]
+
+  it('parses ten lane rows out of the real table', () => {
+    expect(ids).toEqual(['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10'])
+  })
+
+  it('has every surface matching at least one real file', () => {
+    const dead = deadSurfaces(parseSurfaces(contract, ids), sourceFiles())
+    expect(dead).toEqual([])
+  })
+
+  it('assigns app/vitest.config.ts in the TABLE, not only in the prose above it', () => {
+    /* "app/vitest.config.ts follows L1" was the whole assignment for three days.
+       `parseSurfaces` reads only the table, so the guard could not see it and
+       the file was unprotected while the prose said otherwise. This assertion is
+       what keeps the sentence and the table from drifting apart again. */
+    expect(parseSurfaces(contract, ['L1'])[0].surfaces).toContain('app/vitest.config.ts')
+  })
+
+  it('covers the PWA components L1 owns, by path rather than by a prefix they lack', () => {
+    const l1 = parseSurfaces(contract, ['L1'])[0].surfaces
+    expect(l1).toContain('app/src/components/install-prompt.tsx')
+    expect(l1).toContain('app/src/components/service-worker.tsx')
+    expect(l1).not.toContain('app/src/components/pwa*.tsx')
+  })
+
+  it('lets L2 own the home route it always meant to', () => {
+    expect(parseSurfaces(contract, ['L2'])[0].surfaces).toContain('routes/index.*')
   })
 })

@@ -16,8 +16,8 @@ file a `docs/14-LANES.md` handoff note instead.
 
 | Lane | Surface (routes/files) | Typical agent |
 |---|---|---|
-| L1 PWA shell + design system | `app/src/components/ui/**`, `app/src/components/app-shell.tsx`, `app/src/components/pwa*.tsx`, `app/src/styles.css`, `app/public/**`, `app/pwa.workbox.mjs`, `app/wrangler.toml` | Cline |
-| L2 Trips + PNR | `routes/index`, `routes/trips.*`, `lib/pnr.ts`, `lib/store.ts` | Codex |
+| L1 PWA shell + design system | `app/src/components/ui/**`, `app/src/components/app-shell.tsx`, `app/src/components/install-prompt.tsx`, `app/src/components/service-worker.tsx`, `app/src/styles.css`, `app/public/**`, `app/pwa.workbox.mjs`, `app/vitest.config.ts`, `app/wrangler.toml` | Cline |
+| L2 Trips + PNR | `routes/index.*`, `routes/trips.*`, `lib/pnr.ts`, `lib/store.ts` | Codex |
 | L3 Requests + matching | `routes/request.*`, `routes/share.*`, `lib/requests.ts`, `lib/matching.ts` | Claude |
 | L4 Payments | `routes/pay.*`, `server/payments*`, `server/razorpay-client.ts`, `server/paypal-client.ts`, `lib/payments.ts` | Gemini |
 | L5 Swaps + chat + safety | `routes/swaps.*`, `routes/chat.*`, `lib/chat-guard.ts`, `lib/safety.ts`, `lib/outbox.ts` | Copilot |
@@ -31,6 +31,20 @@ Shared files (`package.json`, `routeTree.gen.ts`, `app/vite.config.ts`)
 are **generated or additive-only**: run the build after touching routes and
 commit the regenerated tree; never hand-edit.
 
+**Shared by evidence, added 2026-10-01 (L9):** `routes/__root.tsx` and
+`routes/profile.*` join that list rather than getting an owner. They are neither
+shell nor feature files — `git log` over `app/src/routes/profile*` returns
+commits from the analytics, safety, groups and PNR passes, and over
+`__root.tsx` from the device, hydration and route-tree passes. Any single owner
+would be wrong, and every one of those lanes would then need a `request:` to
+touch a screen it already owns the feature behind. They stay in no lane's
+surface on purpose; the alternative was inventing an owner and being wrong.
+
+`app/.tanstack/` needs no owner at all: it is generated and `.gitignore:11`
+excludes it, so it can never be staged and the guard can never see it. The
+backlog item that raised this listed it as one of five unowned paths — a false
+positive, recorded here so the next census does not count it again.
+
 Two more were unowned (flagged by L9, 2026-09-28) and are now assigned here:
 `app/vitest.config.ts` follows L1, and `app/scripts/**` — the collab guard and
 its installer — follows **L9**, because the guard is what enforces every other
@@ -43,6 +57,32 @@ passed with no check at all. **2026-09-29 (L9, Cline): merged into the L9 row
 above** — one surface added rather than one row, because `parseSurfaces` keys
 by lane id and two rows for one id would silently drop one of them. The guard
 now defends its own code.
+
+**That fix was applied to one of the two paths, and the other stayed prose-only
+for three days.** `app/vitest.config.ts` was assigned to L1 in the sentence
+above and nowhere else, so the guard still could not read it. **2026-10-01
+(L9): moved into the L1 row**, which is what the sentence already meant — the
+ownership did not change, only whether a machine can see it.
+
+**Two surfaces protected nothing, and nothing said so — found and fixed
+2026-10-01 (L9).** A surface is read as a glob, so one written for a naming
+convention the files do not follow matches zero files and is silently inert.
+Two of the 39 did:
+
+- **L1 `app/src/components/pwa*.tsx`** matched nothing. The PWA components are
+  `install-prompt.tsx` and `service-worker.tsx`; neither starts with `pwa`, so
+  the glob was written for a prefix the code never used and both real files were
+  unowned. Replaced with the two explicit paths.
+- **L2 `routes/index`** matched nothing, because a surface with no extension and
+  no wildcard is compared against `app/src/routes/index.tsx` literally. The home
+  route was unowned while L2's entry looked healthy. Now `routes/index.*`.
+
+`ownedByLane` tries both `routes/index` and `app/src/routes/index`, which is why
+the second one looked plausible — the `app/src/` form only helps when the
+surface already carries an extension or a wildcard, so a bare filename silently
+matches nothing in either form. **Check 9** now fails when any surface in the
+table above matches no tracked file, so a surface that protects nothing is a red
+build instead of a quiet one.
 
 **Narrowed 2026-09-29 (L4, via the pre-commit guard).** L1 previously owned the
 whole of `app/src/components/**`, which swallowed every feature component too —

@@ -36,7 +36,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
    without pulling `node:child_process` into the jsdom pool — the mistake that
    broke test collection for six lanes when `translator-lib.mjs` did it
    (docs/11). */
-import { clashesFor, declaredBy, ownedByLane, parseActiveLanes, parseSurfaces } from './lane-board.mjs'
+import { clashesFor, deadSurfaces, declaredBy, ownedByLane, parseActiveLanes, parseSurfaces } from './lane-board.mjs'
 import { parseProjectRefs, supabaseUrlFindings } from './staging-lib.mjs'
 import { findBanned, importSpecifiers, parseVendorLedger } from './vendor-whitelist.mjs'
 import { backupFindings, parseBackupContract } from './backup-contract.mjs'
@@ -371,6 +371,65 @@ function checkBackup() {
   for (const step of findings.humanSteps) console.log(`      \x1b[33m·\x1b[0m ${step}`)
 }
 
+/* ---- 9. the ownership map protects something (docs/13 §1) ----
+   A surface that matches no file is not a guard. `clashesFor` can only refuse a
+   file some surface MATCHES, so a surface matching nothing is indistinguishable
+   from a lane with nothing to do — and the real files it was written for stay
+   unowned while the entry reads as healthy.
+
+   Two of the 39 surfaces did exactly that until 2026-10-01: L1's
+   `app/src/components/pwa*.tsx` (the PWA components are `install-prompt.tsx`
+   and `service-worker.tsx`, neither of which starts with `pwa`) and L2's
+   `routes/index` (no extension and no wildcard, so it was compared literally
+   against `app/src/routes/index.tsx`). In both cases the fix was one character
+   and the cost was three days of an unowned file nobody knew about. The
+   decisions live in `lane-board.mjs`, which imports nothing, so the suite can
+   cover them; this function is only the part that reads the disk. */
+function checkOwnership() {
+  let contract
+  try {
+    contract = readFileSync(join(REPO, 'docs', '13-COLLAB-CONTRACT.md'), 'utf8')
+  } catch {
+    bad('docs/13-COLLAB-CONTRACT.md is unreadable — the ownership map cannot be checked')
+    return
+  }
+
+  /* EVERY lane, not just the active ones: an inactive lane's dead surface is a
+     hole waiting for the day that lane is claimed. The ids are read from the
+     contract rather than hardcoded, so a new lane is covered with no edit here
+     — and a contract whose table was rewritten into some other shape reports
+     that rather than passing vacuously. */
+  const ids = [...new Set([...contract.matchAll(/^\|\s*L(\d+)\b/gm)].map((m) => `L${m[1]}`))]
+  if (ids.length === 0) {
+    bad('docs/13 §1 has no lane rows — the ownership map is empty or its table changed shape')
+    return
+  }
+
+  /* The TRACKED tree is the universe: only a tracked path can appear in a
+     commit, so a surface matching an untracked or gitignored file is still dead
+     as far as this guard is concerned. `app/.tanstack/` is the case that makes
+     this concrete — it exists on disk, is gitignored, and was listed as an
+     unowned path by the item that raised this. */
+  const files = git(['ls-files']).split('\n').filter(Boolean)
+  if (files.length === 0) {
+    warn('git ls-files returned nothing — the ownership check cannot run in this tree')
+    return
+  }
+
+  const lanes = parseSurfaces(contract, ids)
+  const dead = deadSurfaces(lanes, files)
+  if (dead.length === 0) {
+    const total = lanes.reduce((n, l) => n + l.surfaces.length, 0)
+    ok(`docs/13 §1: ${total} surface(s) across ${lanes.length} lanes, every one matches a file`)
+    return
+  }
+  for (const d of dead) {
+    bad(`${d.id}'s surface \`${d.surface}\` matches no tracked file, so it protects nothing`)
+  }
+  console.log('      fix the glob, or drop the entry. A surface written for a naming')
+  console.log('      convention the files do not follow is a hole in the guard, not a plan.')
+}
+
 /* ---- active lanes, read out of the board itself ----
    docs/13 §1 holds the lane -> surface map; docs/14 holds who is active right
    now. Parsing both means the guard can never drift from the board: a new lane
@@ -567,6 +626,12 @@ function main() {
   if (!has('--staged-only')) {
     head('nightly backup contract (docs/12 §5)')
     checkBackup()
+  }
+
+  /* 9. the ownership map protects something (docs/13 §1) */
+  if (!has('--staged-only')) {
+    head('ownership map (docs/13 §1)')
+    checkOwnership()
   }
 
   /* 5. green rule */

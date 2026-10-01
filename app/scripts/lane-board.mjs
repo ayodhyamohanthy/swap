@@ -160,6 +160,50 @@ export function parseSurfaces(contractText, ids) {
 }
 
 /**
+ * Lane surfaces that match no file at all — so they protect nothing.
+ *
+ * WHY THIS EXISTS. A surface is read as a glob, so one written for a naming
+ * convention the files do not follow matches ZERO files while looking perfectly
+ * healthy in the table. Two of the 39 surfaces in docs/13 §1 did exactly that
+ * on 2026-10-01:
+ *
+ *   - L1 `app/src/components/pwa*.tsx` — the PWA components are
+ *     `install-prompt.tsx` and `service-worker.tsx`. Neither starts with `pwa`,
+ *     so the glob was written for a prefix the code never used, and both real
+ *     files were unowned while the entry that should have protected them read
+ *     as fine.
+ *   - L2 `routes/index` — no extension and no wildcard, so it is compared
+ *     literally against `app/src/routes/index.tsx` and matches nothing. The home
+ *     route was unowned.
+ *
+ * In both cases the guard was one entry wide of working, and nothing reported
+ * it: `clashesFor` can only refuse a file some surface MATCHES, so a surface
+ * that matches nothing is indistinguishable from a lane with nothing to do.
+ *
+ * A surface with no match is either a typo or a plan, and both need to be
+ * visible — a typo is a hole in the guard, and a plan is a claim nobody is
+ * enforcing yet.
+ *
+ * @param {Array<{id: string, surfaces: string[]}>} lanes  every lane, not just
+ *   the active ones: an inactive lane's dead surface is still a hole waiting
+ *   for that lane to be claimed.
+ * @param {string[]} files  the paths to test against — the tracked tree, since
+ *   those are the only paths a commit can carry.
+ * @returns {Array<{id: string, surface: string}>}
+ */
+export function deadSurfaces(lanes, files) {
+  const dead = []
+  for (const lane of lanes) {
+    for (const surface of lane.surfaces) {
+      if (!files.some((file) => ownedByLane(file, surface))) {
+        dead.push({ id: lane.id, surface })
+      }
+    }
+  }
+  return dead
+}
+
+/**
  * Which staged files belong to somebody else's active claim.
  *
  * Files covered by a lane the committer DECLARED are not clashes — that is the
