@@ -1,17 +1,26 @@
+# `.gitignore` has no block-comment syntax. A line that does not start with `#`
+# is a pattern, not prose — so every explanatory line here is `#`-prefixed.
 node_modules/
 dist/
 .output/
 .vite/
-/* TanStack Start's build cache (`app/.tanstack/tmp/<uuid>`). Every `vite dev`
-   drops a new randomly-named file here, so `git status` showed a fresh
-   untracked entry after every run — and a blanket `git add -A` swept five of
-   them onto `main` (docs/14, L4 -> L1). They are a cache, not source: the
-   tracked route tree is `app/src/routeTree.gen.ts`, which is a different file
-   and stays tracked. */
+# TanStack Start's build cache (`app/.tanstack/tmp/<uuid>`). Every `vite dev`
+# drops a new randomly-named file here, so `git status` showed a fresh
+# untracked entry after every run — and a blanket `git add -A` swept five of
+# them onto `main` (docs/14, L4 -> L1). They are a cache, not source: the
+# tracked route tree is `app/src/routeTree.gen.ts`, which is a different file
+# and stays tracked.
 .tanstack/
 *.local
 *.log
 .DS_Store
 coverage/
+# Scratch scripts. `.tmp.mjs` is already the repo-wide idiom for machine output
+# rather than a step — `app/azure/burndown-dry-run.mjs` exempts it by name so an
+# interrupted test run cannot wedge the harness (docs/14, Cline/L9 2026-09-29: a
+# killed `finally` left `ghost-spender.tmp.mjs` in `app/azure/` and every later
+# run exited 1). Git did not know the convention, so the same leftover stayed
+# untracked and one `git add -A` away from being committed.
+*.tmp.mjs
 # Embedded prototype repo (separate codebase — not part of the TanStack app)
 swap/
