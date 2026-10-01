@@ -11,6 +11,15 @@ import { describe, expect, it } from 'vitest'
 
 import { BERTH_TYPES, CLASSES, QUOTAS, TICKET_STATUSES } from '@/lib/pnr'
 import { CONFIRM_OPTIONS } from '@/lib/outcomes'
+/* `staging-lib.mjs` imports nothing (docs/11 records what `node:fs` under the
+   jsdom pool costs), so its decisions are importable here — and reusing its
+   comment stripper is the point: a header comment that merely *mentions* a
+   column or a CREATE would otherwise read as the schema doing it. */
+import {
+  mirrorFindings,
+  orderMigrations,
+  stripSqlComments,
+} from '../scripts/staging-lib.mjs'
 
 const SUPABASE = join(import.meta.dirname, '..', 'supabase')
 const MIGRATION = join(SUPABASE, 'migrations', '20260925000000_init.sql')
@@ -52,9 +61,17 @@ describe('the migration exists and is the shipped schema', () => {
      changing one. It went in green.
 
      Only `schema.part*.sql` is enumerated. `migrations/` is deliberately NOT
-     scanned, because backlog item 6 plans a SECOND migration file and relies
-     on this test never enumerating that directory — so this guard closes the
-     parts gap without spending that plan. */
+     scanned, and since 2026-10-01 that is a standing invariant rather than an
+     accommodation: migration #2 (`20261001000000_get_matches.sql`) exists, and
+     `SCHEMA` above is only the FIRST one. `staging-lib.mjs` gives the reason at
+     length — `schema.sql` is a frozen snapshot of the released schema and
+     migrations extend past it, so the invariant that stays true is "parts
+     assemble to `schema.sql`, and `schema.sql` is exactly the first migration",
+     not "all migrations == schema.sql". Enumerating the directory against
+     `schema.sql` would report drift the moment anyone adds migration #3, which
+     is a guard failing on the very workflow it exists to protect. The directory
+     IS read, for the properties that hold of every file in it, in the
+     `get_matches is applied as migration #2` block at the end of this file. */
   it('is byte-identical to the concatenation of its parts', () => {
     const order = (file: string): [number, string] => {
       const parts = file.match(/^schema\.part(\d+)([a-z]\d*)?\.sql$/)
@@ -492,7 +509,8 @@ describe('a payment targets exactly one of request or group (docs/01)', () => {
  * caller's OWN rows. That is the privacy property (rule 13) working,
  * not a bug — but it means the only way to see other travellers' open
  * trips is a vetted server-side function running with elevated rights,
- * which is exactly why the proposed get_matches() is SECURITY DEFINER.
+ * which is exactly why get_matches() is SECURITY DEFINER — applied as migration
+ * #2 on 2026-10-01, asserted at the end of this file.
  * Do NOT "fix" matching by re-adding a permissive policy: that would
  * hand every client every open booking on every train.
  * ------------------------------------------------------------------ */
@@ -519,5 +537,133 @@ describe('cross-user matching is server-mediated, never a client-wide read', () 
     expect(SCHEMA).toMatch(
       /CREATE OR REPLACE VIEW public\.match_cards WITH \(security_invoker = true\)/i,
     )
+  })
+})
+
+/* ------------------------------------------------------------------ *
+ * get_matches() is APPLIED as migration #2 (2026-10-01), not a proposal.
+ *
+ * Why this block is here at all: for three days `get_matches()` was reviewed,
+ * pinned and described as "load-bearing for the core feature" while existing
+ * only as a file under app/azure/load/. Nothing failed. That is the failure
+ * class this file exists to prevent — an unbuilt thing described as built, and
+ * a built thing described as unbuilt, both of which survive every gate because
+ * the gates only read what is on disk. `tests/azure-burndown.test.ts` pins the
+ * proposal to its contract note; these pin the proposal to what actually
+ * applies, so the chain note → proposal → migration cannot come apart.
+ * ------------------------------------------------------------------ */
+describe('get_matches is applied as migration #2, not left as a proposal', () => {
+  const MIGRATIONS = join(SUPABASE, 'migrations')
+  const APPLIED = '20261001000000_get_matches.sql'
+  const migration = readFileSync(join(MIGRATIONS, APPLIED), 'utf8')
+  const proposal = readFileSync(
+    join(import.meta.dirname, '..', 'azure', 'load', 'get-matches.spec-part2.sql'),
+    'utf8',
+  )
+  /* Comments are stripped before anything asserts on SQL, because this
+     migration's header discusses berth_no, pnr_hash and quota in order to
+     explain why they are absent. Reading a comment as the schema doing
+     something is the same trap `staging-lib.stripSqlComments` was written for,
+     and L7 hit it once already. */
+  const sql = stripSqlComments(migration)
+  const norm = (s: string): string => stripSqlComments(s).replace(/\s+/g, ' ').trim()
+
+  it('exists as a second migration, ordered after the init one', () => {
+    const files = readdirSync(MIGRATIONS).filter((file) => file.endsWith('.sql'))
+    const { ordered, malformed, duplicateStamps } = orderMigrations(files)
+    expect(malformed).toEqual([])
+    expect(duplicateStamps).toEqual([])
+    expect(files.length).toBeGreaterThanOrEqual(2)
+    expect(ordered[0].file, 'schema.sql must stay the FIRST migration').toBe(
+      '20260925000000_init.sql',
+    )
+    expect(ordered[ordered.length - 1].file).toBe(APPLIED)
+  })
+
+  it('applies the reviewed proposal rather than an edited copy of it', () => {
+    /* Two defects were corrected in the proposal (p_after timestamptz → uuid,
+       and a "newest-first" promise the view cannot support) and a guard pins
+       it to the contract note. If the applied copy were free to differ, that
+       guard would keep passing while the thing that actually runs drifted. */
+    expect(norm(migration)).toContain(norm(proposal))
+  })
+
+  it('returns only the match-safe columns — this is the one elevated read (rule 13)', () => {
+    /* A SECURITY DEFINER body is the one place in this schema where a read
+       escapes RLS, so it is where a privacy leak would be introduced.
+       `match_cards` is already narrowed to pre-payment-safe fields; the
+       function must read that view and nothing else. The edit these catch is
+       the plausible one: "just add berth_no, we need it for sorting". */
+    expect(sql).toMatch(/SELECT \* FROM public\.match_cards/i)
+    for (const forbidden of [
+      'berth_no',
+      'pnr_hash',
+      'label',
+      'email',
+      'phone',
+      'locked_berths',
+    ]) {
+      expect(sql, `${forbidden} must not reach the match RPC`).not.toMatch(
+        new RegExp(forbidden, 'i'),
+      )
+    }
+  })
+
+  it('is unreachable to anon and granted only to the two sanctioned roles', () => {
+    expect(sql).toMatch(
+      /REVOKE ALL ON FUNCTION public\.get_matches\(text, date, travel_class, uuid, int\) FROM PUBLIC;/i,
+    )
+    expect(sql).toMatch(
+      /GRANT EXECUTE ON FUNCTION public\.get_matches\(text, date, travel_class, uuid, int\) TO authenticated, service_role;/i,
+    )
+    expect(sql).not.toMatch(/GRANT[^;]*\bTO\b[^;]*\banon\b/i)
+  })
+
+  it('pins its search_path, so a caller cannot resolve match_cards elsewhere', () => {
+    expect(sql).toMatch(/SECURITY DEFINER SET search_path = public/i)
+  })
+
+  it('stays a narrowing query — scoring and the other filters stay in the app', () => {
+    /* docs/08 puts the filters and the ranking in rankMatches(). Two
+       implementations of the same rules is how they start to disagree. */
+    for (const keptInApp of [
+      'segmentsOverlap',
+      'max_requests_per_day',
+      'women_only',
+      'quota',
+      'rankMatches',
+    ]) {
+      expect(sql, `${keptInApp} must not be reimplemented in the database`).not.toMatch(
+        new RegExp(keptInApp, 'i'),
+      )
+    }
+    expect(sql).toMatch(/train_no = p_train/i)
+    expect(sql).toMatch(/journey_date = p_date/i)
+  })
+
+  it('keeps the staging mirror green with a second migration present', () => {
+    /* The invariant staging-lib enforces is "parts assemble to schema.sql, and
+       schema.sql is exactly the first migration" — adding migration #2 must
+       not turn that into a blocking finding, or a guard starts failing on the
+       workflow it exists to protect. */
+    const files = readdirSync(MIGRATIONS).filter((file) => file.endsWith('.sql'))
+    const migrations = orderMigrations(files).ordered.map((m) => ({
+      file: m.file,
+      sql: readFileSync(join(MIGRATIONS, m.file), 'utf8'),
+    }))
+    const { findings } = mirrorFindings({
+      migrations,
+      canonical: {
+        file: 'schema.sql',
+        sql: readFileSync(join(SUPABASE, 'schema.sql'), 'utf8'),
+      },
+      parts: [],
+      stray: [],
+    })
+    const blocking = findings.filter((f) => f.blocking)
+    expect(
+      blocking,
+      blocking.map((f) => `${f.code}: ${f.detail}`).join('; '),
+    ).toEqual([])
   })
 })
