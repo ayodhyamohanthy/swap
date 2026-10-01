@@ -15,10 +15,11 @@ import { isGroupRequestId } from '@/lib/groups'
 import { PayBlocked } from './pay.$requestId'
 import { useCreditPaise } from '@/lib/use-store'
 
-/* Choose how to pay (docs/04 A10, design 27a): Razorpay first with UPI apps on
-   top, PayPal for international travellers. Tapping a method opens the real
-   gateway when keys exist and otherwise leaves the payment pending for the
-   status screen — it never claims a payment happened. */
+/* Choose how to pay (docs/04 A10, design 27a): Razorpay is the rail for
+   EVERYONE, UPI apps on top, and PayPal is the fallback a passenger from abroad
+   picks deliberately (rule 9, docs/06 "Choosing the provider"). Tapping a method
+   opens the real gateway when keys exist and otherwise leaves the payment
+   pending for the status screen — it never claims a payment happened. */
 export const Route = createFileRoute('/pay/$requestId/method')({
   staticData: { chrome: 'tabs', tab: 'swaps' } satisfies RouteChrome,
   validateSearch: (s: Record<string, unknown>) => ({
@@ -133,9 +134,15 @@ function MethodScreen() {
       {/* `text-note`, not the 12px step: these two labels name the gateway the
           payer is about to hand money to (Razorpay primary for all, PayPal
           fallback for international), and docs/07 §Responsive floors copy a
-          passenger reads to decide at 14px. */}
+          passenger reads to decide at 14px.
+
+          `pay.razorpay`, NOT the old `pay.inIndia`: a heading that says "in
+          India" over the card rail is precisely what told a passenger from
+          abroad that the list above was not for them. The section is not
+          country-scoped (rule 9, build-plan item 7), so the label must not be
+          either. */}
       <p className="mt-5 text-note font-semibold uppercase tracking-wide text-muted">
-        {t('pay.inIndia')}
+        {t('pay.razorpay')}
       </p>
       <Card className="mt-1">
         {[...UPI_APPS, ...OTHERS].map((method) => (
@@ -159,8 +166,14 @@ function MethodScreen() {
       </p>
       <Card className="mt-1">
         <CardBody>
+          {/* Rule 9's mandated label names PayPal here, so the correction comes
+              FIRST and above the button: a card from abroad works in the list
+              above, and PayPal is the fallback the passenger chooses. Putting
+              this line under the button left the section reading "international
+              ⇒ PayPal", which is the framing item 7 removes. */}
+          <p className="text-note text-muted">{t('pay.intlNote')}</p>
           <Button
-            className="w-full border-accent bg-accent text-ink"
+            className="mt-3 w-full border-accent bg-accent text-ink"
             variant="outline"
             disabled={busy}
             onClick={() => void pay('paypal', { label: 'paypal', Icon: Wallet, waits: false })}

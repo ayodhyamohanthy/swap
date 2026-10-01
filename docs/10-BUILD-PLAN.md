@@ -206,27 +206,34 @@ your lane. Check it [x] in the same commit that completes it.
       one rule docs/17 calls "CI-enforceable" that nothing enforced; it
       measured 189.3 KB gz of 200 and is now checked by verify-dist §5b.
       One contract-vs-guard contradiction filed as a request.)
-- [ ] Payments: make Razorpay the single primary gateway for domestic
+- [x] Payments: make Razorpay the single primary gateway for domestic
       AND international; demote PayPal to fallback path only; update
       docs/06-PAYMENTS.md to match
-      (the docs clause is done; the code clause is not this lane's to make.
-      docs/06 §"Choosing the provider" now states Razorpay primary both ways
-      and PayPal an explicit fallback, and records three things it used to
-      leave implied. **One: the "auto-suggest PayPal when the browser
-      locale/currency is non-INR" sentence described behaviour that was never
-      built** — nothing in `app/src` reads the browser locale or currency to
-      pick a provider (no `navigator.language`, no `Accept-Language`), so it
-      was removed rather than left describing a default that does not exist;
-      nothing relied on it, so no code changed. **Two: the method screen still
-      frames PayPal as *the* international option** — its "International
-      traveller?" card's only control is the PayPal button, which is the
-      opposite of this item. That is `routes/pay.*`, **L4's surface**, and the
-      copy is **L10's**, so it is filed as a request naming the exact change
-      rather than swept from here. **Three: docs/12 §1 contradicts §2** — §1
-      says "Razorpay (domestic), PayPal (international)" while §2's ledger
-      already says Razorpay is "payments PRIMARY (both)" and PayPal an
-      "international fallback". §1 is titled "agents may not change this", so
-      that edit is Ayu's: **item 7 cannot be closed until §1 is amended.**)
+      (all three clauses closed 2026-10-02. **The code clause needed the two
+      lanes the request named, and the answer is that the screen asserted
+      "international ⇒ PayPal" through its STRUCTURE rather than through any
+      sentence** — one section headed `pay.inIndia` held the whole card rail, a
+      second headed `pay.intl` held nothing but the PayPal button. Every string
+      involved read fine, which is why it survived a by-locale copy check and a
+      JSX review. Shape (a) of the two options on the board, because rule 9
+      names the label "International traveller? Pay with PayPal" and that line
+      has to survive: the card rail is now headed `pay.razorpay` with no country
+      on it, `pay.inIndia` is deleted so the key that carried the framing cannot
+      return as dead copy, and `pay.intlNote` ("Not in India? A foreign card
+      works in the options above too.") sits ABOVE the PayPal button — above,
+      because a correction printed under it still reads "abroad ⇒ PayPal" with a
+      footnote. **A second duplicate went with it:** `pay.paypalAlt` already held
+      rule 9's label verbatim, so `pay.intl` and `pay.paypalAlt` were one
+      sentence under two keys, either of which could be reworded alone. Deleted.
+      `tests/pay-provider-primary.test.ts` (12 tests, 10 mutations planted one at
+      a time and all caught) pins the headings read out of the shipped file, the
+      ordering, the label in BOTH languages, and the docs clause — including a
+      check that the guard's own heading pattern still matches, since a pattern
+      matching nothing reports green. **The docs clause** is docs/06 §Status,
+      rewritten from "what this doc does not yet match" to what the screen now
+      does, keeping the three findings as the record of why. **The Ayu dependency
+      is gone:** docs/12 §1 was amended 2026-10-02 and no longer contradicts §2,
+      so nothing about this item is waiting on a human.)
 
 ## L1..L8 — (existing feature lanes: keep current tasks, converted to [ ]/[x])
 
