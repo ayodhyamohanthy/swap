@@ -1514,6 +1514,7 @@ function paymentRow(over: Partial<PaymentRow> = {}): PaymentRow {
   return {
     id: 'pay_1',
     request_id: 'req_a1b2c3d4',
+    group_id: null,
     payer_id: null,
     provider: 'razorpay',
     provider_ref: null,
@@ -1773,6 +1774,8 @@ describe("paymentsToCsv — design 18's columns", () => {
   const row: AdminPaymentRow = {
     id: 'pay_1',
     request_id: 'req_a1b2c3d4',
+    target_id: 'req_a1b2c3d4',
+    group_id: null,
     swap: '#a1b2c3d4',
     provider: 'razorpay',
     amount_paise: PRICE_PAISE,
@@ -1786,11 +1789,31 @@ describe("paymentsToCsv — design 18's columns", () => {
   it('writes the header and the money split', () => {
     const lines = paymentsToCsv([row]).split('\n')
     expect(lines[0]).toBe(
-      'id,swap,request_id,provider,amount_paise,credit_used_paise,received_paise,status,outcome,created_at',
+      'id,swap,request_id,group_id,provider,amount_paise,credit_used_paise,received_paise,status,outcome,created_at',
     )
     expect(lines[1]).toBe(
-      'pay_1,#a1b2c3d4,req_a1b2c3d4,razorpay,9900,5000,4900,paid,to_credit,2026-11-12T22:41:00.000Z',
+      'pay_1,#a1b2c3d4,req_a1b2c3d4,,razorpay,9900,5000,4900,paid,to_credit,2026-11-12T22:41:00.000Z',
     )
+  })
+
+  /* The ₹199 family plan has no `request_id` at all, so exporting only that
+     column would file every group payment under an empty swap. Both target
+     columns ship, and exactly one is ever populated. */
+  it('exports the group payment under group_id, not a blank request_id', () => {
+    const group: AdminPaymentRow = {
+      ...row,
+      id: 'pay_g1',
+      request_id: null,
+      target_id: 'grp_zzz111',
+      group_id: 'grp_zzz111',
+      swap: '#zzz111',
+      amount_paise: 19900,
+      credit_used_paise: 0,
+      received_paise: 19900,
+    }
+    const [header, line] = paymentsToCsv([group]).split('\n')
+    expect(header?.split(',')[3]).toBe('group_id')
+    expect(line?.split(',').slice(2, 4)).toEqual(['', 'grp_zzz111'])
   })
 
   /* An export leaves the device, so it must not carry a payer id or a full PNR

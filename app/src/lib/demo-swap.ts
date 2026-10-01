@@ -5,6 +5,7 @@
    on the pay screens (common.traveller) — never a made-up person's name, so
    no demo label can be mistaken for a real co-passenger (rule 13). */
 import { acceptedOffer, getRequest } from './requests'
+import { isGroupRequestId } from './group-id'
 
 export const DEMO_FALLBACK_NAME_KEY = 'common.traveller' as const
 
@@ -28,7 +29,7 @@ const STATUS_FALLBACK: Record<string, DemoRequest['status']> = {
 }
 
 export function demoRequest(id: string): DemoRequest {
-  const isGroup = id.startsWith('grp_')
+  const isGroup = isGroupRequestId(id)
   const request = getRequest(id)
   if (request) {
     const offer = acceptedOffer(id)

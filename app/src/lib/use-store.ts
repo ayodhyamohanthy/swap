@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react'
 import {
   getServerSnapshot,
   getSnapshot,
+  pickPaymentFor,
   subscribe,
   type AppState,
   type ConfirmationRow,
@@ -46,14 +47,15 @@ export function useSeenFlag(key: string): boolean {
   return useAppState().seen[key] === true
 }
 
-/** The payment that decides what the pay screens may show (docs/06). */
-export function usePaymentFor(requestId: string): PaymentRow | undefined {
-  const payments = useAppState().payments
-  const rows = payments.filter((row) => row.request_id === requestId)
-  return rows.find((row) => row.status === 'paid')
-    ?? rows.find((row) => row.status === 'pending')
-    ?? rows.find((row) => row.status === 'created')
-    ?? rows[rows.length - 1]
+/** The payment that decides what the pay screens may show (docs/06).
+ *
+ *  Delegates to `pickPaymentFor` rather than repeating the filter: this hook and
+ *  the imperative `paymentFor()` are one question asked of one store, and when
+ *  they were two copies this one matched `request_id` only — so it could not see
+ *  a group's ₹199 at all, while the pay screen it backs was showing "already
+ *  paid". A group id is a legitimate payment target (`payments_target`). */
+export function usePaymentFor(targetId: string): PaymentRow | undefined {
+  return pickPaymentFor(useAppState().payments, targetId)
 }
 
 export function usePayments(): PaymentRow[] {

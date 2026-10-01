@@ -93,7 +93,12 @@ export async function prepareGatewayPayment(
   if (consumed.usedTotal > 0) {
     const useRow = (client.from('wallet_tx').insert({
       user_id: callerId, amount_paise: -consumed.usedTotal, kind: 'used',
-      ref_request_id: requestId, expires_at: null,
+      /* target.request_id, not the caller's `requestId`: for a group trip that
+         argument is the group id, and wallet_tx.ref_request_id is a uuid FK to
+         swap_requests with no group column — the same split the payments row
+         gets above. A group payment's spend is attributable to the payer, not
+         to any swap. */
+      ref_request_id: target.request_id, expires_at: null,
     }).select('id').single() as unknown as Promise<{ data: { id: string } | null; error: unknown }>)
     const { data: held, error: useError } = await useRow
     if (useError || !held) throw new Error('credit_unusable')

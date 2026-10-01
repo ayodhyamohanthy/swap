@@ -6,7 +6,6 @@ import { useI18n } from '@/lib/i18n'
 import { formatRupees } from '@/lib/money'
 import { splitReceipt } from '@/lib/payments'
 import { getPayment } from '@/lib/store'
-import { isGroupRequestId } from '@/lib/groups'
 
 /* Screen 59 "Receipt" (design 29b, docs/06). Every figure comes from the
    stored payment row — amount, credit used, and the SS-##### number assigned
@@ -44,7 +43,10 @@ function ReceiptScreen() {
     )
   }
 
-  const isGroup = isGroupRequestId(payment.request_id)
+  /* Read the row's own group_id, not the shape of the id: a server-side group
+     trip is a uuid, so isGroupRequestId() says false for it. The column is the
+     only thing that reliably means "this paid for a group". */
+  const isGroup = payment.group_id !== null
   const receipt = splitReceipt(payment.amount_paise, payment.credit_used_paise, isGroup)
   const number = payment.receipt_number ?? ''
 

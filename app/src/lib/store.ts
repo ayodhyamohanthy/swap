@@ -10,6 +10,7 @@
    - No free rewards: the wallet starts empty and steps 1-2 can only read it. */
 
 import { trackEvent } from './analytics'
+import { isGroupRequestId } from './group-id'
 import {
   hashPnr,
   isChairCar,
@@ -85,10 +86,18 @@ export interface WalletTx {
   created_at: string
 }
 
-/** Local mirror of `payments` + `receipts` (docs/02, docs/06). Money in paise. */
+/** Local mirror of `payments` + `receipts` (docs/02, docs/06). Money in paise.
+    `request_id` and `group_id` are the schema's two targets and the schema
+    admits exactly one of them — `payments_target CHECK ((request_id IS NULL)
+    != (group_id IS NULL))` — so exactly one is non-null here too. */
 export interface PaymentRow {
   id: string
-  request_id: string
+  /** The swap request this pays, or null when it pays a group trip. */
+  request_id: string | null
+  /** The group trip this pays, or null when it pays one swap. `beginGroupCheckout`
+      used to pass the group id through `request_id`, which is neither a uuid nor a
+      row in `swap_requests`: representable locally, unsyncable. */
+  group_id: string | null
   payer_id: string | null
   provider: 'razorpay' | 'paypal' | 'credit'
   provider_ref: string | null
@@ -148,7 +157,7 @@ export interface AppState {
   settings: LocalSettings
 }
 
-export type StoreErrorCode = 'pnr_invalid' | 'pnr_duplicate'
+export type StoreErrorCode = 'pnr_invalid' | 'pnr_duplicate' | 'payment_target'
 
 export class StoreError extends Error {
   code: StoreErrorCode
@@ -252,6 +261,35 @@ function readJSON<T>(key: string, fallback: T): T {
   }
 }
 
+/**
+ * Put a stored payment row into the shape `payments_target` allows.
+ *
+ * Rows written before `group_id` existed — and every row the pre-fix
+ * `beginGroupCheckout` wrote, because it passed the group id as `request_id` —
+ * carry a `grp_…` where the schema has a uuid foreign key to `swap_requests`.
+ * The XOR alone would accept those rows; the FK never would, so a paid ₹199
+ * family trip on a device could not sync. Moving the value into the column it
+ * means is what makes them syncable.
+ *
+ * This runs on LOAD rather than only on write, and that is the whole reason it
+ * is here: a traveller who has already paid must not lose the payment row to a
+ * shape change in the code. Losing it would read as "you have not paid", and
+ * `beginGroupCheckout` would mint a second ₹199.
+ */
+function normalisePayment(row: PaymentRow): PaymentRow {
+  const requestId = row.request_id ?? null
+  const groupId = row.group_id ?? null
+  if (groupId === null && requestId !== null && isGroupRequestId(requestId)) {
+    return { ...row, request_id: null, group_id: requestId }
+  }
+  /* `payments_target` admits exactly one target, so a row carrying both is not
+     one the database could hold. The request wins: it is the column every other
+     table joins to, and a group payment with no group row behind it is not
+     readable anyway. */
+  if (requestId !== null && groupId !== null) return { ...row, request_id: requestId, group_id: null }
+  return { ...row, request_id: requestId, group_id: groupId }
+}
+
 function loadState(): AppState {
   const base = emptyState()
   if (!storage()) return base
@@ -259,7 +297,7 @@ function loadState(): AppState {
     trips: readJSON<Trip[]>(KEYS.trips, base.trips),
     activity: readJSON<ActivityRow[]>(KEYS.activity, base.activity),
     wallet: readJSON<WalletTx[]>(KEYS.wallet, base.wallet),
-    payments: readJSON<PaymentRow[]>(KEYS.payments, base.payments),
+    payments: readJSON<PaymentRow[]>(KEYS.payments, base.payments).map(normalisePayment),
     confirmations: readJSON<ConfirmationRow[]>(KEYS.confirmations, base.confirmations),
     ratings: readJSON<Record<string, RatingSum>>(KEYS.ratings, base.ratings),
     seen: readJSON<Record<string, boolean>>(KEYS.seen, base.seen),
@@ -678,17 +716,65 @@ export function getPayment(id: string | undefined): PaymentRow | undefined {
   return snapshot.payments.find((row) => row.id === id)
 }
 
-/** The payment that matters for a request: the paid one, else the live one. */
-export function paymentFor(requestId: string): PaymentRow | undefined {
-  const rows = snapshot.payments.filter((row) => row.request_id === requestId)
-  return rows.find((row) => row.status === 'paid')
-    ?? rows.find((row) => row.status === 'pending')
-    ?? rows.find((row) => row.status === 'created')
-    ?? rows[rows.length - 1]
+/** The id a payment pays for: one swap request, or one group trip, never both.
+ *  Null only on a row that arrived corrupt from storage — `startPayment` cannot
+ *  write one, and `normalisePayment` will not invent a target. */
+export function paymentTargetId(payment: PaymentRow): string | null {
+  return payment.request_id ?? payment.group_id
 }
 
-export interface StartPaymentInput {
-  request_id: string
+/**
+ * Does this payment pay for `targetId`?
+ *
+ * A payment targets exactly one thing, and that thing may be a swap request OR a
+ * group trip — the ₹199 family plan has no `swap_requests` row to hang off
+ * (docs/01). Comparing one column is how a paid group trip reads as unpaid:
+ * `beginGroupCheckout` looks its payment up by group id, and `paymentFor` is the
+ * lookup that makes the idempotency load-bearing.
+ */
+export function paymentTargets(payment: PaymentRow, targetId: string): boolean {
+  return payment.request_id === targetId || payment.group_id === targetId
+}
+
+/**
+ * The paid payment, else the live one, else the newest.
+ *
+ * One rule, exported, because the imperative `paymentFor()` and the
+ * `usePaymentFor()` hook are the same question asked twice — the two reads of
+ * one store — and they were written as two copies of this filter. A copy is
+ * where they drift, and a hook that disagrees with the function deciding whether
+ * money was taken is a screen that shows the wrong thing with real money behind
+ * it.
+ */
+export function pickPaymentFor(
+  rows: readonly PaymentRow[],
+  targetId: string,
+): PaymentRow | undefined {
+  const mine = rows.filter((row) => paymentTargets(row, targetId))
+  return mine.find((row) => row.status === 'paid')
+    ?? mine.find((row) => row.status === 'pending')
+    ?? mine.find((row) => row.status === 'created')
+    ?? mine[mine.length - 1]
+}
+
+/** The payment that matters for a target: the paid one, else the live one. */
+export function paymentFor(targetId: string): PaymentRow | undefined {
+  return pickPaymentFor(snapshot.payments, targetId)
+}
+
+/**
+ * A payment targets exactly one thing (schema `payments_target`): either one
+ * swap request, or one group trip. Typed as a union so the two illegal shapes —
+ * both, or neither — do not compile. This is the type-level half of a constraint
+ * the database already enforces.
+ */
+export type PaymentTarget =
+  | { request_id: string; group_id?: never }
+  | { group_id: string; request_id?: never }
+
+/** An intersection, not `interface … extends`: an interface cannot extend a
+    union, and losing the union would put back the exact defect this fixes. */
+export type StartPaymentInput = PaymentTarget & {
   provider: 'razorpay' | 'paypal' | 'credit'
   amount_paise: number
   credit_used_paise: number
@@ -697,17 +783,41 @@ export interface StartPaymentInput {
 }
 
 /**
- * Open (or reuse) the payment for a request. Idempotent: a request that is
+ * The two columns, checked at runtime.
+ *
+ * The union above already refuses both-or-neither at compile time; this is the
+ * same XOR for anything that arrived from `localStorage` rather than from
+ * TypeScript. The database would reject such an insert, so the local mirror
+ * refuses it here instead of storing a row that can never sync.
+ */
+function paymentTargetOf(target: PaymentTarget): {
+  request_id: string | null
+  group_id: string | null
+} {
+  const requestId = target.request_id ?? null
+  const groupId = target.group_id ?? null
+  /* The XOR, spelled out: both null and both set fail `IS NULL` on one side and
+     pass on the other. */
+  if ((requestId === null) === (groupId === null)) throw new StoreError('payment_target')
+  return { request_id: requestId, group_id: groupId }
+}
+
+/**
+ * Open (or reuse) the payment for a target. Idempotent: a request that is
  * already paid or still pending never gets a second charge — rule 2 says money
  * moves once, and docs/09 tells the user "please don't pay again".
  */
 export function startPayment(input: StartPaymentInput): PaymentRow {
-  const existing = paymentFor(input.request_id)
+  const target = paymentTargetOf(input)
+  /* Non-null by construction: `paymentTargetOf` threw unless exactly one is set. */
+  const targetId: string = target.request_id ?? (target.group_id as string)
+  const existing = pickPaymentFor(snapshot.payments, targetId)
   if (existing && (existing.status === 'paid' || existing.status === 'pending')) return existing
   const stamp = new Date().toISOString()
   const row: PaymentRow = {
     id: uid(),
-    request_id: input.request_id,
+    request_id: target.request_id,
+    group_id: target.group_id,
     payer_id: snapshot.settings.user_id,
     provider: input.provider,
     provider_ref: input.provider_ref ?? null,
@@ -784,8 +894,15 @@ export function setPaymentStatus(
  * Spend credit against a payment: one negative `wallet_tx` row. There is no
  * refund counterpart — a swap that did not happen goes through
  * `credit(kind='swap_to_credit')` instead (rule 6).
+ *
+ * `requestId` is nullable and a group payment passes null. `wallet_tx` has no
+ * `group_id` of its own — `ref_request_id` is a uuid FK to `swap_requests` — so
+ * there is genuinely no swap request to point a group payment's credit spend at,
+ * and pointing it at the group id would fail the cast the same way the payment
+ * row did. A null reference means "spent, not against one swap", which is what
+ * it was.
  */
-export function useCredit(amountPaise: number, requestId: string): WalletTx | undefined {
+export function useCredit(amountPaise: number, requestId: string | null): WalletTx | undefined {
   const amount = Math.floor(amountPaise)
   if (!Number.isFinite(amount) || amount <= 0) return undefined
   if (amount > creditPaise()) return undefined

@@ -3,6 +3,7 @@
    chat; the plan prices at ₹199 for up to 3 swaps (money stays in paise). */
 
 import { GROUP_PRICE_PAISE } from './money'
+import { GROUP_ID_PREFIX } from './group-id'
 import { logActivity, listTrips, type Trip } from './store'
 
 export interface GroupTrip {
@@ -101,7 +102,7 @@ export function createGroup(name: string, tripIds: string[]): GroupTrip {
   /* Date.now alone collides for groups made in the same millisecond (tests do
      this constantly); the random tail keeps ids unique. */
   const group: GroupTrip = {
-    id: `grp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+    id: `${GROUP_ID_PREFIX}${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
     name: name.trim() || 'Family trip',
     trip_ids: freeTripIds(tripIds),
     paid: false,
@@ -122,10 +123,13 @@ export function linkTrip(groupId: string, tripId: string): GroupTrip | undefined
   return updated
 }
 
-/** Group payments ride the same pay screens: their id is the group id. */
-export function isGroupRequestId(requestId: string): boolean {
-  return requestId.startsWith('grp_')
-}
+/** Group payments ride the same pay screens: their id is the group id.
+    Re-exported rather than defined here since 2026-10-02 — the definition now
+    lives in `lib/group-id.ts`, a leaf both `lib/store.ts` and this file can
+    import without a cycle (this module imports `lib/store.ts` for the activity
+    log, so `store.ts` could not come back here for the same answer). Every
+    existing `import { isGroupRequestId } from '@/lib/groups'` keeps working. */
+export { GROUP_ID_PREFIX, isGroupRequestId } from './group-id'
 
 /** Mark the ₹199 group payment done (the pay screens drive the real flow). */
 export function markGroupPaid(groupId: string): GroupTrip | undefined {

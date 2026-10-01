@@ -81,6 +81,13 @@ export function payGateFor(targetId: string): 'payable' | 'paid' | 'not-yet' | '
  * paid. Idempotent like startPayment: an already-paid group never charges
  * twice. Credit may cover part or all of it, oldest-first, spent only when
  * money lands (rule 6).
+ *
+ * The payment's target is written to `group_id`, NOT `request_id`. It used to be
+ * passed as `request_id`, which the local store accepted and the database cannot:
+ * `payments.request_id` is a uuid FK to `swap_requests`, and a group id is
+ * `grp_<base36>_<rand>` pointing at no swap request at all. Both columns are now
+ * separate (`payments_target` admits exactly one), so this is where the group id
+ * belongs.
  */
 export function beginGroupCheckout(
   groupId: string,
@@ -102,7 +109,7 @@ export function beginGroupCheckout(
   const quote = buildQuote(creditToUse(useCredit, creditOverridePaise), true)
   if (quote.due === 0) {
     const row = startPayment({
-      request_id: groupId,
+      group_id: groupId,
       provider: 'credit',
       amount_paise: quote.total,
       credit_used_paise: quote.creditUsed,
@@ -113,7 +120,7 @@ export function beginGroupCheckout(
     return ticket(row, true)
   }
   const created = startPayment({
-    request_id: groupId,
+    group_id: groupId,
     provider,
     amount_paise: quote.total,
     credit_used_paise: quote.creditUsed,

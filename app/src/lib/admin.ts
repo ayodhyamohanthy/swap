@@ -4,7 +4,15 @@
    This file: route meta, pure CSV exporters, overview aggregates,
    activity filters, demo-mode admin_action log. Money = paise. */
 
-import { logActivity, type ActivityRow, type PaymentRow, type Trip, type WalletTx } from './store'
+import {
+  logActivity,
+  paymentTargetId,
+  paymentTargets,
+  type ActivityRow,
+  type PaymentRow,
+  type Trip,
+  type WalletTx,
+} from './store'
 /* Type-only: the phase map is keyed by `RequestStatus`, so adding a status to
    the state machine must break the build here rather than at runtime. */
 import type { RequestStatus, SwapOffer, SwapRequest } from './requests'
@@ -272,9 +280,15 @@ export interface SwapTimelineEntry {
  * join only exists on `PaymentRow.request_id` — the payment's *activity* rows
  * carry the payment id, not the request id. Kept here rather than inline in the
  * route so the join is testable without a browser.
+ *
+ * Matching goes through `paymentTargets` rather than `=== request_id`: a payment
+ * may target a group trip instead — a ₹199 family plan covers up to 3 swaps and
+ * has no `swap_requests` row of its own — and matching one column silently drops
+ * those payments out of the one timeline an operator reads to answer "what did
+ * this cost?".
  */
 export function paymentIdsFor(payments: PaymentRow[], requestId: string): string[] {
-  return payments.filter((payment) => payment.request_id === requestId).map((payment) => payment.id)
+  return payments.filter((payment) => paymentTargets(payment, requestId)).map((payment) => payment.id)
 }
 
 /**
@@ -419,19 +433,36 @@ const PAYMENT_OUTCOME_BY_STATUS: Record<PaymentRow['status'], PaymentOutcome> = 
  * the payer's credit because the swap did not happen (rule 6). So a payment is
  * `to_credit` only when it is `paid` AND the ledger holds the rule-6 row for
  * that request, which is the same condition the tile sums.
+ *
+ * A group payment can never be `to_credit`: rule 6 moves a *swap's* ₹99, and a
+ * group payment targets a family trip with no swap request to hang the credit on.
+ * So the null guard here is not defensive tidying — it is the rule, and reading
+ * `toCreditRequestIds` with a null would match nothing for the wrong reason.
  */
 export function paymentOutcome(
   payment: PaymentRow,
   toCreditRequestIds: ReadonlySet<string>,
 ): PaymentOutcome {
   const base = PAYMENT_OUTCOME_BY_STATUS[payment.status] ?? 'failed'
-  if (base === 'paid' && toCreditRequestIds.has(payment.request_id)) return 'to_credit'
+  const requestId = payment.request_id
+  if (base === 'paid' && requestId !== null && toCreditRequestIds.has(requestId)) return 'to_credit'
   return base
 }
 
 export interface AdminPaymentRow {
   id: string
-  request_id: string
+  /** The swap this paid, or null for a group payment. */
+  request_id: string | null
+  /**
+   * Whichever id the payment targets — a swap request or a group trip.
+   *
+   * A group payment has no `request_id` at all (`payments_target` allows exactly
+   * one target), so the design's Swap column needs the target rather than the
+   * request column or a group row would print nothing at all.
+   */
+  target_id: string | null
+  /** The group trip this payment pays, or null for a single-swap payment. */
+  group_id: string | null
   /** The design's Swap column. */
   swap: string
   provider: string
@@ -456,18 +487,26 @@ export function paymentRows(
   return payments
     .slice()
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
-    .map((payment) => ({
-      id: payment.id,
-      request_id: payment.request_id,
-      swap: shortId(payment.request_id),
-      provider: payment.provider,
-      amount_paise: payment.amount_paise,
-      credit_used_paise: payment.credit_used_paise,
-      received_paise: collectedPaise(payment),
-      status: payment.status,
-      outcome: paymentOutcome(payment, toCredit),
-      created_at: payment.created_at,
-    }))
+    .map((payment) => {
+      const targetId = paymentTargetId(payment)
+      return {
+        id: payment.id,
+        request_id: payment.request_id,
+        target_id: targetId,
+        group_id: payment.group_id,
+        /* The em dash is the row's own "no id to show" mark, the same one
+           `acceptorName` and the Reports table print — never a shortened empty
+           string, which would render as a bare `#`. */
+        swap: targetId ? shortId(targetId) : '—',
+        provider: payment.provider,
+        amount_paise: payment.amount_paise,
+        credit_used_paise: payment.credit_used_paise,
+        received_paise: collectedPaise(payment),
+        status: payment.status,
+        outcome: paymentOutcome(payment, toCredit),
+        created_at: payment.created_at,
+      }
+    })
 }
 
 export interface AdminReportRow {
@@ -574,6 +613,7 @@ export function paymentsToCsv(rows: AdminPaymentRow[]): string {
       'id',
       'swap',
       'request_id',
+      'group_id',
       'provider',
       'amount_paise',
       'credit_used_paise',
@@ -582,10 +622,14 @@ export function paymentsToCsv(rows: AdminPaymentRow[]): string {
       'outcome',
       'created_at',
     ],
+    /* `request_id` and `group_id` are the schema's two targets and exactly one
+       is set (`payments_target`), so the export carries both columns rather than
+       one that is empty for every group payment. */
     rows.map((r) => [
       r.id,
       r.swap,
       r.request_id,
+      r.group_id,
       r.provider,
       r.amount_paise,
       r.credit_used_paise,

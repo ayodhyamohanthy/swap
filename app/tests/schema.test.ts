@@ -491,14 +491,19 @@ describe('a payment targets exactly one of request or group (docs/01)', () => {
     )
   })
 
-  /* KNOWN GAP, filed as a request line in docs/14-LANES.md. The local-first
-     mirror's PaymentRow has only `request_id` and no `group_id`, and
-     beginGroupCheckout() passes the group id (`grp_...`, from lib/groups.ts)
-     into that column. So a group payment cannot be represented the way the
-     database requires: the value is not a uuid and points at no swap_requests
-     row. Local-only today, so nothing is broken yet — it breaks the moment
-     group payments sync, which is why it is recorded here rather than fixed
-     blind with no database to verify against. */
+  /* The gap this used to carry is closed. The local-first mirror now has the
+     same two nullable target columns the database has, and normalisePayment()
+     rewrites rows written before the fix (which put a `grp_...` group id in
+     request_id) so no already-paid traveller loses their payment row. Asserted
+     here, next to the constraint it mirrors, so the two cannot drift: the
+     mirror is a nullable pair, and both-neither is rejected at startPayment. */
+  it('mirrors the same nullable pair in the local-first PaymentRow', () => {
+    const store = readFileSync(join(import.meta.dirname, '..', 'src', 'lib', 'store.ts'), 'utf8')
+    const row = store.match(/export interface PaymentRow \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(row).toMatch(/^\s*request_id:\s*string \| null$/m)
+    expect(row).toMatch(/^\s*group_id:\s*string \| null$/m)
+    expect(store).toMatch(/function normalisePayment\(/)
+  })
 })
 
 /* ------------------------------------------------------------------ *

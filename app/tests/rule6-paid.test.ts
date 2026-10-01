@@ -53,7 +53,9 @@ describe('rule 6 needs money to have moved', () => {
     /* The group is paid once (₹199). The member swap then locks with NO
        payment row of its own — this is the covered-lock path. */
     const group = createGroup('Family', [t1.id, t2.id])
-    startPayment({ request_id: group.id, provider: 'razorpay', amount_paise: 19900, credit_used_paise: 0, status: 'paid' })
+    /* The ₹199 is paid FOR THE GROUP, so it goes in `group_id`. There is no
+       swap request behind a family bundle to put in `request_id`. */
+    startPayment({ group_id: group.id, provider: 'razorpay', amount_paise: 19900, credit_used_paise: 0, status: 'paid' })
     markGroupPaid(group.id)
 
     const request = createRequest({ trip_id: t1.id, choices: ['UB'] })
@@ -125,7 +127,7 @@ describe('a captured payment is never stranded by a failed lock', () => {
       await make('B9', '44', true),
     ]
     const group = createGroup('Family', members)
-    startPayment({ request_id: group.id, provider: 'razorpay', amount_paise: 19900, credit_used_paise: 0, status: 'paid' })
+    startPayment({ group_id: group.id, provider: 'razorpay', amount_paise: 19900, credit_used_paise: 0, status: 'paid' })
     markGroupPaid(group.id)
 
     const { confirmCaptured, lockCoveredRequest } = await import('@/lib/checkout')
