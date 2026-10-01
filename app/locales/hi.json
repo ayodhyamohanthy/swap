@@ -297,6 +297,7 @@
     "paypalNote": "PayPal लगभग {usd} दिखाता है। आपसे ₹{amount} ही लिया जाता है।",
     "paypalTitle": "PayPal से भुगतान करें",
     "paypalDue": "₹{amount} · लगभग {usd}",
+    "paypalFallback": "Razorpay काम नहीं कर रहा? इसके बजाय PayPal से भुगतान करें।",
     "paypalOwn": "आपके कार्ड से भुगतान आपकी अपनी मुद्रा में PayPal लेता है",
     "paypalGo": "PayPal पर आगे बढ़ें",
     "paypalFor": "अंतरराष्ट्रीय यात्रियों के लिए",

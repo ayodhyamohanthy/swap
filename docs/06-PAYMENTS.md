@@ -1,8 +1,8 @@
 # 06 — Payments (Razorpay + PayPal)
 
 ## Choosing the provider
-- Default: **Razorpay** (Indian cards, UPI, net banking, wallets). Show UPI apps first.
-- "International traveller?" → **PayPal**. Also auto-suggest PayPal when the browser locale/currency is non-INR, but let the user switch.
+- Single primary for domestic AND international: **Razorpay** (Indian cards, UPI, net banking, wallets). Show UPI apps first.
+- **PayPal is the fallback path only**: a secondary link under the Razorpay methods on the method screen, for a traveller Razorpay does not work for. No locale/currency auto-suggest.
 - Amount always ₹99 INR (₹199 for a group trip). PayPal converts; show "about US$X" as an estimate only.
 
 ## Razorpay flow

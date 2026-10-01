@@ -15,10 +15,11 @@ import { isGroupRequestId } from '@/lib/groups'
 import { PayBlocked } from './pay.$requestId'
 import { useCreditPaise } from '@/lib/use-store'
 
-/* Choose how to pay (docs/04 A10, design 27a): Razorpay first with UPI apps on
-   top, PayPal for international travellers. Tapping a method opens the real
-   gateway when keys exist and otherwise leaves the payment pending for the
-   status screen — it never claims a payment happened. */
+/* Choose how to pay (docs/04 A10, design 27a): Razorpay is the single primary
+   gateway for domestic AND international (docs/06); PayPal is the fallback
+   path only, demoted to a secondary link under the Razorpay methods. Tapping
+   a method opens the real gateway when keys exist and otherwise leaves the
+   payment pending for the status screen. It never claims a payment happened. */
 export const Route = createFileRoute('/pay/$requestId/method')({
   staticData: { chrome: 'tabs', tab: 'swaps' } satisfies RouteChrome,
   validateSearch: (s: Record<string, unknown>) => ({
@@ -159,8 +160,9 @@ function MethodScreen() {
       </p>
       <Card className="mt-1">
         <CardBody>
+          <p className="text-note text-muted">{t('pay.paypalFallback')}</p>
           <Button
-            className="w-full border-accent bg-accent text-ink"
+            className="mt-2 w-full"
             variant="outline"
             disabled={busy}
             onClick={() => void pay('paypal', { label: 'paypal', Icon: Wallet, waits: false })}

@@ -19,7 +19,7 @@
 9. **Someone says yes** (push + Updates) → **Pay ₹99** screen: breakdown ₹49 + ₹50, credit line only if balance > 0, "No swap? ₹99 goes to your credit".
    - 2nd-choice acceptance → "You got your 2nd choice" · Accept this / Keep waiting (1st choice stays open until paid).
    - Two accept at once → first to be paid for wins; others see "Someone else was faster".
-10. **Choose how to pay**: Razorpay (GPay, PhonePe, Paytm, UPI ID, card, net banking) or "International traveller? Pay with PayPal".
+10. **Choose how to pay**: Razorpay (GPay, PhonePe, Paytm, UPI ID, card, net banking). If Razorpay does not work, "International traveller? Pay with PayPal" is the fallback path.
     - UPI waiting → approve in app. Pending → "Please don't pay again", Check status. Failed → "No money was taken", Try again / Pay another way.
 11. **Payment successful** → receipt → berth numbers revealed → chat opens.
 12. **On board**: chat (quick replies "I'm at my berth now", "Meet me near the coach door"), cash-word warning + Report & block, **Found each other?** ("I've met Arjun" / "Can't find them"), **Swap summary** (works offline).
