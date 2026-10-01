@@ -118,6 +118,51 @@ That activates two versioned hooks in `.githooks/`:
   minutes. Lanes and surfaces are parsed from `docs/14` + `docs/13` at run time,
   so the guard cannot drift from the board.
 
+**Declaring yourself to the guard.** The guard knows which lanes are active but
+not who is committing — every agent here commits under one shared git identity,
+so `git config user.name` would exempt everybody and switch the guard off. So
+identity is declared per process instead, and each declaration is opt-in: unset
+means the previous behaviour, unchanged.
+
+| Variable | Means |
+|---|---|
+| `LANE=L9` | "this commit is lane L9's work" — exempts L9's surfaces |
+| `LANE_AGENT='Pixel Canary/Claude'` | "I am this claim's holder" |
+| `LANE_KEYS=share` | "the i18n keys I am writing live under `share`" |
+
+`LANE_KEYS` is what makes a **locale** commit checkable, and it is the second
+half of L3's 2026-09-29 ask (docs/14 Requests). L10 is the single writer for
+`app/locales/**`, so while L10 holds that claim the guard refuses *every* commit
+touching a catalogue — including one whose keys have nothing to do with L10's,
+which is how four L10 claims came from three lanes and how `3c6fddd` happened
+(one lane's commit silently carrying another's uncommitted lines, because
+`git commit --only -- <paths>` takes the working tree and a hook sees files, not
+hunks).
+
+So a lane declares the key namespace it is writing, and the guard diffs the
+**staged** catalogue against `HEAD`:
+
+```
+LANE_KEYS=share LANE=L3 git commit -m "feat(share): …"
+```
+
+Every touched key must sit inside the declared prefix, or the commit is refused
+with the offending keys named. `share` covers `share.message` but **not**
+`shareCard.*` — both exist in the shipped catalogue, so the boundary is real and
+character-prefix matching would silently hand a lane the neighbouring namespace.
+Several prefixes are comma-separated (`LANE_KEYS=admin,share`).
+
+Two things it deliberately is not:
+
+- **Not a loosening of the single-writer rule.** An undeclared locale commit is
+  still refused file-wide, exactly as before. What changed is that a *provably
+  disjoint* commit now has a way to say so that a machine checks.
+- **Not a claim the guard can make on your behalf.** It reads the index, so it
+  sees exactly the blob that will be committed — including under
+  `git commit --only -- <path>`, where git hands the hook a temporary index built
+  from the working tree (measured, not assumed). It cannot tell you *why* a key
+  is yours; that is what docs/14 Requests and the release claim are for.
+
 **One honest limit:** a hook cannot detect *which* `git add` spelling produced
 the index — `git add -A` and a path-scoped add are byte-identical there. The
 guard therefore checks the effect the protocol cares about (not committing

@@ -222,3 +222,167 @@ export function clashesFor(files, lanes, declaration = {}) {
   }
   return clashes
 }
+
+/* ------------------------------------------------------------------ *
+ * Disjoint i18n commits — docs/14 Requests, L3 → L7 + L9 (2026-09-29)
+ *
+ * THE PROBLEM. L10 is the single writer for `app/locales/**`, so while L10 holds
+ * that claim `clashesFor` refuses EVERY commit touching a catalogue — including
+ * one whose keys have nothing to do with L10's. L3 needed `share.message` while
+ * L7 held L10 for `admin.timeline*`; the guard could see a contended file and an
+ * active lane, and had no way to see that the two hunks were disjoint.
+ *
+ * Two escapes existed and both are worse than the rule: wait for the other lane
+ * to release, or pass `--no-verify`. The second is the habit this guard exists to
+ * stop. It also does not actually prevent the real hazard — `3c6fddd`, where L7's
+ * commit silently carried two of L3's uncommitted locale lines, because
+ * `git commit --only -- <paths>` takes the WORKING TREE for those paths and the
+ * pre-commit hook can only see files, never hunks.
+ *
+ * WHAT THIS ADDS. Not a loosening: a namespace makes the commit checkable. A lane
+ * declares the key namespace it is writing (`LANE_KEYS=share`), and the guard
+ * reads the staged catalogue, diffs it against HEAD, and refuses if any touched
+ * key falls OUTSIDE the declared namespace. That is what turns `3c6fddd` from an
+ * invisible failure into a named one — the swept-in `share.*` keys are outside
+ * `admin`, so the commit is refused rather than attributed to the wrong lane.
+ *
+ * It is opt-in and fails safe. With no `LANE_KEYS`, `localeNamespaceVerdict`
+ * reports `applicable: false` and the caller keeps the current behaviour exactly.
+ * ------------------------------------------------------------------ */
+
+/**
+ * Leaf paths of a locale catalogue, as `{ 'share.message': '…' }`.
+ *
+ * Leaves rather than branches, because the unit that collides is a key: two lanes
+ * writing `share.body` and `share.message` are disjoint, and two lanes writing one
+ * `admin.*` are not.
+ *
+ * Arrays and scalars are leaves. A catalogue is nested objects of strings, so an
+ * array is a shape this schema does not expect; flattening it by index would make
+ * a value's POSITION part of its identity, so two lanes reordering one would
+ * report every element as touched.
+ */
+export function localeLeaves(value, prefix = '', out = {}) {
+  /* AT THE ROOT there is no key to name, so an EMPTY catalogue contributes NO
+     leaves. The empty-object-as-leaf rule below is right one level down — it is
+     what makes "delete the whole `admin` namespace" reportable — but applied at
+     the root it emits one leaf named '', and a refusal then prints a blank line
+     as if it were a key. Worse, `localeTouched({}, {...})` reports that phantom
+     as changed, so committing or clearing an empty catalogue reads as touching a
+     key that does not exist. Found by a test asserting the sort order, not by
+     reading this. */
+  const isEmptyRootObject =
+    prefix === '' && value !== null && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0
+  if (isEmptyRootObject) return out
+
+  const isBranch =
+    value !== null && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0
+  if (!isBranch) {
+    out[prefix] = value
+    return out
+  }
+  for (const key of Object.keys(value)) {
+    localeLeaves(value[key], prefix ? `${prefix}.${key}` : key, out)
+  }
+  return out
+}
+
+/**
+ * Parse a catalogue, reporting failure instead of guessing.
+ *
+ * WHY THIS IS NOT JUST `JSON.parse`. A parse failure must REFUSE the commit, and
+ * the natural shorthand — treat unreadable text as an empty catalogue — produces
+ * zero touched keys, which is a vacuous pass: the guard would wave through the one
+ * input it cannot read. Blank text is the one legitimate empty (a file being added
+ * has no HEAD blob yet), so only that maps to `{}`.
+ *
+ * @returns {{ ok: true, value: object } | { ok: false, error: string }}
+ */
+export function parseCatalogue(text) {
+  const raw = String(text ?? '')
+  if (raw.trim() === '') return { ok: true, value: {} }
+  try {
+    const value = JSON.parse(raw)
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+      return { ok: false, error: 'a catalogue must be a JSON object' }
+    }
+    return { ok: true, value }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+/**
+ * Leaf keys that differ between two catalogues: added, removed or changed.
+ *
+ * Values are compared serialised, so a reworded string (`share.body`) counts as
+ * touched — which it is. docs/14 records a lane rewording an existing key as a
+ * legitimate part of its own namespace, and a removed key is reported too, since
+ * deleting a shared string is exactly the edit two lanes must not make blind.
+ *
+ * @param {object} head    the committed catalogue
+ * @param {object} staged  the catalogue about to be committed
+ * @returns {string[]} sorted leaf paths
+ */
+export function localeTouched(head, staged) {
+  const before = localeLeaves(head ?? {})
+  const after = localeLeaves(staged ?? {})
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)])
+  const touched = []
+  for (const key of keys) {
+    const a = before[key] === undefined ? null : before[key]
+    const b = after[key] === undefined ? null : after[key]
+    if (JSON.stringify(a) !== JSON.stringify(b)) touched.push(key)
+  }
+  return touched.sort()
+}
+
+/**
+ * Does a staged catalogue edit stay inside the committer's declared namespace?
+ *
+ * `declared` is `LANE_KEYS`: one prefix or several, comma-separated. A key is
+ * inside a prefix when it IS the prefix or sits under it, so `share` covers
+ * `share.message` and `share.body` but NOT `shared` — a prefix match on the
+ * characters alone would let a lane claim all of `shared.*` by writing `share`.
+ *
+ * `touched` empty is a real pass (the commit changed no keys), NOT a vacuous one:
+ * the caller only reaches here with catalogues it has already parsed.
+ *
+ * @returns {{ applicable: boolean, ok: boolean, prefixes: string[], outside: string[], reason: string }}
+ */
+export function localeNamespaceVerdict({ touched, declared } = {}) {
+  const prefixes = String(declared ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const inside = (key) =>
+    prefixes.some((prefix) => key === prefix || key.startsWith(`${prefix}.`))
+
+  if (prefixes.length === 0) {
+    return {
+      applicable: false,
+      ok: false,
+      prefixes,
+      outside: [],
+      reason: 'no key namespace declared (LANE_KEYS)',
+    }
+  }
+
+  const outside = [...new Set((touched ?? []).filter((key) => !inside(key)))].sort()
+  if (outside.length > 0) {
+    return {
+      applicable: true,
+      ok: false,
+      prefixes,
+      outside,
+      reason: `${outside.length} key(s) outside the declared namespace ${prefixes.join(', ')}`,
+    }
+  }
+  return {
+    applicable: true,
+    ok: true,
+    prefixes,
+    outside: [],
+    reason: `${(touched ?? []).length} key(s), all inside ${prefixes.join(', ')}`,
+  }
+}

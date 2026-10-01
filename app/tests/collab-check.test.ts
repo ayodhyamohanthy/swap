@@ -27,8 +27,12 @@ import {
   deadSurfaces,
   declaredBy,
   globToRegExp,
+  localeLeaves,
+  localeNamespaceVerdict,
+  localeTouched,
   ownedByLane,
   parseActiveLanes,
+  parseCatalogue,
   parseSurfaces,
 } from '../scripts/lane-board.mjs'
 
@@ -411,5 +415,206 @@ describe('the shipped docs/13 §1 — the map the guard actually reads', () => {
 
   it('lets L2 own the home route it always meant to', () => {
     expect(parseSurfaces(contract, ['L2'])[0].surfaces).toContain('routes/index.*')
+  })
+})
+
+/* DISJOINT i18n COMMITS — docs/14 Requests, L3 -> L7 + L9 (2026-09-29).
+ *
+ * WHY THESE EXIST. L10 is the single writer for `app/locales/**`, so while L10
+ * holds that claim `clashesFor` refuses EVERY commit touching a catalogue — and
+ * it cannot tell a disjoint commit from a colliding one, because a hook sees
+ * files and never hunks. That produced four L10 brief claims from three lanes,
+ * and the escape everyone used (`--no-verify`) is what let `3c6fddd` through:
+ * one lane's commit silently carried two of another lane's uncommitted lines.
+ *
+ * A key namespace is what turns that invisible failure into a named one. These
+ * pin the four decisions the guard is made of, in the order they can be wrong:
+ * what a "key" is, what unreadable input means, what counts as changed, and what
+ * a declared prefix covers. */
+describe('localeLeaves — the unit that collides is a KEY, not a branch', () => {
+  it('flattens a nested catalogue to dotted leaf paths', () => {
+    expect(localeLeaves({ share: { body: 'a', nested: { deep: 'b' } }, top: 'c' })).toEqual({
+      'share.body': 'a',
+      'share.nested.deep': 'b',
+      top: 'c',
+    })
+  })
+
+  it('treats an array as ONE leaf, not one leaf per index', () => {
+    /* Flattening by index would make a value's POSITION part of its identity, so
+       two lanes merely reordering one list would report every element as touched
+       — and a lane could then be blocked for a reorder nobody considers a
+       collision. A catalogue is nested objects of strings, so an array is a shape
+       this schema does not expect and must not pretend to understand. */
+    expect(localeLeaves({ a: { list: ['x', 'y'] } })).toEqual({ 'a.list': ['x', 'y'] })
+  })
+
+  it('reads an empty object as a leaf, so a whole namespace can be removed', () => {
+    /* `{}` has no keys, so a naive "is it a non-empty object?" test would walk
+       into it and emit nothing — which makes deleting an entire namespace report
+       as "no keys touched". */
+    expect(localeLeaves({ admin: {} })).toEqual({ admin: {} })
+  })
+
+  it('emits nothing at all for an EMPTY catalogue, not one leaf named ""', () => {
+    /* The rule above is right one level down and wrong at the root, where there
+       is no key to name. It shipped that way and a test asserting the sort order
+       caught it: `localeTouched({}, {...})` reported a phantom `''` as changed,
+       and a refusal would print a blank line as though it were a key. */
+    expect(localeLeaves({})).toEqual({})
+    expect(localeTouched({}, { share: { body: 'a' } })).toEqual(['share.body'])
+    expect(localeTouched({ share: { body: 'a' } }, {})).toEqual(['share.body'])
+  })
+})
+
+describe('parseCatalogue — unreadable input must REFUSE, not read as empty', () => {
+  it('reads blank text as the one legitimate empty (a file being added)', () => {
+    /* A catalogue with no HEAD blob yet is a file being added. If this REFUSED,
+       the guard could never allow the first commit of a new language. */
+    expect(parseCatalogue('')).toEqual({ ok: true, value: {} })
+    expect(parseCatalogue('   \n ')).toEqual({ ok: true, value: {} })
+  })
+
+  it('reports malformed JSON as a failure rather than an empty catalogue', () => {
+    /* This is the vacuous-pass defect. The natural shorthand — treat unreadable
+       text as `{}` — yields zero touched keys, so the guard waves through the
+       ONE input it cannot read, and the commit it most needed to inspect is the
+       one it inspects least. */
+    const r = parseCatalogue('{"share":{"message":"x"')
+    expect(r.ok).toBe(false)
+    expect(r.ok === false && r.error).toBeTruthy()
+  })
+
+  it('refuses a JSON array or a bare scalar, which is not a catalogue', () => {
+    expect(parseCatalogue('["a"]').ok).toBe(false)
+    expect(parseCatalogue('"a"').ok).toBe(false)
+    expect(parseCatalogue('null').ok).toBe(false)
+    expect(parseCatalogue('42').ok).toBe(false)
+  })
+
+  it('accepts a real catalogue', () => {
+    expect(parseCatalogue('{"share":{"body":"a"}}')).toEqual({
+      ok: true,
+      value: { share: { body: 'a' } },
+    })
+  })
+})
+
+describe('localeTouched — what counts as a change', () => {
+  it('reports added, removed and CHANGED keys', () => {
+    expect(
+      localeTouched(
+        { share: { body: 'a', gone: 'x' } },
+        { share: { body: 'a', added: 'y', gone: undefined } },
+      ),
+    ).toEqual(['share.added', 'share.gone'])
+  })
+
+  it('counts a reworded value as touched, because it is one', () => {
+    /* docs/14 records a lane rewording an existing key as legitimate work inside
+       its own namespace. A value-blind diff would let one lane reword another
+       lane's copy silently — the same failure as adding it, in slower motion. */
+    expect(localeTouched({ share: { body: 'a' } }, { share: { body: 'b' } })).toEqual(['share.body'])
+  })
+
+  it('reports nothing for an identical catalogue', () => {
+    const c = { share: { body: 'a' }, admin: { title: 't' } }
+    expect(localeTouched(c, structuredClone(c))).toEqual([])
+  })
+
+  it('sorts, so the refusal message is stable across runs', () => {
+    expect(localeTouched({}, { b: '1', a: '1', c: { z: '1', y: '1' } })).toEqual(['a', 'b', 'c.y', 'c.z'])
+  })
+})
+
+describe('localeNamespaceVerdict — a declared prefix, and what it does NOT cover', () => {
+  it('accepts a key inside the declared prefix', () => {
+    expect(localeNamespaceVerdict({ touched: ['share.message', 'share.body'], declared: 'share' }).ok).toBe(true)
+  })
+
+  it('refuses a key outside it, and NAMES it', () => {
+    /* This is the 3c6fddd shape: a lane declares `share` and its commit also
+       carries another lane's `admin` line. Named, refused, attributable. */
+    const v = localeNamespaceVerdict({ touched: ['share.message', 'admin.timeline'], declared: 'share' })
+    expect(v.ok).toBe(false)
+    expect(v.outside).toEqual(['admin.timeline'])
+  })
+
+  it('does not let a prefix claim a namespace that merely STARTS with it', () => {
+    /* The shipped en.json really does hold both `share` and `shareCard`, so this
+       is not a hypothetical boundary: a bare `key.startsWith(prefix)` would let a
+       lane declaring `share` silently rewrite every `shareCard.*` string. */
+    expect(localeNamespaceVerdict({ touched: ['shareCard.title'], declared: 'share' }).ok).toBe(false)
+    expect(localeNamespaceVerdict({ touched: ['shared.x'], declared: 'share' }).ok).toBe(false)
+  })
+
+  it('covers the prefix key itself, not only its children', () => {
+    expect(localeNamespaceVerdict({ touched: ['admin'], declared: 'admin' }).ok).toBe(true)
+  })
+
+  it('accepts several comma-separated prefixes', () => {
+    const v = localeNamespaceVerdict({ touched: ['share.a', 'admin.b'], declared: ' share , admin ' })
+    expect(v.ok).toBe(true)
+    expect(v.prefixes).toEqual(['share', 'admin'])
+  })
+
+  it('is NOT APPLICABLE with no declaration — that is the opt-in, and it must be visible', () => {
+    /* Unset means unchanged behaviour, so the caller keeps its old path. The
+       danger is `applicable` reading true when it is not: then every lane with no
+       LANE_KEYS would be silently judged against an empty namespace and refused
+       for touching anything at all. */
+    const v = localeNamespaceVerdict({ touched: ['share.a'], declared: undefined })
+    expect(v.applicable).toBe(false)
+    expect(v.prefixes).toEqual([])
+  })
+
+  it('treats an empty or whitespace-only declaration as no declaration', () => {
+    expect(localeNamespaceVerdict({ touched: ['a'], declared: '' }).applicable).toBe(false)
+    expect(localeNamespaceVerdict({ touched: ['a'], declared: '  ,  ' }).applicable).toBe(false)
+  })
+
+  it('treats zero touched keys as a real pass, not a vacuous one', () => {
+    const v = localeNamespaceVerdict({ touched: [], declared: 'share' })
+    expect(v.ok).toBe(true)
+    expect(v.applicable).toBe(true)
+  })
+
+  it('survives being called with no arguments at all', () => {
+    expect(localeNamespaceVerdict().applicable).toBe(false)
+    expect(localeNamespaceVerdict({}).ok).toBe(false)
+  })
+})
+
+describe('the real catalogues — the prefixes a lane would actually declare', () => {
+  const en = parseCatalogue(readFileSync(join(APP, 'locales', 'en.json'), 'utf8'))
+  const hi = parseCatalogue(readFileSync(join(APP, 'locales', 'hi.json'), 'utf8'))
+
+  it('parses both shipped catalogues', () => {
+    expect(en.ok).toBe(true)
+    expect(hi.ok).toBe(true)
+  })
+
+  it('finds no dead surface in the key namespace sense: every leaf has a dotted prefix', () => {
+    const leaves = Object.keys(localeLeaves((en as { value: object }).value))
+    expect(leaves.length).toBeGreaterThan(100)
+    /* A top-level scalar would be a key no namespace can address without claiming
+       the whole file, so its absence is what makes LANE_KEYS usable at all. */
+    expect(leaves.filter((k) => !k.includes('.'))).toEqual([])
+  })
+
+  it('reports the real conflict L3 hit: share.message added while admin.* exists', () => {
+    /* The shipped catalogue is the fixture that matters — the guard has to work
+       on 48 real namespaces, not a two-key example. */
+    const before = (en as { value: object }).value
+    const after = { ...before, share: { ...(before as any).share, message: 'new' } }
+    const touched = localeTouched(before, after)
+    expect(localeNamespaceVerdict({ touched, declared: 'share' }).ok).toBe(true)
+    expect(localeNamespaceVerdict({ touched, declared: 'admin' }).ok).toBe(false)
+  })
+
+  it('keeps en and hi the same SHAPE, which is what a locale commit must preserve', () => {
+    const enKeys = Object.keys(localeLeaves((en as { value: object }).value)).sort()
+    const hiKeys = Object.keys(localeLeaves((hi as { value: object }).value)).sort()
+    expect(hiKeys).toEqual(enKeys)
   })
 })

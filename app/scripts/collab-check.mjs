@@ -16,6 +16,8 @@
  *                       whose ledger row is not WIRED.
  *   7. staging        — docs/12 §4: no committed file may point at a Supabase
  *                       project that is not the recorded staging one.
+ *   8. i18n namespace — a staged catalogue edit must stay inside the key
+ *                       namespace the committer declared (LANE_KEYS).
  *
  * Correctness of money/copy/schema stays in the vitest suite; this only adds
  * the collaboration and staleness checks the suite cannot see.
@@ -36,7 +38,18 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
    without pulling `node:child_process` into the jsdom pool — the mistake that
    broke test collection for six lanes when `translator-lib.mjs` did it
    (docs/11). */
-import { clashesFor, deadSurfaces, declaredBy, ownedByLane, parseActiveLanes, parseSurfaces } from './lane-board.mjs'
+import {
+  clashesFor,
+  deadSurfaces,
+  declaredBy,
+  localeLeaves,
+  localeNamespaceVerdict,
+  localeTouched,
+  ownedByLane,
+  parseActiveLanes,
+  parseCatalogue,
+  parseSurfaces,
+} from './lane-board.mjs'
 import { parseProjectRefs, supabaseUrlFindings } from './staging-lib.mjs'
 import { findBanned, importSpecifiers, parseVendorLedger } from './vendor-whitelist.mjs'
 import { backupFindings, parseBackupContract } from './backup-contract.mjs'
@@ -430,6 +443,106 @@ function checkOwnership() {
   console.log('      convention the files do not follow is a hole in the guard, not a plan.')
 }
 
+/* ---- 10. disjoint i18n commits (docs/14 Requests, L3 -> L7 + L9) ----
+   L10 is the single writer for `app/locales/**`, so while L10 holds that claim
+   `clashesFor` refuses EVERY commit touching a catalogue — including one whose
+   keys have nothing to do with L10's. That has cost four L10 brief claims from
+   three lanes, and the two escapes (wait, or `--no-verify`) are what produced
+   `3c6fddd`, where one lane's commit silently carried another's locale lines.
+
+   This is not a loosening. A lane declares the namespace it is writing
+   (`LANE_KEYS=share`) and the guard diffs the STAGED catalogue against HEAD, so
+   the swept-in keys are named instead of carried. The decision lives in
+   `lane-board.mjs` (imports nothing, so the suite can reach it); this function is
+   only the part that reads git. */
+
+/** The catalogues in a staged set. Repo-relative, because that is what git lists. */
+const isCatalogue = (file) => /^app\/locales\/[^/]+\.json$/.test(file)
+
+/**
+ * The refusal text for a locale commit, or `null` when there is nothing to say.
+ *
+ * A STRING rather than printed lines, because two callers need it and they need
+ * it differently: hook mode has to exit 1, the full report has to colour a line
+ * and count a failure. A check that only printed would be enforced in one and
+ * merely narrated in the other.
+ *
+ * @returns {string|null}
+ */
+function hookLocaleProblem(files) {
+  const catalogues = files.filter(isCatalogue)
+  if (catalogues.length === 0) return null
+
+  const declared = process.env.LANE_KEYS
+  /* Opt-in and fails safe: with no LANE_KEYS the caller keeps yesterday's
+     behaviour exactly, and the file-level active-lane check still refuses a
+     contended catalogue. Same shape as the LANE/LANE_AGENT declaration. */
+  if (!declared || declared.trim() === '') return null
+
+  const lines = []
+  for (const file of catalogues) {
+    /* THE INDEX, NOT THE WORKING TREE. Measured on 2026-10-02, because the two
+       disagree under `git commit --only -- <path>`: git builds a TEMPORARY index
+       from the working tree for the named paths, hands it to the hook, and
+       commits exactly that. So `git show :<file>` is what will land in the commit
+       under BOTH spellings — `--only` (temp index, worktree content) and plain
+       (real index, staged content) — while reading the worktree would report keys
+       a plain commit does not carry, and block a correct one.
+
+       HEAD is the "before". A catalogue with no HEAD blob yet is a file being
+       added, which `parseCatalogue` reads as the one legitimate empty. */
+    const before = parseCatalogue(git(['show', `HEAD:${file}`]))
+    const after = parseCatalogue(git(['show', `:${file}`]))
+
+    if (!before.ok) {
+      lines.push(`${file}: the committed version is unreadable (${before.error}) — cannot tell which keys this commit touches`)
+      continue
+    }
+    if (!after.ok) {
+      /* A parse failure must REFUSE. The natural shorthand — treat unreadable
+         text as an empty catalogue — yields zero touched keys, which is a
+         vacuous pass over the one input the guard cannot read. */
+      lines.push(`${file}: not valid JSON (${after.error}) — refusing rather than reading it as empty`)
+      continue
+    }
+
+    const verdict = localeNamespaceVerdict({
+      touched: localeTouched(before.value, after.value),
+      declared,
+    })
+    if (verdict.ok) {
+      console.error(`collab-check: note — ${file}: ${verdict.reason}`)
+      continue
+    }
+    lines.push(
+      `${file}: ${verdict.outside.length} key(s) outside your declared namespace (${verdict.prefixes.join(', ')}):\n        ${verdict.outside.join('\n        ')}`,
+    )
+  }
+
+  if (lines.length === 0) return null
+  return (
+    `a locale commit touches keys outside the namespace you declared:\n        ${lines.join('\n        ')}` +
+    '\n      A catalogue is refused file-wide while L10 holds the single-writer claim, so this is' +
+    '\n      the check that makes a DISJOINT commit committable without --no-verify. Declare what' +
+    '\n      you are actually writing, and stage only your own keys:' +
+    '\n        LANE_KEYS=share LANE=L3 git commit -m "…"' +
+    "\n      If those keys really are yours, you have swept up another lane's uncommitted work:" +
+    '\n      unstage them, or file a request on docs/14 for L10 to release (docs/11).'
+  )
+}
+
+/** The full-check report: one section, reusing the hook's own decision. */
+function checkLocaleNamespace(files) {
+  const problem = hookLocaleProblem(files)
+  if (problem === null) {
+    if (files.some(isCatalogue) && (process.env.LANE_KEYS ?? '').trim() !== '') {
+      ok(`every staged catalogue key is inside ${process.env.LANE_KEYS}`)
+    }
+    return
+  }
+  bad(problem)
+}
+
 /* ---- active lanes, read out of the board itself ----
    docs/13 §1 holds the lane -> surface map; docs/14 holds who is active right
    now. Parsing both means the guard can never drift from the board: a new lane
@@ -501,6 +614,13 @@ function hookMode() {
     if (process.env.HOT_CHECK === 'block') problems.push(note)
     else console.error('collab-check: note — ' + note)
   }
+
+  /* THE SAME NAMESPACE CHECK, IN HOOK MODE — and this is the one that matters.
+     `checkLocaleNamespace` above prints into the full-check report; the hook is
+     the only place a commit is actually stopped, so a check that lived only in
+     the report would document the rule without enforcing it. */
+  const localeProblem = hookLocaleProblem(files)
+  if (localeProblem) problems.push(localeProblem)
 
   if (problems.length === 0) {
     console.error('collab-check: ok — ' + files.length + ' file(s) staged, no active-lane or hot-file clash')
@@ -632,6 +752,12 @@ function main() {
   if (!has('--staged-only')) {
     head('ownership map (docs/13 §1)')
     checkOwnership()
+  }
+
+  /* 10. a locale commit stays inside the namespace it declared (docs/14) */
+  if (files.some(isCatalogue)) {
+    head('i18n namespace (docs/14)')
+    checkLocaleNamespace(files)
   }
 
   /* 5. green rule */
