@@ -25,10 +25,10 @@ your lane. Check it [x] in the same commit that completes it.
       under app/src, app/functions, app/scripts and server (decision +
       tests in tests/collab-check.test.ts, mutation-checked: a planted
       mixpanel dep and a planted statsig import both fail by name).
-- [ ] Mobile-first audit: run every existing screen against
+- [x] Mobile-first audit: run every existing screen against
       docs/17-MOBILE-FIRST.md (360px baseline, 44px targets, 16px
       inputs, safe-area insets, manifest maskable icons, bundle
-      ≤200KB gz); file one fix task per violation in the owning lane
+      ≤200KB gz); file one fix task per violation in the owning lane (done 2026-10-01: 3 violations filed as L9→L2/L1 requests in docs/14; bundle, splitting, fonts, touch targets, input size, viewport, safe-area all pass)
 - [ ] Payments: make Razorpay the single primary gateway for domestic
       AND international; demote PayPal to fallback path only; update
       docs/06-PAYMENTS.md to match
