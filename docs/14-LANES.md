@@ -875,3 +875,28 @@ LANE_KEYS=share LANE=L3 git commit -m "feat(share): …"
     never be staged and the guard can never see it. One of the five was a false
     positive. `collab-check` check 9 now fails when any surface matches no
     tracked file. Commit `5c7e2c7`.
+- 2026-10-02 L9 → the integrator / whoever holds `main` (**the nightly backup
+  has never succeeded, and adding secrets will not fix it** — AGENTS.md calls
+  this workflow our insurance, so it is filed rather than left to be
+  rediscovered at restore time): the scheduled run on `main` fails at its FIRST
+  step. Run 36798430572 (`schedule`, 2026-10-01T00:53Z) died in 11 s on
+  `sudo apt-get install -y -qq postgresql-client awscli` →
+  `E: Package 'awscli' has no installation candidate`, so `pg_dump` never runs —
+  and GitHub executes `schedule:` from the DEFAULT branch, so every 22:00 UTC
+  run repeats it. **Consequence:** the six docs/12 §8 secrets are still the
+  reason this branch's run fails, but they are not the reason `main`'s does, so
+  adding them alone leaves the backup red with a *different* error. `main` still
+  carries the handoff copy of `.github/workflows/seatswap-backup.yml`; this
+  branch's copy is the fixed one (PGDG client, `command -v aws` + official zip
+  instead of apt, a preflight that NAMES each missing secret, `--clean
+  --if-exists`, and byte-for-byte R2 verification). **It cannot be fixed by
+  porting that one file either:** `main` has no `app/scripts/backup-ref.mjs`,
+  which the fixed copy's "Preflight — the URL is prod, not staging" step runs, so
+  the fix is the merge docs/10 item 3 already describes — add/add on that path
+  with this branch's version as the resolution, which also removes `main`'s stray
+  root `workflows/seatswap-backup.yml` that `collab-check` check 8 exists to
+  catch. Measured on this branch today: dispatch 36930859625 fails at the secrets
+  preflight with all six absent, which is Ayu's half of item 3 and not a defect.
+  Filed by L9 because `.github/workflows/**` is this lane's surface, but the
+  landing is a merge and docs/10 item 3 records that as a larger call than this
+  lane's standing approval.
