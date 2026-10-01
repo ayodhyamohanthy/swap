@@ -226,6 +226,30 @@ describe('prepareGatewayPayment — credit-only settlement', () => {
     expect(state.rpcs).toEqual([])
   })
 
+  /* `wallet_tx` has no group_id column — `ref_request_id` is a uuid FK to
+     swap_requests — so the credit a group payment spends has nothing valid to
+     point at. Passing the caller's `requestId` (the group id, `g1` here) put a
+     non-uuid in a foreign key and the insert would fail at the database. The
+     payments row above already makes this split; the hold has to make it too. */
+  it('holds a group payment\'s credit with a null ref_request_id', async () => {
+    const { client, state } = fakeClient({
+      group: { id: 'g1', organiser_id: REQUESTER }, wallet: [{ id: 'w1', amount_paise: 19900, expires_at: null }],
+    })
+    await prepareGatewayPayment(client, REQUESTER, { requestId: 'g1', isGroup: true, useCredit: true })
+    expect(inserted(state, 'wallet_tx')).toMatchObject([{ kind: 'used', amount_paise: -19900, ref_request_id: null }])
+    /* And the payment row it is holding for targets the group, not a request. */
+    expect(inserted(state, 'payments')).toMatchObject([{ request_id: null, group_id: 'g1' }])
+  })
+
+  it('holds an ordinary swap payment against its request', async () => {
+    const { client, state } = fakeClient({
+      request: request(), wallet: [{ id: 'w1', amount_paise: 9900, expires_at: null }],
+    })
+    await prepareGatewayPayment(client, REQUESTER, { requestId: 'req_1', isGroup: false, useCredit: true })
+    expect(inserted(state, 'wallet_tx')).toMatchObject([{ ref_request_id: 'req_1' }])
+    expect(inserted(state, 'payments')).toMatchObject([{ request_id: 'req_1', group_id: null }])
+  })
+
   it('surfaces a failed lock instead of reporting success', async () => {
     const { client } = fakeClient({
       request: request(), wallet: [{ id: 'w1', amount_paise: 9900, expires_at: null }],

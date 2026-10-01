@@ -8,9 +8,9 @@ import { gzipSync } from 'node:zlib'
 import { budgetVerdict, initialScripts, initialStylesheets } from './bundle-budget.mjs'
 import { cacheNames, swFilename, workboxOptions } from '../pwa.workbox.mjs'
 
-/* TanStack Start writes the static PWA to dist/client (server bundle: dist/server). */
+/* TanStack Start writes the static PWA to dist/cf (Cloudflare Workers Static Assets). */
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const dist = join(root, 'dist', 'client')
+const dist = join(root, 'dist', 'cf')
 
 const problems = []
 const check = (condition, message) => {
@@ -49,8 +49,8 @@ for (const tab of ['href="/"', 'href="/swaps"', 'href="/profile"']) {
 }
 const notFound = read('404.html')
 check(notFound === html, '404.html must be a copy of the app shell (deep links on static hosts)')
-check(existsSync(join(dist, '.nojekyll')), 'dist/client/.nojekyll is missing (GitHub Pages)')
-check(existsSync(join(dist, '_redirects')), 'dist/client/_redirects is missing (Netlify/Surge rewrites)')
+check(existsSync(join(dist, '.nojekyll')), '.nojekyll is missing (GitHub Pages)')
+check(!existsSync(join(dist, '_redirects')), '_redirects must NOT be present (Cloudflare rejects it)')
 
 /* The Cloudflare upload is a staged copy WITHOUT `_redirects` — the platform
    rejects that file's Netlify catch-all as an infinite loop (see postbuild).

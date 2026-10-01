@@ -355,6 +355,7 @@ describe('collectedPaise (design 17 Amount, rule 1)', () => {
   const paid = (amount: number, credit: number, status: PaymentRow['status'] = 'paid'): PaymentRow => ({
     id: 'pay_1',
     request_id: 'req_1',
+    group_id: null,
     payer_id: null,
     provider: 'razorpay',
     provider_ref: null,

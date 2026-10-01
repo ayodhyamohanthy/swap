@@ -3,6 +3,7 @@ import { renderHook } from '@testing-library/react'
 
 import {
   StoreError,
+  credit,
   paymentFor,
   pickPaymentFor,
   paymentTargetId,
@@ -59,6 +60,10 @@ function stored<T>(key: string): T[] {
 
 function storeRaw(rows: unknown[]): void {
   window.localStorage.setItem(PAYMENTS_KEY, JSON.stringify(rows))
+  /* resetStore() writes the empty state over storage, so the seed goes in after
+     it. This is then the cross-tab path a second window would really take:
+     write under the key, and the store reloads itself from disk. */
+  window.dispatchEvent(new StorageEvent('storage', { key: PAYMENTS_KEY }))
 }
 
 beforeEach(() => {
@@ -109,7 +114,7 @@ describe('paymentFor() and usePaymentFor() cannot disagree', () => {
      function that decides whether to charge said otherwise. One rule, one
      function — so assert the hook answers exactly what the function answers. */
   it('the hook resolves what the function resolves, for both target kinds', () => {
-    startPayment({ request_id: 'req_a', provider: 'razorpay', amount_paise: SWAP_PRICE, credit_used_paise: 0, status: 'failed' })
+    startPayment({ request_id: 'req_a', provider: 'razorpay', amount_paise: SWAP_PRICE, credit_used_paise: 0, status: 'created' })
     startPayment({ group_id: 'grp_1', provider: 'razorpay', amount_paise: GROUP_PRICE, credit_used_paise: 0, status: 'paid' })
 
     for (const target of ['req_a', 'grp_1', 'nothing']) {
@@ -202,7 +207,6 @@ describe('a row written before the fix still reads as paid', () => {
 
   it('moves a grp_ id out of request_id into group_id', () => {
     storeRaw([legacy()])
-    resetStore()
     const found = paymentFor('grp_abc123')
     expect(found?.id).toBe('pay_old')
     expect(found?.status).toBe('paid')
@@ -210,22 +214,23 @@ describe('a row written before the fix still reads as paid', () => {
     expect(found?.group_id).toBe('grp_abc123')
   })
 
-  /* And the ₹199 is still found by the same id it always was, which is the
-     whole point: nothing about the traveller's payment changed. */
+  /* And the ₹199 is still found by the same id it always was, which is the whole
+     point: nothing about the traveller's payment changed. The legacy row has to
+     name the REAL group id, because that is what the pre-fix checkout wrote. */
   it('does not charge a second ₹199 for a group already paid before the fix', () => {
-    storeRaw([legacy()])
-    resetStore()
     const group = createGroup('Family', [])
+    storeRaw([legacy({ request_id: group.id })])
     const ticket = beginGroupCheckout(group.id, 'razorpay', false)
     expect(ticket.paymentId).toBe('pay_old')
+    expect(ticket.settled).toBe(true)
     expect(paymentFor(group.id)?.status).toBe('paid')
+    expect(stored<PaymentRow>(PAYMENTS_KEY)).toHaveLength(1)
   })
 
   it('keeps the request when the two columns already disagree', () => {
     /* The request wins: it is the column every other table hangs off, and a
        group payment with no group row behind it is not readable anyway. */
     storeRaw([legacy({ id: 'pay_both', request_id: 'req_a', group_id: null })])
-    resetStore()
     const found = paymentFor('req_a')
     expect(found?.id).toBe('pay_both')
     expect(found?.group_id).toBeNull()
@@ -233,7 +238,6 @@ describe('a row written before the fix still reads as paid', () => {
 
   it('adds the missing group_id key to rows that predate the column', () => {
     storeRaw([legacy({ id: 'pay_swap', request_id: 'req_a', group_id: undefined })])
-    resetStore()
     const found = paymentFor('req_a')
     expect(found?.group_id).toBeNull()
     expect(found?.request_id).toBe('req_a')
@@ -260,10 +264,10 @@ describe('beginGroupCheckout pays for the group', () => {
     expect(stored<PaymentRow>(PAYMENTS_KEY)).toHaveLength(1)
   })
 
-  it('is still unsettled at `created` and finds the row once the group is paid', () => {
+  it('is still unsettled once the gateway order is opened, and settled after capture', () => {
     const group = createGroup('Family', [])
     beginGroupCheckout(group.id, 'razorpay', false)
-    expect(paymentFor(group.id)?.status).toBe('created')
+    expect(paymentFor(group.id)?.status).toBe('pending')
     markGroupPaid(group.id)
     expect(getGroup(group.id)?.paid).toBe(true)
     const third = beginGroupCheckout(group.id, 'razorpay', false)
@@ -307,10 +311,20 @@ describe('credit spent on a group payment has no swap request to point at', () =
      with a null reference. Pointing it at the group id would fail the same cast
      the payment row used to fail. */
   it('writes ref_request_id null for a group payment and the id for a swap', () => {
+    /* `useCredit` refuses more than the balance (rule 4: credit only ever lowers
+       a fee), so there has to be some credit to spend. */
+    credit({ to: 'requester', amountPaise: 9900, kind: 'swap_to_credit', ref_request_id: null })
     useCredit(5000, null)
-    useCredit(5000, 'req_a')
+    useCredit(4000, 'req_a')
     const refs = stored<WalletTx>(WALLET_KEY).map((tx) => tx.ref_request_id)
     expect(refs).toContain(null)
     expect(refs).toContain('req_a')
+  })
+
+  /* And the guard still holds: a spend cannot exceed the balance, whatever the
+     reference is. */
+  it('still refuses to spend credit that was never earned', () => {
+    expect(useCredit(5000, null)).toBeUndefined()
+    expect(stored<WalletTx>(WALLET_KEY)).toHaveLength(0)
   })
 })
