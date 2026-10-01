@@ -12,7 +12,10 @@ capacity and insurance. Credit expiry must only ever degrade us to
   TWA for Play Store later.
 - Data: Supabase Postgres + Auth (Google) + RLS + Realtime.
 - Edge: Cloudflare Workers Static Assets, Cron Triggers, Queues, R2.
-- Payments: Razorpay (domestic), PayPal (international).
+- Payments: Razorpay primary, domestic AND international. PayPal is an
+  explicit fallback for international payers. (Amended 2026-10-02 by Ayu —
+  §1 previously read "Razorpay (domestic), PayPal (international)", which
+  contradicted §2's ledger row and the Razorpay-primary build-plan item.)
 - Email: Zoho ZeptoMail (transactional only).
 - Observability: PostHog (analytics + flags), Sentry (errors).
 - Backups: GitHub Actions nightly pg_dump → R2 (docs/16). NOT a
