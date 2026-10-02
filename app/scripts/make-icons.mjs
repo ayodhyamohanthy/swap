@@ -149,6 +149,7 @@ mkdirSync(OUT, { recursive: true })
 const targets = [
   ['icon-192.png', 192, drawMark(192)],
   ['icon-512.png', 512, drawMark(512)],
+  ['maskable-192.png', 192, drawMark(192, { maskable: true })],
   ['maskable-512.png', 512, drawMark(512, { maskable: true })],
   ['apple-touch-icon.png', 180, drawApple(180)],
 ]
