@@ -297,6 +297,7 @@
     "paypalNote": "PayPal shows about {usd} as an estimate. You are charged ₹{amount}.",
     "paypalTitle": "Pay with PayPal",
     "paypalDue": "₹{amount} · about {usd}",
+    "paypalFallback": "Razorpay not working? Pay with PayPal instead.",
     "paypalOwn": "Your card is charged in your own currency by PayPal",
     "paypalGo": "Continue to PayPal",
     "paypalFor": "For international travellers",

@@ -24,15 +24,21 @@ your lane. Check it [x] in the same commit that completes it.
       safe-area set, manifest verified by build; ZERO violations so zero
       fix tasks. Watch: 202.5KB total with CSS (7KB headroom); switches
       pass via expanded hit-slop, not box size.
-      Watch: 202.5KB total with CSS (7KB headroom); switches
-      pass via expanded hit-slop, not box size.
 - [x] Mobile-first audit re-run (2026-10-01, Fo, fo/swap-mobile-first-audit):
       3 violations filed as L9→L2/L1 requests in docs/14; bundle,
       splitting, fonts, touch targets, input size, viewport, safe-area
       all pass.
-- [ ] Payments: make Razorpay the single primary gateway for domestic
+- [x] Payments: make Razorpay the single primary gateway for domestic
+      (2026-10-01, Fo, fo/swap-razorpay-primary): Razorpay is the single
+      primary gateway for domestic and international; PayPal demoted to a
+      fallback link under the Razorpay methods (screen, capture flow and
+      webhooks untouched); guard tests/pay-primary.test.ts x4, both
+      mutations fail by name; docs/06 provider-choice rewritten, docs/04
+      step 10 updated.
       AND international; demote PayPal to fallback path only; update
-      docs/06-PAYMENTS.md to match
+      docs/06-PAYMENTS.md to match (done 2026-10-01: PayPal demoted to a fallback
+      link on the method screen, the PayPal screen itself untouched;
+      guard tests/pay-primary.test.ts x4, mutations checked; docs/06 + docs/04 updated)
 
 ## L1..L8 — (existing feature lanes: keep current tasks, converted to [ ]/[x])
 
