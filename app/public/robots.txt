@@ -1,2 +1,11 @@
+# seatswap.ayodhya-711.workers.dev is an app shell: every route past the
+# root is session-bound (sign-in, a passenger's swaps, payments, admin),
+# so a crawler can never render them. Keep the admin and pay screens out
+# of any index outright.
 User-agent: *
-Allow: /
+Disallow: /admin
+Disallow: /pay/
+Disallow: /signin
+Disallow: /profile
+
+Sitemap: https://seatswap.ayodhya-711.workers.dev/sitemap.xml
