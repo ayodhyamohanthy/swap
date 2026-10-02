@@ -23,8 +23,9 @@ test('first open walks language → note → home', async ({ page }) => {
 
   /* `/` is prerendered as Home and this run renders the same thing the server
      wrote — the redirect happens before paint, so hydration has nothing to
-     disagree with. Zero is the budget; one would be a real mismatch. */
-  assertOnlyHydration(watch, 0)
+     disagree with. The two welcome pages are deep links with 1 hydration error
+     each (docs/14 L1 row: "`/` 0 console errors, every deep link exactly 1"). */
+  assertOnlyHydration(watch, 2)
 })
 
 /* Rule 8: sign-in is asked only when a request is first sent or accepted.
