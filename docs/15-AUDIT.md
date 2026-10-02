@@ -67,7 +67,7 @@ credit-funded scale path for the database is docs/17 §W1-alt (Azure $5k).
 ### Minor — polish
 | # | Gap | Fix |
 |---|---|---|
-| m1 | No CSP/security-headers audit (a `_headers` file ships; content unaudited) | W7 |
+| m1 | No CSP/security-headers audit (a `_headers` file ships; content unaudited) | **Done (L1/L9), not yet live.** The file now carries a real CSP + HSTS + nosniff + DENY + Referrer-Policy + Permissions-Policy on every block, held in `scripts/security-headers.mjs` and applied to the staged `dist/cf/_headers` by `verify-dist.mjs` — the check that was only ever `existsSync(_headers)`. Each external origin is tied to the shipped file that loads it. Affects production on the next `wrangler deploy`; the live workers.dev site still serves the old file. |
 | m2 | No bundle-size budget in `verify-dist.mjs` (it verifies artefacts, not size) | W6 |
 | m3 | No a11y assertion layer (axe) despite the 360px discipline | W6 |
 | m4 | No Lighthouse CI record; installability verified manually | W6 |
