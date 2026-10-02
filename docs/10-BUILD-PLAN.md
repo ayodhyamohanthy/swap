@@ -87,7 +87,7 @@ your lane. Check it [x] in the same commit that completes it.
       `supabase db push` from the repo root provisions an EMPTY database;
       and a stale fourth copy at `supabase/schema-steps-1-2.sql` collides
       with the canonical schema on 10 objects.)
-- [ ] Backup workflow: commit .github/workflows/seatswap-backup.yml
+- [x] Backup workflow: commit .github/workflows/seatswap-backup.yml
       (file provided in handoff), add the 6 GH Actions secrets per
       docs/12 §8, set R2 30-day lifecycle rule, verify one manual run
       (workflow_dispatch) succeeds end-to-end
