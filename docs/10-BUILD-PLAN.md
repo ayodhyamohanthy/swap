@@ -28,12 +28,15 @@ your lane. Check it [x] in the same commit that completes it.
       installed" — it is, authenticated as the repo owner, and it is how every
       measurement above was taken; and "this branch is 11 commits behind that
       point" — it is not.
-      **One honest limit, recorded so the green runs above cannot be misread:**
-      this branch's own latest dispatch is RED on TS6133 (`src/lib/store.ts`,
-      unused `isGroupRequestId`), and that belongs to the lane mid-pass on
-      `payments_target` right now — its fix is already in its working tree and
-      its own gates are running under it. The green runs this item cites are
-      `main`'s, which is what "runs green in the cloud" is about.
+      **The branch's own dispatch is green too — 36946828017 (`green`,
+      `workflow_dispatch` on `docs/instructions-v2`) concluded `success`**
+      after the two earlier red dispatches (which caught real defects in
+      another lane's in-flight commit and were fixed) and a third red caused
+      by that same pass still being uncommitted. So the honest limit this
+      paragraph used to carry — "the green runs are `main`'s, this branch's
+      latest is red" — no longer applies: the gate has now gone green in the
+      cloud on the branch every lane works on, run end to end (`npm ci` →
+      typecheck → tests → build → collab-check).
       (**Checked, so the first run is not red for a fixable
       reason:** `npm ci` will resolve — verified offline against the committed
       lock (root `workspaces: ["app"]`, lockfileVersion 3, all 27 of
