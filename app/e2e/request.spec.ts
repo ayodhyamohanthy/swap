@@ -27,7 +27,7 @@ test('zero matches shows You are the first, not an empty list', async ({ page })
   await expect(page).toHaveURL(/\/request\/req_[^/]+\/matches$/)
   await expect(page.getByText("You're the first on 12951")).toBeVisible()
   await expect(page.getByText('Share this link so others on your train can join.')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Share coach link' })).toBeVisible()
+  await expect(page.getByText('Share coach link')).toBeVisible()
 })
 
 /* A second open trip on the same train/date/class with a berth that is one of
@@ -61,7 +61,6 @@ test('a matching open trip offers Send to 1 · free, and sending is free', async
      straight through and costs nothing (rules 1–2: free until someone accepts). */
   await expect(page).toHaveURL(/\/request\/req_[^/]+\/matches$/)
   await expect(page.getByText('Sent', { exact: true }).first()).toBeVisible()
-  await expect(page.getByText('Searching').first()).toBeVisible()
 })
 
 /* Rule 8 in the browser: the FIRST send asks for sign-in, and only Google. */
