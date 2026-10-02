@@ -86,6 +86,13 @@ construction — see app/azure/README.md). NEVER write `app/locales/` from
 a burn-down script; translator drafts go to `app/azure/tmp/` for POEditor
 + native review.
 
+Before spending anything, `node app/azure/burndown-dry-run.mjs` is the
+check, not a claim: every spending script is dry-run safe with no keys,
+and it exits non-zero on any network attempt, stray write, or unlisted
+script. Quote its numbers, never remembered ones. Its one hard rule
+survives every rewrite of this file: NEVER write `app/locales/` from a
+burn-down or translator script — locales are human-maintained.
+
 ## §8 Env var → vendor key map (the ONLY place this mapping lives)
 | Var | Read by | Source |
 |-----|---------|--------|

@@ -40,6 +40,8 @@ by listing nothing).
   in code, package.json, or config. RESERVE/BENCH vendors require Ayu
   moving the row to WIRED first. An agent never adds a vendor.
 - NEVER build persistent infrastructure on expiring credits (docs/12 §0).
+- Before writing, list the files another agent may be writing right now
+  (find app/src app/tests app/locales -mmin -15 -type f); anything listed is theirs until it clears the window.
 - MOBILE-FIRST is a contract, not a preference: docs/17-MOBILE-FIRST.md.
   360px baseline, 44px touch targets, 16px inputs, safe-area insets,
   ≤200KB gz initial JS. /designs is truth for UI. A screen that only
