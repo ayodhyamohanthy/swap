@@ -629,6 +629,69 @@ export function updateSettings(patch: Partial<LocalSettings>): LocalSettings {
   return next
 }
 
+/** Every `LocalSettings` key whose value is a boolean or a number — the only
+    two shapes an audit row may carry. Derived from the type rather than
+    written by hand, so a string setting (`language`, `user_id`, a consent
+    timestamp) is `never` here: naming one below does not compile. */
+export type AuditableSettingKey = {
+  [K in keyof LocalSettings]-?: LocalSettings[K] extends boolean | number ? K : never
+}[keyof LocalSettings]
+
+/** The ONLY keys `settings_changed` may write to `activity_log`.
+ *
+ * 2026-10-02, closing L7 → L2 of 2026-09-28: the call site passed the raw
+ * `patch` object to `logActivity`, so whatever a FUTURE setting carried
+ * reached the system of record unexamined — the day a setting holds an email
+ * or a phone number it is in `activity_log` without anyone having decided that.
+ * Two guards, because they catch different things: a key absent from this set
+ * is dropped at runtime (a new setting is invisible to the log until someone
+ * adds it here deliberately), and the key union above makes it a TYPE ERROR to
+ * add a string-valued one (the leak is caught at `tsc`, before any test runs).
+ *
+ * Every boolean/number setting is listed, not just the six the Settings screen
+ * toggles: this table answers "is this safe to log", not "who sets it".
+ * `settings_changed` is the only caller, and none of its values are read back —
+ * the Details column renders '' for this action (`activityDetails`' own
+ * allow-list), so this meta is evidence for an operator reading the row, not a
+ * channel the UI depends on. */
+const AUDITABLE_SETTINGS: ReadonlySet<string> = new Set<AuditableSettingKey>([
+  'easy_mode',
+  'alerts_intent',
+  'women_only',
+  'families_only',
+  'same_coach_only',
+  'paused',
+  'max_requests_per_day',
+  'notify_push',
+])
+
+/**
+ * `settings_changed`'s meta: an allow-list of the keys the patch touches, never
+ * the patch itself.
+ *
+ * `patch` is what changed by contract — `updateSettings` applies it as a patch,
+ * so this filters rather than diffs (diffing here would have to read the
+ * settings BEFORE `updateSettings` runs, and it is called after).
+ *
+ * The value check is not decoration. The type table cannot hold a string, but
+ * `meta` is serialised into the log and callers reach it through forms and
+ * `JSON.parse`, so a runtime-typed value must not be able to walk around the
+ * type: only booleans and finite numbers survive, and everything else —
+ * unknown keys, strings, objects, `NaN`/`Infinity` — is dropped silently.
+ * Dropping is the point: a setting nobody has triaged must produce a smaller
+ * audit row, never a fuller one.
+ */
+export function settingsChangeMeta(patch: Partial<LocalSettings>): Record<string, unknown> {
+  const meta: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(patch)) {
+    if (!AUDITABLE_SETTINGS.has(key)) continue
+    const safe = typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value))
+    if (!safe) continue
+    meta[key] = value
+  }
+  return meta
+}
+
 export function activityLog(): ActivityRow[] {
   return snapshot.activity
 }

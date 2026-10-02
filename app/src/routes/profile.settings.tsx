@@ -6,7 +6,7 @@ import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/lib/i18n'
 import { consentGranted, setConsent, startForwarding } from '@/lib/posthog'
-import { logActivity, updateSettings } from '@/lib/store'
+import { logActivity, settingsChangeMeta, updateSettings } from '@/lib/store'
 import { disablePushSubscription, ensurePushSubscription } from '@/lib/push'
 import { useSettings } from '@/lib/use-store'
 
@@ -53,7 +53,10 @@ function SettingsScreen() {
 
   function save(patch: Parameters<typeof updateSettings>[0], message?: string) {
     updateSettings(patch)
-    logActivity('settings_changed', patch)
+    /* An allow-list of the keys touched, never the patch object: `activity_log`
+       is the system of record, so a future setting must not reach it without
+       someone having decided that it may (docs/14, L7 → L2, 2026-09-28). */
+    logActivity('settings_changed', settingsChangeMeta(patch))
     if (message) toast.show(message)
   }
 
