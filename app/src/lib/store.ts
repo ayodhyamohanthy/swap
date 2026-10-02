@@ -88,7 +88,11 @@ export interface WalletTx {
 /** Local mirror of `payments` + `receipts` (docs/02, docs/06). Money in paise. */
 export interface PaymentRow {
   id: string
-  request_id: string
+  /** The single-swap target (a uuid in the database). Null on a group payment. */
+  request_id: string | null
+  /** The group-trip target. schema.sql's payments_target CHECK allows exactly
+      one of the two; local group ids are `grp_...` (lib/groups.ts). */
+  group_id: string | null
   payer_id: string | null
   provider: 'razorpay' | 'paypal' | 'credit'
   provider_ref: string | null
@@ -678,9 +682,14 @@ export function getPayment(id: string | undefined): PaymentRow | undefined {
   return snapshot.payments.find((row) => row.id === id)
 }
 
-/** The payment that matters for a request: the paid one, else the live one. */
-export function paymentFor(requestId: string): PaymentRow | undefined {
-  const rows = snapshot.payments.filter((row) => row.request_id === requestId)
+/** The payment that matters for a target — a swap request id or a group
+    trip id, whichever column the row carries (docs/08 payments_target): the
+    paid one, else the live one. */
+export function paymentFor(targetId: string | undefined): PaymentRow | undefined {
+  if (!targetId) return undefined
+  const rows = snapshot.payments.filter(
+    (row) => row.request_id === targetId || row.group_id === targetId,
+  )
   return rows.find((row) => row.status === 'paid')
     ?? rows.find((row) => row.status === 'pending')
     ?? rows.find((row) => row.status === 'created')
@@ -688,7 +697,9 @@ export function paymentFor(requestId: string): PaymentRow | undefined {
 }
 
 export interface StartPaymentInput {
-  request_id: string
+  /** Exactly one of the two targets (schema.sql payments_target). */
+  request_id?: string | null
+  group_id?: string | null
   provider: 'razorpay' | 'paypal' | 'credit'
   amount_paise: number
   credit_used_paise: number
@@ -702,12 +713,19 @@ export interface StartPaymentInput {
  * moves once, and docs/09 tells the user "please don't pay again".
  */
 export function startPayment(input: StartPaymentInput): PaymentRow {
-  const existing = paymentFor(input.request_id)
+  /* Mirror the database's payments_target XOR here, so the local ledger can
+     never hold a row Supabase would refuse the moment group payments sync
+     (docs/08; L8's request line in docs/14-LANES.md). */
+  const request_id = input.request_id ?? null
+  const group_id = input.group_id ?? null
+  if ((request_id === null) === (group_id === null)) throw new Error('payments_target')
+  const existing = paymentFor(request_id ?? group_id ?? undefined)
   if (existing && (existing.status === 'paid' || existing.status === 'pending')) return existing
   const stamp = new Date().toISOString()
   const row: PaymentRow = {
     id: uid(),
-    request_id: input.request_id,
+    request_id,
+    group_id,
     payer_id: snapshot.settings.user_id,
     provider: input.provider,
     provider_ref: input.provider_ref ?? null,
@@ -785,7 +803,7 @@ export function setPaymentStatus(
  * refund counterpart — a swap that did not happen goes through
  * `credit(kind='swap_to_credit')` instead (rule 6).
  */
-export function useCredit(amountPaise: number, requestId: string): WalletTx | undefined {
+export function useCredit(amountPaise: number, requestId: string | null): WalletTx | undefined {
   const amount = Math.floor(amountPaise)
   if (!Number.isFinite(amount) || amount <= 0) return undefined
   if (amount > creditPaise()) return undefined

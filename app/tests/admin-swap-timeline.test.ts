@@ -71,6 +71,7 @@ function paymentStep(id: string, action: string, paymentId: string, at: string) 
 const PAYMENT: PaymentRow = {
   id: 'pay_1111',
   request_id: REQUEST,
+  group_id: null,
   payer_id: 'user_1',
   provider: 'razorpay',
   provider_ref: null,

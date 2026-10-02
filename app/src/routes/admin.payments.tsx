@@ -183,9 +183,9 @@ function AdminPayments() {
                     <span className="col-start-1 row-start-1 min-w-0 lg:col-start-1 lg:row-start-1">
                       <b
                         className="block truncate font-head text-body text-ink"
-                        title={row.request_id}
+                        title={row.request_id ?? row.group_id ?? undefined}
                       >
-                        {shortId(row.request_id)}
+                        {shortId(row.request_id ?? row.group_id ?? '')}
                       </b>
                     </span>
 

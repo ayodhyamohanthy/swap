@@ -9,7 +9,7 @@ const { readFileSync } = process.getBuiltinModule('node:fs') as typeof import('n
 const { join } = process.getBuiltinModule('node:path') as typeof import('node:path')
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { beginCheckout, confirmCaptured, payGateFor } from '@/lib/checkout'
+import { beginCheckout, beginGroupCheckout, confirmCaptured, payGateFor } from '@/lib/checkout'
 import { createGroup, markGroupPaid, resetGroups } from '@/lib/groups'
 import {
   acceptOffer,
@@ -18,7 +18,7 @@ import {
   resetRequests,
   sendRequest,
 } from '@/lib/requests'
-import { addTrip, resetStore, setOpenToSwap } from '@/lib/store'
+import { addTrip, getPayment, paymentFor, resetStore, setOpenToSwap, startPayment } from '@/lib/store'
 
 const ROUTES = join(import.meta.dirname, '..', 'src', 'routes')
 
@@ -132,5 +132,33 @@ describe('every screen under the pay layout applies the gate', () => {
         /status === 'locked'|status === 'confirmed'/,
       )
     }
+  })
+})
+
+/* docs/08 payments_target, mirrored locally (L8's request line): a group
+   payment carries its group id in `group_id`, `request_id` stays null, and
+   the lookup finds it by the group id — the overload beginGroupCheckout is
+   load-bearing for. startPayment enforces the same XOR the CHECK does. */
+describe('a group payment carries its own target column (docs/08)', () => {
+  beforeEach(() => {
+    resetStore()
+    resetGroups()
+  })
+
+  it('stores the group id in group_id and leaves request_id null', () => {
+    const group = createGroup('Family trip', [])
+    const created = beginGroupCheckout(group.id, 'razorpay')
+    const row = getPayment(created.paymentId)
+    expect(row?.group_id).toBe(group.id)
+    expect(row?.request_id).toBeNull()
+    expect(paymentFor(group.id)?.id).toBe(created.paymentId)
+  })
+
+  it('refuses both targets or neither, as the database CHECK does', () => {
+    const base = { provider: 'razorpay', amount_paise: 9900, credit_used_paise: 0 } as const
+    expect(() =>
+      startPayment({ ...base, request_id: 'req_x1', group_id: 'grp_x_22' }),
+    ).toThrow('payments_target')
+    expect(() => startPayment({ ...base })).toThrow('payments_target')
   })
 })
