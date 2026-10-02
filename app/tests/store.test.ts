@@ -1,5 +1,10 @@
 /* Trips and store operations (AGENTS.md rules 2, 4, 5, 8, 13; Build Plan step 2).
    Runs local-first in memory/localStorage. */
+/* node: modules come via getBuiltinModule — a static `import 'node:fs'` is
+   mangled by Vite's browser-compat externalization under the jsdom pool
+   (same reason as tests/schema.test.ts). */
+const { readFileSync } = process.getBuiltinModule('node:fs') as typeof import('node:fs')
+const { join } = process.getBuiltinModule('node:path') as typeof import('node:path')
 import { beforeEach, describe, expect, it } from "vitest"
 
 import type { CandidateSpec, RequesterSpec } from "@/lib/matching"
@@ -15,6 +20,7 @@ import {
   getTrip,
   isSeen,
   listTrips,
+  logActivity,
   markQuotaNoteSeen,
   markSeen,
   removeTrip,
@@ -22,7 +28,9 @@ import {
   setOpenToSwap,
   setReminder,
   settings,
+  settingsChangeMeta,
   updateSettings,
+  type AuditableSettingKey,
   type Trip,
 } from "@/lib/store"
 
@@ -297,5 +305,117 @@ describe("trip ratings feed future matches, never money", () => {
     const request = createRequest({ trip_id: mine.id, choices: ["UB"] })
     const row = matchesFor(request.id).find((r): r is { candidate: CandidateSpec; trip: Trip } => "candidate" in r)
     expect(row?.candidate.rating).toBe(8)
+  })
+})
+
+/* `settings_changed` must never put a patch object in `activity_log`, the
+   system of record. L7 filed it 2026-09-28 while building design 15's Details
+   column: the call site logged `patch` verbatim, so the day a future setting
+   holds an email or a phone number it is stored without anyone deciding that.
+   The READ side already shows nothing for this action (`activityDetails` has
+   its own allow-list) — that is a different guard for a different failure, and
+   it does not stop the write. So this guards the write. */
+describe("settings_changed logs an allow-list, never the patch (rule 13)", () => {
+  /** Hand a shape the type does not allow — that is the point of the cases
+      below: the runtime must refuse what a careless caller can still pass. */
+  const asPatch = (patch: object): Parameters<typeof settingsChangeMeta>[0] =>
+    patch as Parameters<typeof settingsChangeMeta>[0]
+
+  beforeEach(() => {
+    resetStore()
+  })
+
+  it("keeps the settings the screen actually changes", () => {
+    expect(settingsChangeMeta({ women_only: true })).toEqual({ women_only: true })
+    expect(settingsChangeMeta({ paused: true, max_requests_per_day: 10 })).toEqual({
+      paused: true,
+      max_requests_per_day: 10,
+    })
+    expect(settingsChangeMeta({})).toEqual({})
+  })
+
+  it("drops a key no setting has ever had", () => {
+    expect(settingsChangeMeta(asPatch({ anything_new: "leaked" }))).toEqual({})
+  })
+
+  /* REAL `LocalSettings` keys that are strings. Listing one is also a type
+     error in `lib/store.ts`, but a test states the rule without asking the
+     reader to trust the compiler's opinion of a mapped type. */
+  it("drops a real setting whose value is a string", () => {
+    expect(settingsChangeMeta({ language: "hi" })).toEqual({})
+    expect(settingsChangeMeta({ user_id: "u_1" })).toEqual({})
+    expect(settingsChangeMeta({ privacy_consented_at: "2026-10-02T00:00:00.000Z" })).toEqual({})
+  })
+
+  /* The TYPE half of the same guard, and it is checked by `npm run typecheck`,
+     not by this run — vitest transpiles without typechecking, which is exactly
+     how a red `tsc` once hid behind a green suite (docs/14, 2026-09-29). A
+     string-valued setting is `never` in `AuditableSettingKey`, so naming one
+     is an error; if the union ever widens to let `language` through, this
+     directive goes unused and TS2578 fails the build. The runtime cases above
+     prove the drop, this proves the table cannot be widened by accident. */
+  it("cannot name a string setting — pinned by typecheck, not by this run", () => {
+    // @ts-expect-error `language` is `never` in AuditableSettingKey
+    const notListable: AuditableSettingKey = "language"
+    expect(typeof notListable).toBe("string")
+    const listable: AuditableSettingKey = "women_only"
+    expect(listable).toBe("women_only")
+  })
+
+  it("drops a string smuggled in under an allowed key", () => {
+    expect(settingsChangeMeta(asPatch({ women_only: "asha@example.com" }))).toEqual({})
+    expect(settingsChangeMeta(asPatch({ notify_push: "+91 98765 43210" }))).toEqual({})
+  })
+
+  it("drops objects, and only finite numbers", () => {
+    expect(settingsChangeMeta(asPatch({ women_only: { email: "asha@example.com" } }))).toEqual({})
+    expect(settingsChangeMeta(asPatch({ paused: null }))).toEqual({})
+    expect(settingsChangeMeta(asPatch({ paused: undefined }))).toEqual({})
+    expect(settingsChangeMeta({ max_requests_per_day: Number.NaN })).toEqual({})
+    expect(settingsChangeMeta({ max_requests_per_day: Number.POSITIVE_INFINITY })).toEqual({})
+  })
+
+  /* One realistic hostile patch in, one boolean out — stated as a scan rather
+     than a single expectation so a future leak fails on the VALUE that leaked,
+     not on an `toEqual` that merely reports "objects differ". */
+  it("lets nothing through that a patch could carry", () => {
+    const meta = settingsChangeMeta(
+      asPatch({
+        women_only: true,
+        pnr: "1234567890",
+        email: "asha@example.com",
+        phone: "+91 98765 43210",
+        full_name: "Asha Ramanathan",
+        ticket_photo: "https://example.com/t.jpg",
+        language: "hi",
+        anything_new: "leaked",
+      }),
+    )
+    const serialised = JSON.stringify(meta)
+    expect(meta).toEqual({ women_only: true })
+    for (const leaked of ["1234567890", "asha@example.com", "+91 98765 43210", "Asha", "ticket_photo", "leaked"]) {
+      expect(serialised).not.toContain(leaked)
+    }
+  })
+
+  /* The row the log actually holds, not just the helper's return value. */
+  it("writes the filtered meta into the log", () => {
+    logActivity("settings_changed", settingsChangeMeta(asPatch({ women_only: true, email: "asha@example.com" })))
+    expect(activityLog()).toHaveLength(1)
+    expect(activityLog()[0].action).toBe("settings_changed")
+    expect(activityLog()[0].meta).toEqual({ women_only: true })
+  })
+
+  /* NONE of the tests above can see the call site: reverting
+     `settingsChangeMeta(patch)` back to `patch` leaves every one of them green,
+     because they only ever call the helper themselves. This one reads the
+     screen. */
+  it("is what the Settings screen logs", () => {
+    const file = readFileSync(
+      join(import.meta.dirname, "..", "src", "routes", "profile.settings.tsx"),
+      "utf8",
+    )
+    expect(file).toMatch(/logActivity\(\s*'settings_changed',\s*settingsChangeMeta\(/)
+    expect(file).not.toContain("logActivity('settings_changed', patch)")
   })
 })
