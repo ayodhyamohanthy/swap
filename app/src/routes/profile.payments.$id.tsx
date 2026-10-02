@@ -5,7 +5,7 @@ import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { useI18n } from '@/lib/i18n'
 import { formatRupees } from '@/lib/money'
 import { splitReceipt } from '@/lib/payments'
-import { getPayment } from '@/lib/store'
+import { getPayment, isGroupPayment } from '@/lib/store'
 
 /* Screen 59 "Receipt" (design 29b, docs/06). Every figure comes from the
    stored payment row — amount, credit used, and the SS-##### number assigned
@@ -43,10 +43,10 @@ function ReceiptScreen() {
     )
   }
 
-  /* Read the row's own group_id, not the shape of the id: a server-side group
-     trip is a uuid, so isGroupRequestId() says false for it. The column is the
-     only thing that reliably means "this paid for a group". */
-  const isGroup = payment.group_id !== null
+  /* From the row's own group_id, never from the shape of the id: a server-side
+     group trip is a uuid, so `startsWith('grp_')` answers "no" for it and a ₹199
+     family receipt renders as a ₹99 single swap. */
+  const isGroup = isGroupPayment(payment)
   const receipt = splitReceipt(payment.amount_paise, payment.credit_used_paise, isGroup)
   const number = payment.receipt_number ?? ''
 

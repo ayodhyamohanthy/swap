@@ -11,7 +11,6 @@ import {
   PAYMENT_STATE_LABEL,
   paymentRows,
   paymentsToCsv,
-  shortId,
   type AdminPaymentRow,
   type PaymentOutcome,
 } from '@/lib/admin'
@@ -181,12 +180,17 @@ function AdminPayments() {
                     className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-0.5 ${TRACKS} lg:items-baseline lg:gap-x-4 lg:gap-y-0`}
                   >
                     <span className="col-start-1 row-start-1 min-w-0 lg:col-start-1 lg:row-start-1">
-                      <b
-                        className="block truncate font-head text-body text-ink"
-                        title={row.target_id ?? undefined}
-                      >
-                        {shortId(row.target_id ?? '')}
-                      </b>
+                      {/* `row.swap` is what `paymentRows` already computed from the row's target,
+                         including the em dash it uses for a row that carries none.
+                         Recomputing it here meant shortening `request_id`, which
+                         is null for every group payment — so the ₹199 rows printed
+                         a bare `#`. */}
+                        <b
+                          className="block truncate font-head text-body text-ink"
+                          title={row.target_id ?? undefined}
+                        >
+                          {row.swap}
+                        </b>
                     </span>
 
                     {/* `lg:contents` dissolves this wrapper at desktop width, so

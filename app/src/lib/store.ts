@@ -279,7 +279,7 @@ function readJSON<T>(key: string, fallback: T): T {
 function normalisePayment(row: PaymentRow): PaymentRow {
   const requestId = row.request_id ?? null
   const groupId = row.group_id ?? null
-  if (requestId !== null) {
+  if (groupId === null && requestId !== null && isGroupRequestId(requestId)) {
     return { ...row, request_id: null, group_id: requestId }
   }
   /* `payments_target` admits exactly one target, so a row carrying both is not
@@ -721,6 +721,18 @@ export function getPayment(id: string | undefined): PaymentRow | undefined {
  *  write one, and `normalisePayment` will not invent a target. */
 export function paymentTargetId(payment: PaymentRow): string | null {
   return payment.request_id ?? payment.group_id
+}
+
+/**
+ * Is this payment for a group trip?
+ *
+ * Read from the row, never from the shape of the id: a server-side group trip
+ * carries a uuid, so anything that tests `startsWith('grp_')` on it answers
+ * "no" and shows a ₹199 family receipt as a ₹99 single swap. The column is the
+ * only thing that means this.
+ */
+export function isGroupPayment(payment: PaymentRow): boolean {
+  return payment.group_id !== null
 }
 
 /**

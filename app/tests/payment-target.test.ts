@@ -4,6 +4,7 @@ import { renderHook } from '@testing-library/react'
 import {
   StoreError,
   credit,
+  isGroupPayment,
   paymentFor,
   pickPaymentFor,
   paymentTargetId,
@@ -18,6 +19,7 @@ import { usePaymentFor } from '@/lib/use-store'
 import { createGroup, markGroupPaid, resetGroups, getGroup } from '@/lib/groups'
 import { beginGroupCheckout } from '@/lib/checkout'
 import { paymentIdsFor, paymentOutcome, paymentRows } from '@/lib/admin'
+import { stripSqlComments } from '../scripts/staging-lib.mjs'
 
 /* `payments` has two target columns and the schema admits exactly one of them:
      payments_target CHECK ((request_id IS NULL) != (group_id IS NULL)).
@@ -66,6 +68,14 @@ function storeRaw(rows: unknown[]): void {
   window.dispatchEvent(new StorageEvent('storage', { key: PAYMENTS_KEY }))
 }
 
+/** Credit in legal ₹99 chunks (rule 1: the only amount `credit` accepts), up to
+    at least `paise`, so a ₹199 group payment can be covered without a gateway. */
+function fundWallet(paise: number): void {
+  for (let left = paise; left > 0; left -= 9900) {
+    credit({ to: 'requester', amountPaise: 9900, kind: 'swap_to_credit', ref_request_id: null })
+  }
+}
+
 beforeEach(() => {
   window.localStorage.clear()
   resetStore()
@@ -96,6 +106,26 @@ describe('a group payment is found by the id it targets', () => {
   it('reports the target it actually carries', () => {
     expect(paymentTargetId(row())).toBe('req_a')
     expect(paymentTargetId(row({ request_id: null, group_id: 'grp_1' }))).toBe('grp_1')
+  })
+
+  /* The receipt screen asks this question to decide whether to show a ₹199
+     family line or a ₹99 swap line. A server group trip's id is a uuid, so
+     anything that sniffs for a `grp_` prefix answers "no" for it — this is the
+     difference between the right receipt and a wrong one. */
+  it('recognises a group payment from the column, including a server uuid id', () => {
+    expect(isGroupPayment(row())).toBe(false)
+    /* A uuid, not `grp_…`: the case an id-shape check gets wrong. */
+    expect(isGroupPayment(row({ request_id: null, group_id: 'c1b42c33-88cd-41d4-b38d-a9fda7ea5a9f' }))).toBe(true)
+    expect(isGroupPayment(row({ request_id: null, group_id: 'grp_1' }))).toBe(true)
+  })
+
+  /* On any row the schema permits, "is a group payment" and "has no request"
+     are the same sentence — which is exactly why the rule has to be written as
+     the one that means what it says. They part company on a row with no target
+     at all, which `normalisePayment` will not invent one for and the admin list
+     renders as an em dash. */
+  it('is not "a payment with no request": a targetless row is neither', () => {
+    expect(isGroupPayment(row({ request_id: null, group_id: null }))).toBe(false)
   })
 
   it('finds a paid ₹199 through paymentFor() by the group id', () => {
@@ -256,6 +286,32 @@ describe('beginGroupCheckout pays for the group', () => {
     expect(stored<PaymentRow>(PAYMENTS_KEY)).toHaveLength(1)
   })
 
+  /* Two `startPayment` calls sit in this function — one for the gateway branch
+     and one for the credit-only branch — and only covering one of them leaves the
+     other free to go back to writing request_id without anything noticing. */
+  it('writes the same target when credit covers the whole ₹199', () => {
+    fundWallet(29700)
+    const group = createGroup('Family', [])
+    const ticket = beginGroupCheckout(group.id, 'razorpay', true)
+    expect(ticket.provider).toBe('credit')
+    expect(ticket.settled).toBe(true)
+    expect(getGroup(group.id)?.paid).toBe(true)
+    const found = paymentFor(group.id)
+    expect(found?.group_id).toBe(group.id)
+    expect(found?.request_id).toBeNull()
+    expect(stored<PaymentRow>(PAYMENTS_KEY)).toHaveLength(1)
+  })
+
+  /* Rule 4: the credit a group payment spends has no swap request behind it. */
+  it('spends the group credit with no ref_request_id', () => {
+    fundWallet(29700)
+    const group = createGroup('Family', [])
+    beginGroupCheckout(group.id, 'razorpay', true)
+    const spends = stored<WalletTx>(WALLET_KEY).filter((tx) => tx.kind === 'used')
+    expect(spends).toHaveLength(1)
+    expect(spends[0]?.ref_request_id).toBeNull()
+  })
+
   it('reuses the one payment on a second call instead of charging again', () => {
     const group = createGroup('Family', [])
     const first = beginGroupCheckout(group.id, 'razorpay', false)
@@ -326,5 +382,39 @@ describe('credit spent on a group payment has no swap request to point at', () =
   it('still refuses to spend credit that was never earned', () => {
     expect(useCredit(5000, null)).toBeUndefined()
     expect(stored<WalletTx>(WALLET_KEY)).toHaveLength(0)
+  })
+})
+
+/* This suite renders no routes — there is no router harness — so these two are
+   source-level on purpose, and say so. Both defects they cover were real and
+   were invisible to every behavioural test above: one route reads the wrong
+   column, the other re-derives a value its data layer had already derived. The
+   behaviour each one depends on (`isGroupPayment`, `paymentRows().swap`) IS
+   pinned behaviourally above; this only pins that the route calls it. */
+describe('the two routes read the target, not the request column', () => {
+  const { readFileSync } = process.getBuiltinModule('node:fs') as typeof import('node:fs')
+  const { join } = process.getBuiltinModule('node:path') as typeof import('node:path')
+  /* Comments are stripped, for the reason schema.test.ts gives: a comment that
+     merely *names* the wrong expression is not the code doing it, and both of
+     these routes explain the defect they were fixed for right next to the fix. */
+  const route = (name: string): string =>
+    stripSqlComments(readFileSync(join(import.meta.dirname, '..', 'src', 'routes', name), 'utf8'))
+
+  it('the receipt asks the row, not the shape of its id', () => {
+    const src = route('profile.payments.$id.tsx')
+    expect(src).toMatch(/isGroupPayment\(payment\)/)
+    /* `startsWith('grp_')` is how this went wrong: server group ids are uuids. */
+    expect(src).not.toMatch(/startsWith\(\s*['"]grp_/)
+    expect(src).not.toMatch(/isGroupRequestId/)
+  })
+
+  it('the admin list renders the swap label its data layer already derived', () => {
+    const src = route('admin.payments.tsx')
+    expect(src).toMatch(/title=\{row\.target_id \?\? undefined\}/)
+    expect(src).toMatch(/\{row\.swap\}/)
+    /* Recomputing it here shortened request_id, which is null for every group
+       payment, so every ₹199 row printed a bare `#`. */
+    expect(src).not.toMatch(/shortId\(row\./)
+    expect(src).not.toMatch(/title=\{row\.request_id\}/)
   })
 })
