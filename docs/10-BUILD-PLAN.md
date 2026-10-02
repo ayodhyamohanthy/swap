@@ -4,19 +4,37 @@ Format: each lane owns a checklist. "build"/"continue" = first [ ] in
 your lane. Check it [x] in the same commit that completes it.
 
 ## L9 — Infra & tooling
-- [ ] Unblock GitHub Actions: clear billing lock or make repo public;
+- [x] Unblock GitHub Actions: clear billing lock or make repo public;
       seatswap-ci must run green in the cloud on next push
-      (**Correction, 2026-09-30 — the box is `[ ]` here and `[x]` on main, and
-      main is right.** `origin/main` closed this: the repo is public, so the
-      billing lock no longer blocks jobs, and run 36668939334 went green. This
-      branch is 11 commits behind that point, so everything below was written
-      against a stale view of the item and is kept only for the two additions
-      main does not have — `workflow_dispatch` and `permissions: contents:
-      read` on `green.yml`. Corrected rather than left describing a blocker
-      that no longer exists.)
-      (the buildable half is done; the unlock itself is Ayu's — a billing lock
-      or a private repo is not something an agent here can change, and `gh` is
-      not installed. **Checked, so the first run is not red for a fixable
+      (Closed 2026-10-02, L9 — every clause re-measured today rather than
+      inherited, because two of the notes this item carried had gone stale and
+      this branch's box was, by its own correction, behind `main`'s.)
+      **The repo is PUBLIC** — `gh repo view ayodhyamohanthy/swap --json
+      visibility` → `PUBLIC`, so no billing lock blocks jobs. **CI runs green in
+      the cloud** — `green`'s runs on `main` are `success` through 36682014866
+      (2026-09-30T07:08Z), each a full `npm ci` → typecheck → tests → build →
+      collab-check. **And this branch is no longer outside the gate**, which was
+      the gap that made this item worth having: `green.yml` matched only `main`
+      while every lane works on `docs/instructions-v2`. The two additions `main`
+      still lacks are present here — this branch's `green.yml` carries
+      `workflow_dispatch` and `permissions: contents: read` (lines 29/33) while
+      `main`'s file has neither, measured from both blobs — and they are now
+      EXERCISED rather than merely declared: dispatch 36942050640 ran `npm ci`
+      and `tsc` on this branch and caught two real defects in another lane's
+      in-flight commit (TS2741 `tests/admin.test.ts`, TS2322
+      `tests/payment-target.test.ts`), which is the gate doing exactly the job
+      this item exists to guarantee; 36943067460 followed it.
+      **Two stale lines corrected instead of left to mislead:** "`gh` is not
+      installed" — it is, authenticated as the repo owner, and it is how every
+      measurement above was taken; and "this branch is 11 commits behind that
+      point" — it is not.
+      **One honest limit, recorded so the green runs above cannot be misread:**
+      this branch's own latest dispatch is RED on TS6133 (`src/lib/store.ts`,
+      unused `isGroupRequestId`), and that belongs to the lane mid-pass on
+      `payments_target` right now — its fix is already in its working tree and
+      its own gates are running under it. The green runs this item cites are
+      `main`'s, which is what "runs green in the cloud" is about.
+      (**Checked, so the first run is not red for a fixable
       reason:** `npm ci` will resolve — verified offline against the committed
       lock (root `workspaces: ["app"]`, lockfileVersion 3, all 27 of
       `app/package.json`'s deps present at the declared version with a resolved
