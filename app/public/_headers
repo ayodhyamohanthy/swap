@@ -1,18 +1,121 @@
 # Cloudflare Workers Static Assets headers for the keyless PWA build.
-# sw.js must revalidate (otherwise phones keep a stale worker); hashed
-# assets + icons are immutable for a year; HTML shells must not be cached
-# by the CDN (the worker's NetworkFirst handles offline instead).
+#
+# Two jobs, and they are independent:
+#   1. caching  — sw.js must revalidate (otherwise phones keep a stale worker);
+#                 hashed assets + icons are immutable for a year; HTML shells must
+#                 not be cached by the CDN (the worker's NetworkFirst handles
+#                 offline instead).
+#   2. security — the CSP and its siblings (docs/16-BEST-PRACTICES.md §9.3,
+#                 docs/17 §W7). This file shipped cache rules only until
+#                 2026-10-02: no CSP, no HSTS, no nosniff, and
+#                 scripts/verify-dist.mjs asserted only that this file EXISTS.
+#
+# WHY THE SECURITY SET IS REPEATED IN EVERY BLOCK INSTEAD OF LIVING IN ONE
+# `/*` RULE. Two reasons, both load-bearing, and either alone would justify it:
+#
+#   a) `_headers` patterns match the REQUEST path, not the file that ends up
+#      being served. A deep link such as `/trips/abc` never matches the
+#      `/index.html` rule — it is answered by `not_found_handling =
+#      "single-page-application"` in wrangler.toml — so a security set living
+#      only under `/index.html` would never reach a single real navigation.
+#      `/*` below is what covers those.
+#   b) When more than one rule matches, whether Cloudflare merges their headers
+#      or serves only the most specific match is not something this repo can
+#      measure (it would need a live deploy plus a header probe against a
+#      workers.dev URL, and there is no second environment to A/B it in). Rather
+#      than depend on an answer nobody here can check, every block carries the
+#      full set — so the guarantee holds under BOTH behaviours. The duplication
+#      is machine-checked: scripts/verify-dist.mjs fails if any block drops a
+#      header, so this comment cannot rot away from the file.
+#
+# THE POLICY, AND WHY IT IS SHAPED THIS WAY.
+#
+# `'unsafe-inline'` appears in `script-src` and `style-src` and is NOT an
+# oversight — it is a measured necessity, and the build says so on every run:
+#
+#   * script: the prerendered shell carries four inline <script> blocks, and only
+#     one of them is ours (the BOOT_SCRIPT that sets `lang` and the easy-mode
+#     dataset before first paint). The other three are emitted by TanStack Start
+#     itself — scroll restoration, the serialised $TSR router manifest, and the
+#     stream-boundary marker — so their sha256 changes with the route tree and
+#     cannot be pinned in a static file. verify-dist prints the inline-script
+#     count and FAILS if `'unsafe-inline'` is absent from `script-src` while that
+#     count is above zero, so the weak directive cannot outlive its
+#     justification: the day the shell has no inline script, the build stops and
+#     asks for it to be removed. (A per-request nonce is not available either:
+#     this is a static asset served by the platform, not a rendered response.)
+#   * style: React writes inline `style` attributes (chart geometry, progress
+#     bars) and both payment SDKs inject stylesheets.
+#
+# Every external origin below is one a shipped code path actually loads; each is
+# listed with that path in scripts/security-headers.mjs, and both the verifier
+# and tests/security-headers.test.ts check the CSP against those paths — so a
+# vendor added without a matching origin fails the build rather than silently
+# being blocked in a traveller's browser at payment time.
+#
+# HSTS carries no domain and no `includeSubDomains`: the custom domain in
+# docs/12 §4.1 is still a placeholder, so a hostname written here would be a
+# second copy of a value that file owns and would drift on the day it is
+# swapped. `max-age` alone applies to whatever host serves this file, which is
+# the only thing that can be true before the zone moves.
+#
+# No bare `*` and no `'unsafe-eval'` anywhere: the payment SDKs are allowed by
+# exact host, not by switching the policy off.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://www.paypal.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.qrserver.com; font-src 'self'; connect-src 'self' https://api.razorpay.com https://api-m.paypal.com https://www.paypal.com https://*.supabase.co wss://*.supabase.co https://*.posthog.com https://*.ingest.sentry.io; frame-src https://checkout.razorpay.com https://api.razorpay.com https://*.razorpay.com https://www.paypal.com https://*.paypal.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Strict-Transport-Security: max-age=31536000
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), usb=(), interest-cohort=()
+  Cache-Control: public, max-age=0, must-revalidate
 /sw.js
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://www.paypal.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.qrserver.com; font-src 'self'; connect-src 'self' https://api.razorpay.com https://api-m.paypal.com https://www.paypal.com https://*.supabase.co wss://*.supabase.co https://*.posthog.com https://*.ingest.sentry.io; frame-src https://checkout.razorpay.com https://api.razorpay.com https://*.razorpay.com https://www.paypal.com https://*.paypal.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Strict-Transport-Security: max-age=31536000
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), usb=(), interest-cohort=()
   Cache-Control: no-cache
   Content-Type: application/javascript; charset=utf-8
 /assets/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://www.paypal.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.qrserver.com; font-src 'self'; connect-src 'self' https://api.razorpay.com https://api-m.paypal.com https://www.paypal.com https://*.supabase.co wss://*.supabase.co https://*.posthog.com https://*.ingest.sentry.io; frame-src https://checkout.razorpay.com https://api.razorpay.com https://*.razorpay.com https://www.paypal.com https://*.paypal.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Strict-Transport-Security: max-age=31536000
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), usb=(), interest-cohort=()
   Cache-Control: public, max-age=31536000, immutable
 /icons/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://www.paypal.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.qrserver.com; font-src 'self'; connect-src 'self' https://api.razorpay.com https://api-m.paypal.com https://www.paypal.com https://*.supabase.co wss://*.supabase.co https://*.posthog.com https://*.ingest.sentry.io; frame-src https://checkout.razorpay.com https://api.razorpay.com https://*.razorpay.com https://www.paypal.com https://*.paypal.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Strict-Transport-Security: max-age=31536000
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), usb=(), interest-cohort=()
   Cache-Control: public, max-age=31536000, immutable
 /manifest.webmanifest
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://www.paypal.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.qrserver.com; font-src 'self'; connect-src 'self' https://api.razorpay.com https://api-m.paypal.com https://www.paypal.com https://*.supabase.co wss://*.supabase.co https://*.posthog.com https://*.ingest.sentry.io; frame-src https://checkout.razorpay.com https://api.razorpay.com https://*.razorpay.com https://www.paypal.com https://*.paypal.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Strict-Transport-Security: max-age=31536000
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), usb=(), interest-cohort=()
   Cache-Control: public, max-age=3600
   Content-Type: application/manifest+json
 /index.html
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://www.paypal.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.qrserver.com; font-src 'self'; connect-src 'self' https://api.razorpay.com https://api-m.paypal.com https://www.paypal.com https://*.supabase.co wss://*.supabase.co https://*.posthog.com https://*.ingest.sentry.io; frame-src https://checkout.razorpay.com https://api.razorpay.com https://*.razorpay.com https://www.paypal.com https://*.paypal.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Strict-Transport-Security: max-age=31536000
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), usb=(), interest-cohort=()
   Cache-Control: no-cache
 /404.html
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://www.paypal.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.qrserver.com; font-src 'self'; connect-src 'self' https://api.razorpay.com https://api-m.paypal.com https://www.paypal.com https://*.supabase.co wss://*.supabase.co https://*.posthog.com https://*.ingest.sentry.io; frame-src https://checkout.razorpay.com https://api.razorpay.com https://*.razorpay.com https://www.paypal.com https://*.paypal.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Strict-Transport-Security: max-age=31536000
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), usb=(), interest-cohort=()
   Cache-Control: no-cache
