@@ -1,5 +1,15 @@
 import { expect, test } from '@playwright/test'
+import type { Page } from '@playwright/test'
 import { seed, trip } from './support'
+
+/* Each rank is a Card whose second paragraph is the helper line
+   ("Pick a berth for 1st choice") and whose ChipRow holds that rank's berth
+   buttons — so scoping from that paragraph to its parent is what keeps the
+   click inside ONE rank's chips instead of matching the first "Upper" on the
+   page (the rank label itself is a paragraph, not a heading). */
+function rankCard(page: Page, rank: string) {
+  return page.getByText(`Pick a berth for ${rank}`, { exact: true }).locator('..')
+}
 
 /* The match pool is THIS device's own trips (`lib/requests.ts localPool`), so
    "one trip" is the honest way to reproduce the zero-match state — the same
@@ -10,8 +20,7 @@ test('zero matches shows You are the first, not an empty list', async ({ page })
   await page.goto('/request/new')
   await expect(page.getByRole('heading', { name: 'What would you like?' })).toBeVisible()
 
-  const firstChoice = page.getByRole('heading', { name: '1st choice' }).locator('..')
-  await firstChoice.getByRole('button', { name: 'Upper' }).click()
+  await rankCard(page, '1st choice').getByRole('button', { name: 'Upper' }).click()
   await page.getByRole('button', { name: 'See matches' }).click()
 
   await expect(page).toHaveURL(/\/request\/req_[^/]+\/matches$/)
@@ -41,8 +50,7 @@ test('a matching open trip offers Send to 1 · free, and sending is free', async
   })
 
   await page.goto('/request/new')
-  const firstChoice = page.getByRole('heading', { name: '1st choice' }).locator('..')
-  await firstChoice.getByRole('button', { name: 'Upper' }).click()
+  await rankCard(page, '1st choice').getByRole('button', { name: 'Upper' }).click()
   await page.getByRole('button', { name: 'See matches' }).click()
 
   await expect(page.getByRole('button', { name: 'Send to 1 · free' })).toBeVisible()
@@ -73,8 +81,7 @@ test('the first send asks for sign-in before sending', async ({ page }) => {
   })
 
   await page.goto('/request/new')
-  const firstChoice = page.getByRole('heading', { name: '1st choice' }).locator('..')
-  await firstChoice.getByRole('button', { name: 'Upper' }).click()
+  await rankCard(page, '1st choice').getByRole('button', { name: 'Upper' }).click()
   await page.getByRole('button', { name: 'See matches' }).click()
   await page.getByRole('button', { name: 'Send to 1 · free' }).click()
 

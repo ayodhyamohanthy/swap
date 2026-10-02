@@ -6,8 +6,8 @@
 
 # Test info
 
-- Name: home.spec.ts >> home lists my trips under exactly three tabs
-- Location: e2e/home.spec.ts:7:1
+- Name: home.spec.ts >> the shell carries the not-an-official-service line
+- Location: e2e/home.spec.ts:44:1
 
 # Error details
 
@@ -33,33 +33,28 @@ Received:    1
         - /url: /updates
     - main [ref=e11]:
       - generic [ref=e12]:
-        - generic [ref=e13]:
-          - heading "Your trips" [level=2] [ref=e14]
-          - link "Train 12951 12951 · MMCT → NDLS Sun, 1 Nov You're the first here" [ref=e15] [cursor=pointer]:
-            - /url: /trips/t_mine
-            - generic [ref=e24]:
-              - generic [ref=e25]: Train 12951
-              - generic [ref=e26]: 12951 · MMCT → NDLS
-              - generic [ref=e27]: Sun, 1 Nov
-              - generic [ref=e28]: You're the first here
-          - link "Train 12951 12951 · MMCT → NDLS Sun, 1 Nov Open to swap" [ref=e32] [cursor=pointer]:
-            - /url: /trips/t_theirs
-            - generic [ref=e41]:
-              - generic [ref=e42]: Train 12951
-              - generic [ref=e43]: 12951 · MMCT → NDLS
-              - generic [ref=e44]: Sun, 1 Nov
-              - generic [ref=e45]: Open to swap
-        - generic [ref=e49]:
-          - paragraph [ref=e50]: Keep your original ticket and ID with you.
-          - paragraph [ref=e51]: SeatSwap is not an official railway service.
-        - link "Add PNR" [ref=e52] [cursor=pointer]:
+        - heading "Where's your train taking you?" [level=1] [ref=e13]
+        - paragraph [ref=e14]: Tell us what berth you want. We find people on your train who want to swap. You pay ₹99 only when someone says yes.
+        - generic [ref=e15]:
+          - generic [ref=e16]:
+            - generic [ref=e17]: Enter 10-digit PNR
+            - textbox "Enter 10-digit PNR" [ref=e18]
+          - button "Find my berth" [ref=e19]
+        - paragraph [ref=e20]:
+          - link "Paste from IRCTC SMS" [ref=e21] [cursor=pointer]:
+            - /url: /trips/add?paste=sms
+        - paragraph [ref=e25]: No sign-in needed
+        - link "Earn ₹50 credit every time you help someone swap" [ref=e29] [cursor=pointer]:
           - /url: /trips/add
-    - navigation "SeatSwap" [ref=e57]:
-      - link "Home" [ref=e58] [cursor=pointer]:
+        - generic [ref=e37]:
+          - paragraph [ref=e38]: Keep your original ticket and ID with you.
+          - paragraph [ref=e39]: SeatSwap is not an official railway service.
+    - navigation "SeatSwap" [ref=e41]:
+      - link "Home" [ref=e42] [cursor=pointer]:
         - /url: /
-      - link "Swaps" [ref=e62] [cursor=pointer]:
+      - link "Swaps" [ref=e46] [cursor=pointer]:
         - /url: /swaps
-      - link "Profile" [ref=e66] [cursor=pointer]:
+      - link "Profile" [ref=e50] [cursor=pointer]:
         - /url: /profile
   - status
 ```
@@ -67,18 +62,6 @@ Received:    1
 # Test source
 
 ```ts
-  156 |     requester_id: null,
-  157 |     group_id: null,
-  158 |     choices: ['UB'],
-  159 |     same_coach: false,
-  160 |     keep_together: false,
-  161 |     reason_key: null,
-  162 |     status: 'accepted_awaiting_payment',
-  163 |     paused: false,
-  164 |     locked_offer_id: null,
-  165 |     sent_at: stamp,
-  166 |     created_at: stamp,
-  167 |     updated_at: stamp,
   168 |     ...overrides,
   169 |   }
   170 | }
@@ -150,25 +133,37 @@ Received:    1
   236 |   return { errors }
   237 | }
   238 | 
-  239 | /* The documented deep-link case: React reports a minified hydration error in a
-  240 |    production build. 418/423/425 are React's hydration codes; the literal
-  241 |    "hydrat" covers dev builds and the attribute-mismatch wording. */
-  242 | const HYDRATION = /hydrat|minified react error #(418|423|425)/i
-  243 | 
-  244 | /**
-  245 |  * Fail on any console error that is not the documented deep-link hydration
-  246 |  * failure, and fail if even THAT exceeds `budget`.
-  247 |  *
-  248 |  * `budget: 0` is for `/`, which is prerendered: the client renders what the
-  249 |  * server wrote, so there is nothing to hydrate against and zero is the honest
-  250 |  * expectation (docs/14 L1 row: "`/` 0 console errors, every deep link exactly 1").
-  251 |  */
-  252 | export function assertOnlyHydration(watch: ErrorWatch, budget: number): void {
-  253 |   const hydration = watch.errors.filter((line) => HYDRATION.test(line))
-  254 |   const other = watch.errors.filter((line) => !HYDRATION.test(line))
-  255 |   expect(other, 'console/page errors other than the documented deep-link hydration failure').toEqual([])
-> 256 |   expect(hydration.length, 'hydration errors').toBeLessThanOrEqual(budget)
+  239 | /* The documented case: only `/` is prerendered, and the prerendered
+  240 |    `dist/client/index.html` has an EMPTY `<main>` (React's `<!--$-->`
+  241 |    redirect/suspense markers are all the prerender emitted). So every deep link
+  242 |    hydrates against markup that cannot match what the client renders, and React
+  243 |    reports it — measured, not assumed: 0 errors on an unseeded `/` (the marker
+  244 |    boundaries defer that subtree) and exactly 1 on every other route.
+  245 | 
+  246 |    THE CODE LIST IS COMPLETE ONLY BECAUSE IT WAS MEASURED. The first version
+  247 |    carried 418/423/425 and reported `/welcome/language` — which really does
+  248 |    hydrate against empty markup — as "console errors other than the documented
+  249 |    failure", because React 19 reports that case as **#520 followed by #422**
+  250 |    ("hydrating failed, switching the whole root to client rendering") instead of
+  251 |    #418. A pattern matching nothing reports green, and a pattern missing half
+  252 |    the codes reports red on the honest case: both ways round, the guard lies.
+  253 |    418/419/421/422/423/425/428/520 are React's hydration and suspense codes. */
+  254 | const HYDRATION = /hydrat|minified react error #(418|419|421|422|423|425|428|520)\b/i
+  255 | 
+  256 | /**
+  257 |  * Fail on any console error that is not the documented deep-link hydration
+  258 |  * failure, and fail if even THAT exceeds `budget`.
+  259 |  *
+  260 |  * `budget: 0` is for `/`, which is prerendered: the client renders what the
+  261 |  * server wrote, so there is nothing to hydrate against and zero is the honest
+  262 |  * expectation (docs/14 L1 row: "`/` 0 console errors, every deep link exactly 1").
+  263 |  */
+  264 | export function assertOnlyHydration(watch: ErrorWatch, budget: number): void {
+  265 |   const hydration = watch.errors.filter((line) => HYDRATION.test(line))
+  266 |   const other = watch.errors.filter((line) => !HYDRATION.test(line))
+  267 |   expect(other, 'console/page errors other than the documented deep-link hydration failure').toEqual([])
+> 268 |   expect(hydration.length, 'hydration errors').toBeLessThanOrEqual(budget)
       |                                                ^ Error: hydration errors
-  257 | }
-  258 | 
+  269 | }
+  270 | 
 ```

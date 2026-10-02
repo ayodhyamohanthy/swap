@@ -31,7 +31,9 @@ test('the pay screen states ₹99 = ₹49 + ₹50 with no timer', async ({ page 
   await expect(
     page.getByText('The swap locks once you pay. Until then, your other matches can still accept.'),
   ).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Pay ₹99' })).toBeVisible()
+  /* The CTA is `Button asChild` over a TanStack `Link`, so on the built bundle
+     it is an <a> — asserting role "button" here would pass vacuously. */
+  await expect(page.getByRole('link', { name: 'Pay ₹99' })).toBeVisible()
 })
 
 /* Rule 2 — once the swap is locked there is nothing left to pay, and the
@@ -56,7 +58,10 @@ test('a locked swap offers no Pay ₹99 button', async ({ page }) => {
 
   await page.goto('/pay/req_1')
   await expect(page.getByText('This swap is already paid for.')).toBeVisible()
+  /* Both roles: the CTA renders as an <a> (see above), so a button-only check
+     would miss a live "Pay ₹99" that had come back as a link. */
   await expect(page.getByRole('button', { name: /^Pay ₹/ })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: /^Pay ₹/ })).toHaveCount(0)
 })
 
 /* Rule 2, the other side: before anyone accepts there is no charge at all. */
@@ -65,4 +70,5 @@ test('an unpaid request cannot be charged before acceptance', async ({ page }) =
   await page.goto('/pay/req_missing')
   await expect(page.getByText('Nobody has said yes yet. You pay ₹99 only after someone accepts.')).toBeVisible()
   await expect(page.getByRole('button', { name: /^Pay ₹/ })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: /^Pay ₹/ })).toHaveCount(0)
 })

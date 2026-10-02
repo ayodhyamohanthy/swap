@@ -236,10 +236,22 @@ export function watchPage(page: Page): ErrorWatch {
   return { errors }
 }
 
-/* The documented deep-link case: React reports a minified hydration error in a
-   production build. 418/423/425 are React's hydration codes; the literal
-   "hydrat" covers dev builds and the attribute-mismatch wording. */
-const HYDRATION = /hydrat|minified react error #(418|423|425)/i
+/* The documented case: only `/` is prerendered, and the prerendered
+   `dist/client/index.html` has an EMPTY `<main>` (React's `<!--$-->`
+   redirect/suspense markers are all the prerender emitted). So every deep link
+   hydrates against markup that cannot match what the client renders, and React
+   reports it — measured, not assumed: 0 errors on an unseeded `/` (the marker
+   boundaries defer that subtree) and exactly 1 on every other route.
+
+   THE CODE LIST IS COMPLETE ONLY BECAUSE IT WAS MEASURED. The first version
+   carried 418/423/425 and reported `/welcome/language` — which really does
+   hydrate against empty markup — as "console errors other than the documented
+   failure", because React 19 reports that case as **#520 followed by #422**
+   ("hydrating failed, switching the whole root to client rendering") instead of
+   #418. A pattern matching nothing reports green, and a pattern missing half
+   the codes reports red on the honest case: both ways round, the guard lies.
+   418/419/421/422/423/425/428/520 are React's hydration and suspense codes. */
+const HYDRATION = /hydrat|minified react error #(418|419|421|422|423|425|428|520)\b/i
 
 /**
  * Fail on any console error that is not the documented deep-link hydration

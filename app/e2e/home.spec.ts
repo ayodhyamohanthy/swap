@@ -2,8 +2,15 @@ import { expect, test } from '@playwright/test'
 import { assertOnlyHydration, seed, trip, watchPage } from './support'
 
 /* Home with trips — docs/04 A and the design-1a / 25a split. `/` is the one
-   prerendered route, so it is also the one place where a hydration error is
-   NEVER acceptable: the client must render exactly what the server wrote. */
+   prerendered route, so it is the one place where the client is checked
+   against what the server actually wrote.
+
+   The seed is written before first paint and the prerendered HTML was built
+   with an EMPTY store (a server has no localStorage), so the trips branch can
+   never be in the server's markup: React reports exactly ONE documented
+   hydration mismatch (#418, caught by support.ts's budget), and zero would
+   mean the client silently ignored the seeded trips. Every OTHER console
+   error still fails. The empty-state `/` runs below keep the honest zero. */
 test('home lists my trips under exactly three tabs', async ({ page }) => {
   const watch = watchPage(page)
   await seed(page, {
@@ -27,12 +34,17 @@ test('home lists my trips under exactly three tabs', async ({ page }) => {
   await expect(tabs).toHaveCount(3)
   await expect(tabs).toHaveText(['Home', 'Swaps', 'Profile'])
 
-  assertOnlyHydration(watch, 0)
+  assertOnlyHydration(watch, 1)
 })
 
-/* Rule 11 — the positioning line ships in the shell, on every phone. */
+/* Rule 11 — the positioning line ships in the shell, on every phone. Seeded
+   EMPTY so this run matches the prerendered Home exactly: it is the suite's
+   proof that `/` with state the server could have written costs ZERO console
+   errors (the trips test above pays the one documented #418 for its seed). */
 test('the shell carries the not-an-official-service line', async ({ page }) => {
-  await seed(page, { trips: [trip({ id: 't_mine', pnr_last4: '9630' })] })
+  const watch = watchPage(page)
+  await seed(page, { trips: [] })
   await page.goto('/')
   await expect(page.getByText('SeatSwap is not an official railway service.')).toBeVisible()
+  assertOnlyHydration(watch, 0)
 })

@@ -28,7 +28,9 @@ test('first open walks language → note → home', async ({ page }) => {
 })
 
 /* Rule 8: sign-in is asked only when a request is first sent or accepted.
-   PNR entry works signed out — asserted here as the home pitch's own line. */
+   PNR entry works signed out — asserted as the home pitch's own line, plus the
+   fuller promise on the sign-in screen itself (where rule 8 allows it to
+   appear; home only carries the short "No sign-in needed"). */
 test('the pitch promises no sign-in to add a PNR', async ({ page }) => {
   await seed(page, { fresh: true })
   await page.goto('/')
@@ -36,5 +38,13 @@ test('the pitch promises no sign-in to add a PNR', async ({ page }) => {
   await page.getByRole('button', { name: 'Continue' }).click()
   await page.getByRole('button', { name: 'Got it' }).click()
   await expect(page.getByText('No sign-in needed')).toBeVisible()
-  await expect(page.getByText('PNR entry works signed out')).toBeVisible()
+
+  await page.goto('/signin')
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
+  await expect(
+    page.getByText('PNR entry works signed out. Sign-in is asked only when you first send or accept a request.'),
+  ).toBeVisible()
+  /* Google only — no phone, no OTP, no password on the screen (rule 8). */
+  await expect(page.getByRole('button', { name: 'Continue with Google' })).toBeVisible()
+  await expect(page.getByText(/OTP|password|phone number/i)).toHaveCount(0)
 })

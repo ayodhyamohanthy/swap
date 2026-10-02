@@ -123,7 +123,14 @@ function RequestNewScreen() {
 
       {choices.map((choice, rank) => (
         <Card key={RANK_LABELS[rank]} className="mt-3">
-          <p className="font-head text-section text-ink">{t(RANK_LABELS[rank])}</p>
+          {/* The three ranks are the outline of this screen, so they are
+              headings — a <p> styled like one reads identically on a phone and
+              leaves a screen reader with no document structure at all. Found by
+              `app/e2e/request.spec.ts`, which reached for `getByRole('heading')`
+              and found nothing; `CardTitle` is already the <h2> for this shape,
+              so the fix is the primitive the repo already owns. Preflight zeroes
+              heading margins and font-size, so the pixels are unchanged. */}
+          <CardTitle className="font-head">{t(RANK_LABELS[rank])}</CardTitle>
           <p className="mt-0.5 text-caption text-muted">
             {t('request.pickBerth', { rank: t(RANK_LABELS[rank]) })}
           </p>
@@ -162,7 +169,7 @@ function RequestNewScreen() {
       </Card>
 
       <Card className="mt-3">
-        <p className="font-head text-section text-ink">{t('request.reason')}</p>
+        <CardTitle className="font-head">{t('request.reason')}</CardTitle>
         <ChipRow className="mt-2">
           {REASON_KEYS.map((key) => (
             <Chip
