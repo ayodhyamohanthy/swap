@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { gzipSync } from 'node:zlib'
 
 import { budgetVerdict, initialScripts, initialStylesheets } from './bundle-budget.mjs'
+import { headerBlockProblems, inlineScriptCount, parseCsp, parseHeaderBlocks } from './security-headers.mjs'
 import { cacheNames, swFilename, workboxOptions } from '../pwa.workbox.mjs'
 
 /* TanStack Start writes the static PWA to dist/cf (Cloudflare Workers Static Assets). */
@@ -61,6 +62,18 @@ check(existsSync(join(cfDist, 'index.html')), 'dist/cf/index.html is missing (ru
 check(!existsSync(join(cfDist, '_redirects')), 'dist/cf must NOT contain _redirects (Cloudflare rejects it)')
 check(existsSync(join(cfDist, swFilename)), `dist/cf/${swFilename} is missing (offline needs the worker)`)
 check(existsSync(join(cfDist, '_headers')), 'dist/cf/_headers is missing (Cloudflare reads it)')
+
+/* The headers themselves (docs/16 §9.3, docs/17 §W7). Checking that this file
+   EXISTS is what shipped from 2026-09-28 until now: `_headers` held three
+   Cache-Control lines and no CSP, no HSTS and no nosniff, and W7 was still
+   green, because a check that a file is present cannot notice that the thing it
+   exists for is missing from it. So the content is read, the blocks are parsed
+   and the policy is held against `scripts/security-headers.mjs` — including
+   every origin a shipped code path loads, so a payment SDK can never be added
+   without its origin and can never be blocked by an origin nobody added. */
+const headersText = existsSync(join(cfDist, '_headers')) ? readFileSync(join(cfDist, '_headers'), 'utf8') : ''
+const headerBlocks = parseHeaderBlocks(headersText)
+for (const problem of headerBlockProblems(headerBlocks)) problems.push(`_headers: ${problem}`)
 
 /* 2. Manifest --------------------------------------------------------- */
 const manifest = JSON.parse(read('manifest.webmanifest') || '{}')
@@ -217,6 +230,32 @@ check(
   verdict.ok,
   `initial JS is ${(verdict.totalBytes / 1024).toFixed(1)} KB gz, over docs/17's ${(verdict.budgetBytes / 1024).toFixed(0)} KB budget ` +
     `by ${(-verdict.headroomBytes / 1024).toFixed(1)} KB — code-split or drop a dependency`,
+)
+
+/* 5c. `'unsafe-inline'` is the one token in the policy that looks like a hole,
+   so it is reconciled against the build on every run rather than argued for in
+   a comment that can outlive its reason. The count is printed either way,
+   because a reviewer who wants to know whether the concession is still needed
+   should not have to run the build and grep the shell by hand. Both directions
+   fail: leaving the token out while the shell has inline scripts breaks the app,
+   and leaving it in once the shell has none keeps a hole nobody is using. */
+const inlineScripts = inlineScriptCount(html)
+const scriptSrc = (() => {
+  const wildcard = headerBlocks.find((block) => block.path === '/*')
+  const value = wildcard?.headers['content-security-policy'] ?? ''
+  return parseCsp(value)['script-src'] ?? []
+})()
+console.log(
+  `[verify] _headers: ${headerBlocks.length} blocks · ${headerBlocks.reduce((n, b) => n + Object.keys(b.headers).length, 0)} headers · ` +
+    `inline <script> ${inlineScripts} · script-src ${scriptSrc.includes("'unsafe-inline'") ? "allows 'unsafe-inline'" : "does NOT allow 'unsafe-inline'"}`,
+)
+check(
+  inlineScripts === 0 || scriptSrc.includes("'unsafe-inline'"),
+  `the shell has ${inlineScripts} inline <script> block(s) but script-src does not allow 'unsafe-inline' — the boot script will be blocked`,
+)
+check(
+  inlineScripts > 0 || !scriptSrc.includes("'unsafe-inline'"),
+  `script-src allows 'unsafe-inline' but the shell has no inline <script> left — remove the concession`,
 )
 
 if (problems.length > 0) {
