@@ -13,10 +13,19 @@
 | `--background` | #FAF6EE (cream) | app background |
 | `--card` | #FFFFFF | cards |
 | `--ink` | #1D2A22 | text |
-| `--muted` | ink at 55% | secondary text |
+| `--muted` | #666F68 (was "ink at 55%") | secondary text |
 | `--danger` | #C2410C | warnings (sparingly) |
 | radius | 16 px cards, 14 px buttons, full for chips |
 | shadow | very soft (0 1px 2px / 6%) |
+
+`--muted` is a hex, not a derivation, and that is the fix: "ink at 55%" composited
+over the cream page is #80867E = 3.4:1, and the #6B746D that shipped in its place
+measured 4.48:1 — under the 4.5:1 docs/16-BEST-PRACTICES §3 sets for text, on every
+secondary line on a light background. #666F68 is the same grey-green at 4.82:1 on
+cream and 4.53:1 or better on every surface the theme paints text over (card,
+accent-soft, danger-soft, the primary wash). `tests/ui-contrast.test.ts` reads the
+hexes out of `app/src/styles.css` and recomputes them, so a token that drifts back
+under 4.5:1 fails the suite rather than failing a traveller.
 
 ## Type
 Headings: Plus Jakarta Sans 700. Body: Inter 400/500 (Devanagari fallback: Noto Sans Devanagari). Sizes: title 26, section 17, body 15, caption 12. Easy mode ×1.15.
