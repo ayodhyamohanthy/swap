@@ -24,6 +24,12 @@ your lane. Check it [x] in the same commit that completes it.
       safe-area set, manifest verified by build; ZERO violations so zero
       fix tasks. Watch: 202.5KB total with CSS (7KB headroom); switches
       pass via expanded hit-slop, not box size.
+      Watch: 202.5KB total with CSS (7KB headroom); switches
+      pass via expanded hit-slop, not box size.
+- [x] Mobile-first audit re-run (2026-10-01, Fo, fo/swap-mobile-first-audit):
+      3 violations filed as L9→L2/L1 requests in docs/14; bundle,
+      splitting, fonts, touch targets, input size, viewport, safe-area
+      all pass.
 - [ ] Payments: make Razorpay the single primary gateway for domestic
       AND international; demote PayPal to fallback path only; update
       docs/06-PAYMENTS.md to match

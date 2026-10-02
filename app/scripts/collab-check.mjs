@@ -12,6 +12,7 @@
  *                       registered, or the tree names a route that is gone.
  *   4. commit message — shape rule (never empty or a single character).
  *   5. green rule     — typecheck + full test suite, unless --fast.
+ *   6. vendor whitelist — docs/12 §2: no BENCH/RESERVE/UNCLAIMED vendor SDK.
  *
  * Correctness of money/copy/schema stays in the vitest suite; this only adds
  * the collaboration and staleness checks the suite cannot see.
@@ -271,6 +272,72 @@ function hookMsgMode(msgFile) {
     process.exit(1)
   }
   process.exit(0)
+}
+
+/* ---- 6. vendor whitelist (docs/12 §2) ----
+   An agent never adds a vendor (docs/12 §2): a BENCH/RESERVE/UNCLAIMED SDK in
+   either package.json, or imported anywhere in the code roots, fails the check
+   with the row that would have to move first. */
+const VENDOR_CODE_ROOTS = () =>
+  [join(APP, 'src'), join(APP, 'functions'), join(APP, 'scripts'), join(REPO, 'server')].filter(
+    (dir) => {
+      try {
+        return statSync(dir).isDirectory()
+      } catch {
+        return false
+      }
+    },
+  )
+
+function importSpecifiers(dir, seen = new Set()) {
+  const specs = []
+  for (const entry of readdirSync(dir)) {
+    const path = join(dir, entry)
+    if (seen.has(path)) continue
+    seen.add(path)
+    if (statSync(path).isDirectory()) {
+      specs.push(...importSpecifiers(path, seen))
+      continue
+    }
+    if (!/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(entry) || /\.d\.ts$/.test(entry)) continue
+    for (const m of readFileSync(path, 'utf8').matchAll(
+      /(?:\bfrom\s*|\bimport\s*|\brequire\s*\(\s*)['"]([^'"]+)['"]/g,
+    )) {
+      specs.push({ where: relative(REPO, path), spec: m[1] })
+    }
+  }
+  return specs
+}
+
+function checkVendors() {
+  head('vendor whitelist (docs/12 §2)')
+  const deps = {}
+  for (const [label, path] of [
+    ['app/package.json', join(APP, 'package.json')],
+    ['package.json', join(REPO, 'package.json')],
+  ]) {
+    try {
+      const pkg = JSON.parse(readFileSync(path, 'utf8'))
+      for (const section of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) {
+        for (const name of Object.keys(pkg[section] ?? {})) deps[name] = label
+      }
+    } catch {
+      /* a repo without a root package.json is fine */
+    }
+  }
+  const imports = []
+  for (const root of VENDOR_CODE_ROOTS()) imports.push(...importSpecifiers(root))
+  const fileOfSpec = new Map()
+  for (const { where, spec } of imports) if (!fileOfSpec.has(spec)) fileOfSpec.set(spec, where)
+  const hits = vendorViolations(deps, imports.map((i) => i.spec))
+  if (hits.length === 0) {
+    ok(`${Object.keys(deps).length} deps, ${imports.length} imports — no BENCH/RESERVE/UNCLAIMED vendor SDK`)
+    return
+  }
+  for (const v of hits) {
+    const where = v.kind === 'dependency' ? deps[v.name] : fileOfSpec.get(v.name)
+    bad(`docs/12 §2: ${v.kind} "${v.name}" in ${where} — ${v.vendor} is ${v.status}; activation needs Ayu moving the row to WIRED`)
+  }
 }
 
 function main() {
