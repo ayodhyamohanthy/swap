@@ -16,7 +16,7 @@ file a `docs/14-LANES.md` handoff note instead.
 
 | Lane | Surface (routes/files) | Typical agent |
 |---|---|---|
-| L1 PWA shell + design system | `app/src/components/ui/**`, `app/src/components/app-shell.tsx`, `app/src/components/install-prompt.tsx`, `app/src/components/service-worker.tsx`, `app/src/styles.css`, `app/public/**`, `app/pwa.workbox.mjs`, `app/vitest.config.ts`, `app/wrangler.toml` | Cline |
+| L1 PWA shell + design system | `app/src/components/ui/**`, `app/src/components/app-shell.tsx`, `app/src/components/install-prompt.tsx`, `app/src/components/service-worker.tsx`, `app/src/lib/utils.ts`, `app/src/styles.css`, `app/public/**`, `app/pwa.workbox.mjs`, `app/vitest.config.ts`, `app/wrangler.toml` | Cline |
 | L2 Trips + PNR | `routes/index.*`, `routes/trips.*`, `lib/pnr.ts`, `lib/store.ts` | Codex |
 | L3 Requests + matching | `routes/request.*`, `routes/share.*`, `lib/requests.ts`, `lib/matching.ts` | Claude |
 | L4 Payments | `routes/pay.*`, `server/payments*`, `server/razorpay-client.ts`, `server/paypal-client.ts`, `lib/payments.ts` | Gemini |
@@ -63,6 +63,47 @@ for three days.** `app/vitest.config.ts` was assigned to L1 in the sentence
 above and nowhere else, so the guard still could not read it. **2026-10-01
 (L9): moved into the L1 row**, which is what the sentence already meant — the
 ownership did not change, only whether a machine can see it.
+
+**The other direction was never counted, and 2026-10-03 (L3) measured it: 54 of
+the 121 tracked files under `app/src` are matched by NO lane surface** — 53
+once the `lib/utils.ts` assignment at the end of this paragraph lands. **Both
+figures are "as measured on 2026-10-03" and are meant to fall**, so re-measure
+with the census rather than reading them here; the method and the current
+breakdown are in docs/14 backlog 14. The two
+defects are complements — `deadSurfaces` catches a surface that protects no
+file; nothing caught a file that no surface protects. The census reused
+`lane-board.mjs` unchanged (`parseSurfaces` + `ownedByLane` over `git ls-files
+app/src`), so it cannot disagree with the guard about what "owned" means. By
+directory: `lib/` 22 (21 after that assignment), `routes/` 21, `components/` 5,
+`server/` 3, plus `routeTree.gen.ts`, `router.tsx` and `worker.ts`.
+
+Two things follow, and they are different problems.
+
+**(1) `routes/__root.tsx` and `routes/profile.*` are recorded in this file as
+shared — in prose, three paragraphs up — so the census counts them as
+unowned.** That is the same defect the last three paragraphs describe, for the
+fourth time, and this time it was introduced by the paragraph that fixed the
+third. The lesson is not "write it more clearly"; it is that an ownership
+decision the guard cannot read is not an ownership decision. **They should move
+into a machine-readable table, not be restated here.**
+
+**(2) The remaining ~48 have no owner and no recorded reason.** Assigning them
+is not one agent's call — the alternative is "inventing an owner and being
+wrong", which the paragraph above already rejects. So the count is recorded
+rather than acted on, and the guard that would close the class is deliberately
+NOT shipped: a check that fails on 48 files is not a check, it is a broken
+build. **The guard becomes shippable the moment the assignments exist**, and it
+should fail on a *new* unowned file so the map cannot rot further in silence.
+Filed on `docs/14-LANES.md` with these numbers. One instance was already filed
+by L1 (2026-10-03) and is now answered: `app/src/lib/utils.ts` joins L1's row —
+on evidence, not on the request's own argument. Only L1 has ever chosen to
+change that file (`git log` returns `eed8171`, the 4.5:1 text-floor fix, and
+`d0f0c49`, a blanket sweep), 9 of its 11 importers are L1's `components/ui/**`
+files, and it is a design-system helper (`cn()` merges Tailwind classes) sitting
+in the same concern as `styles.css`, which L1 already owns. The two importers
+outside L1 (`routes/request.$id.tsx`, `routes/swaps.$id.rate.tsx`) consume it
+without editing it, which is not what "shared" means here — the test this file
+uses is whether several passes have *touched* it, and they have not.
 
 **Two surfaces protected nothing, and nothing said so — found and fixed
 2026-10-01 (L9).** A surface is read as a glob, so one written for a naming

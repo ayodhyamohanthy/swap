@@ -922,3 +922,46 @@ LANE_KEYS=share LANE=L3 git commit -m "feat(share): …"
    serious/critical); nobody should `.exclude()` it into silence. No keys, no
    vendor, no backend — but it wants a pass over `designs/` rather than a
    find-and-replace, because docs/07 owns the type scale the titles carry.
+
+14. **Every lane: 54 of the 121 tracked files under `app/src` are owned by no
+   lane — measured 2026-10-03 (L3), and the number is the finding.** It read 53
+   the moment `lib/utils.ts` was assigned (docs/13 §1), and it is meant to keep
+   falling: **re-run the census, do not quote this number.**
+   `deadSurfaces` (2026-10-01) catches a surface that matches no file. Nothing
+   caught the complement — a file that no surface matches — and that is the
+   larger half: 45 % of the app's source is outside the map. Census method, so
+   it can be re-run rather than believed: `parseSurfaces` + `ownedByLane` from
+   `app/scripts/lane-board.mjs` (imported unchanged, so the census cannot
+   disagree with the guard about what "owned" means) applied to
+   `git ls-files app/src`. By directory: `lib/` 22 (21 after that assignment),
+   `routes/` 21, `components/` 5, `server/` 3, plus `routeTree.gen.ts`,
+   `router.tsx`, `worker.ts`.
+
+   **What is and is not a defect here.** An unowned file is *permissive*, not
+   dangerous — `clashesFor` only ever refuses a file some surface matches, so
+   nobody is blocked and two lanes editing one file are not stopped either.
+   The cost is the one L1 named when filing its `lib/utils.ts` request: "the
+   next lane to touch it has no claim to check against". Three of them are
+   explained and should NOT be assigned: `routeTree.gen.ts` and `router.tsx`
+   are generated (docs/13 §1's shared line), and `routes/__root.tsx` +
+   `routes/profile.*` are recorded as shared **in prose three paragraphs above
+   the table — which is why this census counts them**, the fourth occurrence of
+   "prose the guard cannot read" in that file, and the first introduced by the
+   paragraph that fixed the third. Those five should move into a
+   machine-readable table rather than be restated.
+
+   **The remaining ~48 have no owner and no recorded reason, and assigning them
+   is not one agent's call** — docs/13 already rejects "inventing an owner and
+   being wrong", and 48 files across ten lanes is exactly that at scale. So each
+   lane should claim the files it has actually been maintaining (`git log` is
+   the evidence this repo uses for shared-vs-owned, and it is cheap: the two
+   files with real history behind them resolved cleanly — `lib/utils.ts` → L1
+   on 1 deliberate touch + 9 of 11 importers, and the answer was not the one
+   the request argued for).
+
+   **The guard, deliberately not shipped yet:** a check that fails on 48 files
+   is not a check, it is a broken build. It becomes shippable the moment the
+   assignments exist, and its shape is fixed — fail when a tracked `app/src`
+   file is matched by no lane surface *and* is absent from the machine-readable
+   shared table. That is what stops the map rotting further in silence, and it
+   cannot be satisfied by writing a paragraph.
