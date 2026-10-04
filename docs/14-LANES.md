@@ -958,6 +958,30 @@ LANE_KEYS=share LANE=L3 git commit -m "feat(share): …"
    claim (stale ~52 h, and releasing it is not this lane's to do), while
    `routes/pay.*` and `routes/chat.*` need the design call above.
 
+   **RESOLVED 2026-10-04 for two of the three — and the `swap chat` sentence
+   directly above is the second wrong claim in this item.** `swap chat` does NOT
+   need a copy decision: design 4b (`designs/04 Accept and travel.jpg`, middle
+   panel) draws the other traveller's name as the header title with the
+   coach/berth line beneath it, and that name was ALREADY in the DOM — as a
+   `<span>`, which is exactly why the screen shipped with no heading. So the fix
+   is `<span>` → `<h1>` with the class names unchanged: no locale key, no copy
+   decision, and `app/locales/**` (L10's single-writer surface) never touched.
+   The wrapper had to become a `<div>` because `<h1>` is flow content and cannot
+   legally nest inside phrasing content. `pay · receipt` was the one-line
+   `CardTitle` → `<h1>` promotion predicted above, in the
+   `!payment || payment.status !== 'paid'` branch. **`home · trips` is the only
+   one left, and it is blocked rather than hard:** `routes/index.*` is L2's
+   surface under a stale claim, and releasing another lane's claim is not this
+   lane's to do. Verified two ways, because the a11y run alone cannot carry this
+   claim — `page-has-heading-one` is a MODERATE impact rule, so it never reddens
+   the suite and only appears in the `not reportable` log line, which means a
+   green run is not evidence either way. The run's log line now names only
+   `home · trips` on both viewports, and a standalone probe reading the DOM
+   directly reports `h1=1 ["Traveller"]` on `/chat/req_1`, `h1=1 ["Payment
+   pending"]` on `/pay/req_1/done`, and `h1=0` on `/` — so the axe finding
+   vanished because the heading exists, not because the screen stopped
+   rendering.
+
 14. **Every lane: 54 of the 121 tracked files under `app/src` are owned by no
    lane — measured 2026-10-03 (L3), and the number is the finding.** It read 53
    the moment `lib/utils.ts` was assigned (docs/13 §1), and it is meant to keep
@@ -1032,3 +1056,33 @@ LANE_KEYS=share LANE=L3 git commit -m "feat(share): …"
    will be misread as one, and the fix is to make the two distinguishable.**
    `app/scripts/**` is still in no lane's map (item 10), and no test covers
    `serve-dist.mjs` — the crash was only visible because it was run by hand.
+
+16. **The unit gate can report green while running 71% of the suite, and the
+   config comment written to prevent exactly that was carrying a stale
+   number.** `npm run test` is AGENTS.md §0 step 4, and `vitest.config.ts`'s
+   pool comment already names the failure mode ("watch the **file** count, not
+   the test count … the signal that no file was dropped"). It was right, and it
+   still happened. Measured 2026-10-04 under external load (17.6 on 12 logical
+   CPUs): a run reported **`Test Files 51 passed (51) · Tests 713 passed (713)
+   · 0 failed`** with **21 of the 72 files never started at all** — every one
+   `Failed to start forks worker … Timeout waiting for worker to respond`. The
+   comment's guard rail was a hard-coded "31", the directory held 72, and
+   nothing compares the two. **The direction of the error is what makes it
+   nasty:** `tests/domain-lib.test.ts` carries the repo's only known failures,
+   and it was one of the 21, so the incomplete run looked BETTER than a complete
+   one — the 3 `runCli(['--offline'])` timeouts disappear instead of appearing.
+   Re-run the same day in two batches: 51 + 10 + 1 = 62 files, and the only
+   failures were those same 3 (the CLI takes 7.49 s against a 5000 ms budget,
+   ~6.5 s of it blocked in this sandbox's brokered-FS shim; the timeout was
+   deliberately NOT raised, on item 13's reasoning). Root cause is per-file
+   jsdom construction (~43 s measured, which the comment already knew)
+   multiplied by a suite that has more than doubled since that comment was
+   written, on a machine other lanes share. **Filed rather than fixed because
+   the fix is not a config tweak:** `maxWorkers: 2` was tried and still dropped
+   21 files, and raising it makes boot timeouts worse. What would actually close
+   this is a **machine-checked file count** — compare "Test Files N passed"
+   against `ls tests/*.test.ts tests/*.test.tsx | wc -l` and fail when they
+   differ — because a number in a comment is a rule nobody is obliged to read,
+   which is the same sentence this repo already wrote about `_headers`. The
+   comment was corrected to state the rule and the command instead of a magic
+   total; the guard itself is still open.
