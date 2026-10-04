@@ -86,11 +86,25 @@ const server = createServer((req, res) => {
     file = join(DIR, 'index.html')
   }
 
+  /* Read BEFORE writing the head, and never let a read throw out of the
+     handler. An unguarded readFileSync here crashed the whole process on one
+     request that lost a race with a rebuild, and every test after it was
+     reported as `net::ERR_CONNECTION_REFUSED` — i.e. as a product failure
+     rather than a dead server. A file that vanishes between the existsSync
+     check above and this read is the same case that check already handles. */
+  let body
+  try {
+    body = readFileSync(file)
+  } catch {
+    res.writeHead(404, { 'content-type': 'text/plain' }).end('not found')
+    return
+  }
+
   res.writeHead(200, {
     'content-type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream',
     'cache-control': 'no-store',
   })
-  res.end(readFileSync(file))
+  res.end(body)
 })
 
 server.listen(PORT, '127.0.0.1', () => {
