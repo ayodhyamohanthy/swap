@@ -139,6 +139,46 @@ describe('privileges are explicit (AGENTS.md: explicit GRANTs)', () => {
     const grants = SCHEMA.match(/grant\s+[^;]+?\s+on\s+table\s+public\.\w+\s+to\s+authenticated/gi)
     expect(grants?.length ?? 0).toBeGreaterThan(5)
   })
+
+  it('grants anon nothing on any table — the two anon grants name no table', () => {
+    /* Rule 13's database half: a signed-out device must read nothing. The
+       only anon grants in this schema are `EXECUTE has_role()` (needed for
+       the pre-sign-in role check) and `USAGE ON SCHEMA` (needed to resolve
+       names); every table ends with an explicit REVOKE. The edit these catch
+       is the plausible one: "let anon read match_cards so invites work
+       signed out" — which would publish every open trip to the internet. */
+    const sql = stripSqlComments(SCHEMA)
+    expect(sql).not.toMatch(
+      /grant\s+[^;]+?\son\s+table\s+[^;]+?\bto\s+[^\n;]*\banon\b/i,
+    )
+    const anonLines = sql.split('\n').filter((line) => /\banon\b/i.test(line))
+    expect(anonLines.length).toBeGreaterThan(0)
+    for (const line of anonLines) {
+      const trimmed = line.trim()
+      const known =
+        /^GRANT EXECUTE ON FUNCTION public\.has_role\(uuid, app_role\) TO anon, authenticated, service_role;$/i.test(
+          trimmed,
+        ) ||
+        /^GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;$/i.test(
+          trimmed,
+        ) ||
+        /^REVOKE ALL ON TABLE public\.\w+ FROM PUBLIC, anon;$/i.test(trimmed)
+      expect(known, `unexpected anon line in schema: ${trimmed}`).toBe(true)
+    }
+  })
+
+  it('issues no RLS policy TO anon', () => {
+    /* Policies here carry no TO clause at all (they bind by USING/WITH CHECK
+       on auth.uid()), so any `TO anon` is a widening, not a style. Checked per
+       statement, not whole-file: a single-file regex would span statements and
+       blame the wrong policy. */
+    const sql = stripSqlComments(SCHEMA)
+    const policies = [...sql.matchAll(/create\s+policy[\s\S]*?;/gi)]
+    expect(policies.length).toBeGreaterThan(0)
+    for (const [statement] of policies) {
+      expect(statement, 'policy grants TO anon').not.toMatch(/\bto\s+anon\b/i)
+    }
+  })
 })
 
 describe('admin role checks are server-side only', () => {
