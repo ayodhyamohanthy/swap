@@ -40,11 +40,24 @@ export default defineConfig({
        respond`, 180s, zero tests run — so `npm run test` (the green gate
        AGENTS.md §0 step 4 requires before every commit) did not work at all.
        `threads` is worse than failing: with parallel files it silently drops
-       ~22 of the 31 files and still reports success.
-       forks + 4 workers is green in ~3m40s. Four leaves headroom on the
-       6-core dev machine for other lanes. Watch the **file** count, not the
-       test count: tests are added by every lane, so "Test Files N passed" is
-       the signal that no file was dropped. */
+       files and still reports success.
+       Watch the **file** count, not the test count: tests are added by every
+       lane, so "Test Files N passed" is the signal that no file was dropped —
+       and it is only a signal if it is held against the real total. DO NOT
+       hard-code that total here; it rots. This comment carried "31" while the
+       directory held 72. Derive it instead:
+           ls tests/*.test.ts tests/*.test.tsx | wc -l
+       MEASURED 2026-10-04, on a machine under external load (load 17.6 on 12
+       logical CPUs, ~43s of jsdom construction per file): a run reported
+       "Test Files 51 passed (51) · Tests 713 passed (713) · 0 failed" while
+       **21 of the 72 files never started at all**, every one a `Failed to
+       start forks worker … Timeout waiting for worker to respond`. Zero
+       failures, a green summary, 71% coverage — and the file that carried the
+       repo's only known failures was among the 21, so the run looked BETTER
+       than a complete one. That is the failure this comment exists to
+       prevent. Read the file count before the verdict, and re-run the skipped
+       files in small batches. The old "green in ~3m40s" figure described a
+       smaller suite and is no longer a useful expectation. */
     pool: 'forks',
     maxWorkers: 4,
   },
