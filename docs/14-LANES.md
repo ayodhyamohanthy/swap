@@ -965,3 +965,35 @@ LANE_KEYS=share LANE=L3 git commit -m "feat(share): …"
    file is matched by no lane surface *and* is absent from the machine-readable
    shared table. That is what stops the map rotting further in silence, and it
    cannot be satisfied by writing a paragraph.
+
+15. **Ayu: the Playwright e2e suite passes 84/84 and runs in NO pipeline —
+   measured 2026-10-04, and it is a different tool from item 10.** `app/e2e/`
+   holds 8 specs (`a11y`, `add-pnr`, `admin`, `home`, `onboarding`, `pay`,
+   `request`, `summary`) across `mobile-360` + `desktop-1440`, and
+   `npx playwright test` from `app/` returns **84 passed, exit 0** against the
+   current build. That is the only evidence in this repo that the app works in
+   a real browser at both widths, and **nothing runs it**: `green.yml` is
+   typecheck + unit tests + build + `collab-check`, all headless, so a green
+   build has never meant "the app renders". Item 10 asks the same cost question
+   about `scripts/smoke-routes.mjs`, which is a *different* tool with a
+   different blind spot — the two are complements (the smoke test reads the
+   running app for blank screens and console errors; the Playwright suite
+   asserts on behaviour and runs axe), so wiring one does not cover the other.
+   **The decision is Ayu's for the same reason as item 10** — it needs a browser
+   binary and a server in the workflow. Note `reuseExistingServer:
+   !process.env.CI` in `playwright.config.ts`: locally, a run can silently
+   attach to a stale server.
+
+   **A harness defect was found and fixed while measuring this, and the shape
+   is worth keeping.** `scripts/serve-dist.mjs` ended its handler with a bare
+   `readFileSync(file)` after an `existsSync(file)` check. That is a TOCTOU
+   window, and more importantly an unguarded throw inside a request handler
+   **kills the whole Node process** — so one bad request turned the remaining 22
+   tests into `net::ERR_CONNECTION_REFUSED`, i.e. **a dead server reported as 22
+   product failures**. It is now read-then-head with a `try/catch` returning 404,
+   which is the case the `existsSync` check already intended to handle. This is
+   the same class as the `deadSurfaces`/unowned-file pair and the 2026-10-01
+   suite failures: **an infrastructure fault that presents as a product fault
+   will be misread as one, and the fix is to make the two distinguishable.**
+   `app/scripts/**` is still in no lane's map (item 10), and no test covers
+   `serve-dist.mjs` — the crash was only visible because it was run by hand.
