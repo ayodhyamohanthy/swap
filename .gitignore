@@ -15,6 +15,19 @@ dist/
 *.log
 .DS_Store
 coverage/
+# `relay_orchestrator.py` at the repo root is an external harness (in no lane's
+# surface, docs/13 §1). It writes `__pycache__/` on every run, which landed
+# untracked in the repo root — one `git add -A` from being committed. The
+# directory is Python bytecode, never source.
+__pycache__/
+# Playwright's per-run output: `.last-run.json` plus one `error-context.md` per
+# failed test. Nothing reads them — they are a record of the last run, not an
+# input to the next one — and 18 files had accumulated. `.last-run.json` was
+# itself COMMITTED by the relay harness (`chore(relay): automated build
+# iteration …`), carrying the failure hashes of a run on somebody else's
+# machine, so a stale red was sitting in the repo as if it were a fixture.
+# Removed from tracking and ignored for the same reason `.tanstack/` is.
+app/test-results/
 # Scratch scripts. `.tmp.mjs` is already the repo-wide idiom for machine output
 # rather than a step — `app/azure/burndown-dry-run.mjs` exempts it by name so an
 # interrupted test run cannot wedge the harness (docs/14, Cline/L9 2026-09-29: a
