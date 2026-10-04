@@ -645,11 +645,21 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
    table beside it already shows. This is the **same missing-peer-rows blocker**
    as `admin.users.tsx` (item 4) and `get_matches()` (item 6) — three admin
    features now waiting on one thing.
-   **Still buildable, and genuinely worth doing:** the table layout itself with
+   ~~**Still buildable, and genuinely worth doing:** the table layout itself with
    **Train in its own column** (the design separates it; today it is folded into
    Details) and the per-action **icon + colour** in the Action column, which is
    the design's most distinctive feature and its biggest scanning win. Neither
-   needs peer data.
+   needs peer data.~~ **Corrected in place 2026-10-04: both shipped; this note
+   was stale, the fourth entry on this board to describe finished work as open.**
+   `admin.activity.tsx` renders Train in its own column (`admin.colTrain`,
+   `activityTrain(row)` in the `lg:` grid), and the Action cell draws a
+   per-category glyph with a tone class (`CATEGORY_ICON`, `activityTone`,
+   `ACTIVITY_TONE_CLASS`) in both the table rows and the User timeline. The
+   glyph is keyed by **category** rather than per-action, with the reasoning
+   recorded beside the map, and Details deliberately stays in the Action cell —
+   see the comment above `AdminActivity`. Both notes that said otherwise are
+   corrected here rather than deleted so the next reader sees the same
+   stale-note lesson the board keeps re-learning.
    **One constraint on that table:** `AppShell` clamps every screen to
    `.app-column` (`max-width: 34rem`) and `components/**` is L1's, so a
    five-column table at 544px would repeat the design-23 clamp problem. It wants
