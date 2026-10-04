@@ -437,11 +437,29 @@ describe('the committed schema', () => {
     expect(total).toBeGreaterThan(100)
   })
 
-  it('names the stray root schema, which is a real finding and not a hypothetical', () => {
+  it('the real repo has no stray root schema, and the detector still bites on a planted one', () => {
+    /* **This assertion was the INVERSE until 2026-10-04** — it read
+       `stray.length > 0` and pinned the defect's presence, deliberately, so the
+       detector could not be vacuously green on real inputs. Ayu then had the
+       stray file deleted (docs/14: "Deleting it is your call, not mine"), so
+       the honest assertion is the invariant. **A test that pins a defect must
+       be rewritten when the defect is fixed, or it silently becomes a test
+       that demands the bug come back** — and that is the failure mode this
+       whole file exists to catch, one level up. The anti-vacuity proof is not
+       lost: the synthetic case above plants a colliding stray and asserts the
+       `stray-schema` finding, and the assertion below pins that the detector
+       still fires on that same input, so a detector that stopped biting would
+       fail both. */
     const { stray } = realInputs()
-    expect(stray.length).toBeGreaterThan(0)
+    expect(stray).toEqual([])
     const verdict = mirrorFindings(realInputs())
-    expect(verdict.findings.map((f) => f.code)).toContain('stray-schema')
+    expect(verdict.findings.map((f) => f.code)).not.toContain('stray-schema')
+
+    const planted = mirrorFindings({
+      ...realInputs(),
+      stray: [{ file: 'supabase/planted.sql', sql: 'CREATE TABLE public.profiles (id int);' }],
+    })
+    expect(planted.findings.map((f) => f.code)).toContain('stray-schema')
   })
 
   it('commits no Supabase project URL that is not a documented placeholder', () => {

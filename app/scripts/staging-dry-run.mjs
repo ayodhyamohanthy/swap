@@ -148,15 +148,29 @@ for (const finding of mirror.findings) {
 
 /* ---- 4. would a Supabase CLI apply even find the migrations? ------------
    Reported separately from the mirror because the mirror can be perfect and
-   this can still provision an empty database. */
+   this can still provision an empty database. **The trap needs the repo root
+   to LOOK like a Supabase project.** The CLI resolves `supabase/` from the
+   project root, so the hazard is a `<repo>/supabase/` that exists and shadows
+   the real migrations — which is exactly what the stray file did before
+   2026-10-04. With no `<repo>/supabase/` at all there is no project for the
+   CLI to resolve here, so it stops instead of provisioning anything. Warning
+   unconditionally would keep crying wolf after the cause was removed, and a
+   warning nobody believes is worse than none. */
 const cliFindsMigrations = existsSync(CLI_DEFAULT)
 if (!cliFindsMigrations) {
-  warn(
-    'the Supabase CLI resolves supabase/migrations from the PROJECT ROOT, and ' +
-      `<repo>/supabase/migrations does not exist — \`supabase db push\` from here finds ` +
-      `${stray.length} stray file(s) and no migrations, so it would provision an empty ` +
-      'database. Use the psql apply in STEP 3 below, or move the migrations (L8 owns app/supabase/**).',
-  )
+  if (existsSync(strayDir)) {
+    warn(
+      'the Supabase CLI resolves supabase/migrations from the PROJECT ROOT, and ' +
+        `<repo>/supabase/migrations does not exist while <repo>/supabase/ does — \`supabase db push\` ` +
+        `from here finds ${stray.length} stray file(s) and no migrations, so it would provision an empty ` +
+        'database. Use the psql apply in STEP 3 below, or move the migrations (L8 owns app/supabase/**).',
+    )
+  } else {
+    console.log(
+      '  cli path     no <repo>/supabase/ — `supabase db push` from the repo root has no project to\n' +
+        '               resolve here and stops, rather than provisioning an empty database. STEP 3 is the apply.',
+    )
+  }
 }
 
 /* ---- 5. which project does this environment point at? ------------------- */
