@@ -116,7 +116,39 @@ for (const screen of SCREENS) {
     await page.goto(screen.path)
     for (const field of screen.fill ?? []) await page.locator(field.selector).fill(field.value)
 
+    /* WAIT FOR THE CLIENT RENDER. Only `/` is prerendered and its `<main>` is
+       EMPTY — just React's suspense markers and an inline scroll-restoration
+       `<script>` (see `support.ts`, "ERROR WATCH"). So a scan that starts at
+       `goto` reads a document with no screen in it, and the results are a
+       function of how fast the client hydrates rather than of the app.
+
+       Measured before this wait existed: `h1 0 -> 1 across analyze()` on 18 of
+       24 screens, and the flagged set differed run to run — e.g.
+       `welcome · language` was reported as having no `<h1>` while
+       `welcome.language.tsx:35` renders one unconditionally. Every
+       below-the-floor finding in that state was an artifact.
+
+       `:scope > *:not(script)` rather than `children.length > 0`, because the
+       inline scroll script IS a child of `<main>` in the prerendered shell, so
+       a bare child count is already non-zero and would wait for nothing. */
+    await page.waitForFunction(() => {
+      const main = document.querySelector('main')
+      return !!main && main.querySelector(':scope > *:not(script)') !== null
+    })
+
+    const h1Before = await page.locator('h1').count()
     const results = await new AxeBuilder({ page }).analyze()
+    const h1After = await page.locator('h1').count()
+    /* A GUARD, not a diagnostic. If the document changes while axe is walking
+       it, the result describes neither state and must not be read as a pass.
+       This is the assertion that would have caught the original defect: the
+       race was invisible for months because a scan of the empty shell still
+       reports ZERO serious/critical violations — **it fails green**, which is
+       the only failure mode a violation-counting check cannot see. The
+       `passes.length > 5` floor below did not catch it either (an empty shell
+       still passes more than five rules), so stability has to be asserted
+       directly. */
+    expect(h1After, `${screen.name}: the document changed while axe was scanning it — the scan describes neither state`).toBe(h1Before)
     /* Evidence the scan actually ran against this document: a blank page yields
        1 passing rule, these screens yield 26–38. See the header for the probe. */
     expect(results.passes.length, `axe ran no rules on ${screen.name}`).toBeGreaterThan(5)
