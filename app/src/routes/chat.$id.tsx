@@ -75,14 +75,23 @@ function ChatHeader() {
       >
         {req.acceptorName.charAt(0)}
       </span>
-      <span className="flex min-w-0 flex-col px-1">
-        <span className="truncate font-head text-body font-bold">{req.acceptorName}</span>
+      {/* The screen's title is the other traveller's name: design 4b (docs/05
+          screen 36) draws it as the header heading, and this was a `<span>`, so
+          the screen shipped with no heading at all and axe's
+          `page-has-heading-one` flagged it. The wrapper is a `<div>` rather than
+          a `<span>` because `<h1>` is flow content and cannot legally sit inside
+          phrasing content — a `<h1>` in a `<span>` is invalid HTML even though
+          browsers render it. Class names are unchanged, so the change is
+          visually neutral apart from `styles.css:83`'s `letter-spacing:
+          -0.01em`, which every other screen title already carries. */}
+      <div className="flex min-w-0 flex-col px-1">
+        <h1 className="truncate font-head text-body font-bold">{req.acceptorName}</h1>
         {berths?.coach && berths.theirsNo ? (
           <span className="truncate text-caption text-white/85">
             {t('trip.coach', { coach: berths.coach })} · {t('trip.berth', { no: berths.theirsNo })}
           </span>
         ) : null}
-      </span>
+      </div>
     </header>
   )
 }

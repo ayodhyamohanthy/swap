@@ -39,7 +39,17 @@ function DoneScreen() {
     return (
       <div>
         <Card className="mt-4">
-          <CardTitle>{t('pay.pendingTitle')}</CardTitle>
+          {/* The screen needs a heading, and `CardTitle` renders `<h2>`, so this
+              branch shipped with no `<h1>` and axe's `page-has-heading-one`
+              flagged it. `text-section text-ink` is `CardTitle`'s own class list,
+              so this is visually neutral — `styles.css:83` styles `h1, h2, h3`
+              with one rule and Tailwind's preflight sets `font-size: inherit`.
+              NOTE the canonical route for this state is `/pay/$requestId/status`
+              (docs/05 screen 26, design 28b), where the same copy is already an
+              `<h1 className="text-title …">` outside a card; this branch is the
+              guard for landing on `/done` without a paid row, and is left in its
+              card so the fix stays a semantics change rather than a layout one. */}
+          <h1 className="text-section text-ink">{t('pay.pendingTitle')}</h1>
           <CardBody>{t('pay.pending')}</CardBody>
         </Card>
         <Button className="mt-4" asChild>
