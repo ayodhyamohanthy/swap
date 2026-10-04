@@ -82,11 +82,18 @@ your lane. Check it [x] in the same commit that completes it.
       against an unknown ref, a blind parser, and a recorded *prod* ref.
       **Still Ayu:** create seatswap-staging (free plan), then paste its
       project ref into that table; the dry run prints the exact
-      Management-API `curl` body. **Blocked on L8, filed as requests:**
-      `<repo>/supabase/migrations` does not exist, so a CLI-driven
-      `supabase db push` from the repo root provisions an EMPTY database;
-      and a stale fourth copy at `supabase/schema-steps-1-2.sql` collides
-      with the canonical schema on 10 objects.)
+      Management-API `curl` body. **Both L8 requests are resolved (2026-10-04):**
+      the stale fourth copy at `supabase/schema-steps-1-2.sql` is DELETED, and
+      deleting it removes the second hazard with it — with no `<repo>/supabase/`
+      at all, the repo root no longer looks like a Supabase project, so
+      `supabase db push` from here has no project to resolve and stops rather
+      than provisioning an empty database. `staging-dry-run.mjs` now warns
+      about that only while a root `supabase/` actually shadows the real
+      migrations, instead of warning unconditionally after the cause was
+      removed. **The apply is STEP 3 of the dry run — `psql` with
+      `ON_ERROR_STOP=1` against `app/supabase/migrations/` — not the CLI.**
+      Deleting the stray was explicitly Ayu's call (docs/14: "Deleting it is
+      your call, not mine") and is now made.)
 - [x] Backup workflow: commit .github/workflows/seatswap-backup.yml
       (file provided in handoff), add the 6 GH Actions secrets per
       docs/12 §8, set R2 30-day lifecycle rule, verify one manual run
