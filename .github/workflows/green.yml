@@ -49,10 +49,19 @@ jobs:
       # workers fail to start, the run drops files, and it can still report
       # "N passed" — a green that is not a green. On a dedicated runner that is
       # unlikely and has not been measured, so the setting is left alone rather
-      # than guessed at. What matters when reading this log is the FILE count
-      # against `ls app/tests/*.test.*`, not the exit code on its own.
+      # than guessed at. The log is tee'd so the next step can check the count
+      # instead of a human eyeballing it (docs/14 backlog 16); pipefail keeps a
+      # red suite red through the pipe.
       - name: tests
-        run: npm run test --workspace seatswap-app
+        run: |
+          set -o pipefail
+          npm run test --workspace seatswap-app 2>&1 | tee /tmp/vitest.log
+      # Machine-checked file count: the reported "Test Files N" must equal the
+      # directory listing, or files were dropped and the green summary is a lie.
+      # Runs even when tests fail (a red run can hide dropped files too).
+      - name: unit file-count guard
+        if: always()
+        run: node app/scripts/guard-test-files.mjs /tmp/vitest.log app/tests
       - name: build (includes verify-dist)
         run: npm run build --workspace seatswap-app
       - name: collab-check (hot files, generated tree, green rule)
