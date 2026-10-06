@@ -600,6 +600,7 @@ describe('cross-user matching is server-mediated, never a client-wide read', () 
 describe('get_matches is applied as migration #2, not left as a proposal', () => {
   const MIGRATIONS = join(SUPABASE, 'migrations')
   const APPLIED = '20261001000000_get_matches.sql'
+  const APPLIED3 = '20261006000000_create_offer.sql'
   const migration = readFileSync(join(MIGRATIONS, APPLIED), 'utf8')
   const proposal = readFileSync(
     join(import.meta.dirname, '..', 'azure', 'load', 'get-matches.spec-part2.sql'),
@@ -613,16 +614,17 @@ describe('get_matches is applied as migration #2, not left as a proposal', () =>
   const sql = stripSqlComments(migration)
   const norm = (s: string): string => stripSqlComments(s).replace(/\s+/g, ' ').trim()
 
-  it('exists as a second migration, ordered after the init one', () => {
+  it('exists as ordered migrations after the init one', () => {
     const files = readdirSync(MIGRATIONS).filter((file) => file.endsWith('.sql'))
     const { ordered, malformed, duplicateStamps } = orderMigrations(files)
     expect(malformed).toEqual([])
     expect(duplicateStamps).toEqual([])
-    expect(files.length).toBeGreaterThanOrEqual(2)
+    expect(files.length).toBeGreaterThanOrEqual(3)
     expect(ordered[0].file, 'schema.sql must stay the FIRST migration').toBe(
       '20260925000000_init.sql',
     )
-    expect(ordered[ordered.length - 1].file).toBe(APPLIED)
+    expect(ordered[1].file, 'get_matches stays migration #2').toBe(APPLIED)
+    expect(ordered[ordered.length - 1].file).toBe(APPLIED3)
   })
 
   it('applies the reviewed proposal rather than an edited copy of it', () => {
@@ -710,5 +712,83 @@ describe('get_matches is applied as migration #2, not left as a proposal', () =>
       blocking,
       blocking.map((f) => `${f.code}: ${f.detail}`).join('; '),
     ).toEqual([])
+  })
+})
+
+/* ------------------------------------------------------------------ *
+ * create_offer() is migration #3 (2026-10-06): the requester-side write
+ * that pairs migration #2's read. swap_offers carries no requester INSERT
+ * policy (only SELECT) and no RPC created an offer — so the sanctioned read
+ * had no sanctioned write. Same discipline as #2: static shape guards plus
+ * named open questions, because both Supabase projects are uncreated and
+ * nothing here has run against Postgres.
+ * ------------------------------------------------------------------ */
+describe('create_offer is the sanctioned offer write, and nothing else', () => {
+  const MIGRATIONS = join(SUPABASE, 'migrations')
+  const migration = readFileSync(
+    join(MIGRATIONS, '20261006000000_create_offer.sql'),
+    'utf8',
+  )
+  const sql = stripSqlComments(migration)
+
+  it('runs elevated but pinned: DEFINER with a fixed search_path', () => {
+    expect(sql).toMatch(/SECURITY DEFINER SET search_path = public/i)
+  })
+
+  it('is unreachable to anon and granted only to the two sanctioned roles', () => {
+    expect(sql).toMatch(
+      /REVOKE ALL ON FUNCTION public\.create_offer\(uuid, uuid, int\) FROM PUBLIC;/i,
+    )
+    expect(sql).toMatch(
+      /GRANT EXECUTE ON FUNCTION public\.create_offer\(uuid, uuid, int\) TO authenticated, service_role;/i,
+    )
+    expect(sql).not.toMatch(/GRANT[^;]*\bTO\b[^;]*\banon\b/i)
+  })
+
+  it('only the requester sends, and only from a searching request', () => {
+    expect(sql).toMatch(/v_caller uuid := auth\.uid\(\)/i)
+    expect(sql).toMatch(/v_req_requester IS DISTINCT FROM v_caller/i)
+    expect(sql).toMatch(/v_req_status <>\s*'searching'/i)
+  })
+
+  it('keeps the rank inside 1..3 and inside the request choices', () => {
+    expect(sql).toMatch(/p_rank < 1 OR p_rank > 3/i)
+    expect(sql).toMatch(/array_length\(v_req_choices, 1\)/i)
+  })
+
+  it('re-checks the acceptor the way match_cards does: CNF, open, no child, no self', () => {
+    expect(sql).toMatch(/v_acc_status <>\s*'CNF'/i)
+    expect(sql).toMatch(/NOT v_acc_open/i)
+    expect(sql).toMatch(/v_acc_user = v_caller/i)
+  })
+
+  it('refuses dead journeys and blocked pairs', () => {
+    expect(sql).toMatch(/v_acc_date < CURRENT_DATE/i)
+    /* The IF EXISTS prefix matters: `FROM public.blocks` alone also matches
+       a neutered `IF FALSE AND EXISTS (...)`, which is exactly the edit that
+       silently re-opens spam offers. */
+    expect(sql).toMatch(/IF EXISTS \(\s*SELECT 1 FROM public\.blocks/i)
+  })
+
+  it('returns the open offer instead of duplicating it (free sends, double taps)', () => {
+    expect(sql).toMatch(/AND status = 'sent'/i)
+    expect(sql).toMatch(/RETURN v_existing/i)
+  })
+
+  it('returns one uuid and leaks no row: inputs are uuids, rank is an int', () => {
+    expect(sql).toMatch(
+      /CREATE OR REPLACE FUNCTION public\.create_offer\(\s*p_request uuid, p_passenger uuid, p_rank int\s*\)\s*RETURNS uuid/i,
+    )
+    for (const forbidden of [
+      'berth_no',
+      'pnr_hash',
+      'label',
+      'email',
+      'phone',
+    ]) {
+      expect(sql, `${forbidden} must not reach the offer RPC`).not.toMatch(
+        new RegExp(forbidden, 'i'),
+      )
+    }
   })
 })
