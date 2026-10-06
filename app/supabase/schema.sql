@@ -902,9 +902,24 @@ BEGIN
   -- `\y` is the Postgres word boundary (it is ASCII-aware, so the Devanagari
   -- alternatives are plain substrings, exactly as in the TS guard). Every
   -- Devanagari entry is money-specific, never a common word.
+  --
+  -- The PHONE shape was a second, quieter generation behind. Both copies want a
+  -- mobile number, but the TS pattern is `[6-9]\d{4}[\s-]?\d{5}` — a separator
+  -- is allowed between the 5th and 6th digit — while this one demanded ten
+  -- CONSECUTIVE digits (`[6-9][0-9]{9}`). So `98765 43210`, which is how the
+  -- number is written on every form and business card in the country, was
+  -- flagged on the sender's device and stored clean. The receiver's screen
+  -- reads the row, not the text, so the warning reached nobody who mattered.
+  --
+  -- `chat-safety-parity.test.ts` compares the two guards' WORD LISTS, and its
+  -- own header says it "cannot verify the regex *shapes* (Postgres `\y` vs JS
+  -- `\b`, and no lookahead in Postgres) … and leaves shape to review". Shape
+  -- was never reviewed, and the excuse was wrong besides: Postgres 18 has
+  -- lookahead AND lookbehind, so the TS shapes port verbatim. This line is that
+  -- port — it replaces the old two alternatives, and it subsumes them (the
+  -- separator is optional, so ten consecutive digits still match).
   IF NEW.text ~* '[a-z0-9._-]+@[a-z]+'
-    OR NEW.text ~* '(^|[^0-9])\+?91[\s-]?[6-9][0-9]{9}([^0-9]|$)'
-    OR NEW.text ~* '(^|[^0-9])[6-9][0-9]{9}([^0-9]|$)'
+    OR NEW.text ~* '(^|[^0-9])(\+?91[\s-]?)?[6-9][0-9]{4}[\s-]?[0-9]{5}([^0-9]|$)'
     OR NEW.text ~* '\y(cash|upi|gpay|phonepe|paytm|pay\s?me|send\s+(me\s+)?money|transfer|account\s*(no|number|detail)|ifsc|qr(\s*code)?|bribe|tip\s*(me|us)?|extra\s*(money|cash|charge|fee|payment)|sell|buy|charge\s*(extra|more))\y'
     OR NEW.text ~* '\y(khareed|kharid|bech|bhej|paise|paisa|nakad|nagad|nagdi|phone\s*pe)\y'
     OR NEW.text ~ 'नकद|पैसे|पैसा|यूपीआई|यूपीआय|खरीद|बेच|फोन\s*पे'

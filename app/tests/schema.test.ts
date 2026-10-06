@@ -602,6 +602,7 @@ describe('get_matches is applied as migration #2, not left as a proposal', () =>
   const APPLIED = '20261001000000_get_matches.sql'
   const APPLIED3 = '20261006000000_create_offer.sql'
   const APPLIED4 = '20261006010000_user_rows_on_signup.sql'
+  const APPLIED5 = '20261006020000_chat_guard_phone_parity.sql'
   const migration = readFileSync(join(MIGRATIONS, APPLIED), 'utf8')
   const proposal = readFileSync(
     join(import.meta.dirname, '..', 'azure', 'load', 'get-matches.spec-part2.sql'),
@@ -626,7 +627,8 @@ describe('get_matches is applied as migration #2, not left as a proposal', () =>
     )
     expect(ordered[1].file, 'get_matches stays migration #2').toBe(APPLIED)
     expect(ordered[2].file, 'create_offer stays migration #3').toBe(APPLIED3)
-    expect(ordered[ordered.length - 1].file).toBe(APPLIED4)
+    expect(ordered[3].file, 'signup rows stay migration #4').toBe(APPLIED4)
+    expect(ordered[ordered.length - 1].file, 'chat-guard parity is migration #5').toBe(APPLIED5)
   })
 
   it('applies the reviewed proposal rather than an edited copy of it', () => {
@@ -927,5 +929,118 @@ describe('a sign-up creates the per-user rows that depend on it', () => {
     expect(viewSql, 'a LEFT JOIN here would silently re-open the defect').not.toMatch(
       /LEFT JOIN public\.profiles/i,
     )
+  })
+})
+
+/* ------------------------------------------------------------------ *
+ * The chat guard exists twice: `lib/chat-guard.ts` on the sender's device,
+ * and `check_message_safety()` in the database. The database copy is the one
+ * that decides what the RECEIVER sees, because `chat-sync.ts` reads
+ * `messages.flagged_risky` off the row rather than re-running the check — so a
+ * row stored clean is a warning that reaches nobody.
+ *
+ * `chat-safety-parity.test.ts` compares the two guards' WORD LISTS, and its own
+ * header is honest that it "cannot verify the regex *shapes* … and leaves shape
+ * to review". Shape was never reviewed, and it had drifted: the SQL pattern
+ * demanded ten CONSECUTIVE digits while the TS one allows a separator after the
+ * 5th, so `98765 43210` — how an Indian mobile number is written on every form
+ * and business card in the country — was flagged on the sender's device and
+ * stored clean. Measured against real Postgres 18.3, eight inputs diverged in
+ * that direction; seven were this shape.
+ *
+ * These assertions execute the SHIPPED pattern text rather than a copy of it,
+ * so a rewrite is re-evaluated instead of compared against a snapshot. Running
+ * it as a JS RegExp is sound for this alternative specifically because every
+ * construct in it (`[6-9]`, `{4}`, `[\s-]?`, `[^0-9]`) means the same thing in
+ * both dialects. The `\y` word-boundary alternatives are Postgres-only and are
+ * deliberately NOT extracted here — a JS RegExp would read `\y` as a literal
+ * `y` and pass vacuously, which is the trap this file keeps having to avoid.
+ * ------------------------------------------------------------------ */
+describe('the database chat guard flags a phone number the way it is written', () => {
+  const PHONE_LINE = SCHEMA.split('\n').find(
+    (line) => line.includes('NEW.text ~*') && line.includes('[6-9][0-9]{4}'),
+  )
+  const source = PHONE_LINE?.match(/~\*\s*'([^']+)'/)?.[1] ?? ''
+  const PHONE = new RegExp(source, 'i')
+
+  it('extracts a phone alternative from the shipped schema', () => {
+    expect(PHONE_LINE, 'no phone alternative found in the schema').toBeTruthy()
+    expect(source.length, 'the phone alternative looks empty').toBeGreaterThan(20)
+  })
+
+  it('allows a separator between the 5th and 6th digit, as the TS guard does', () => {
+    expect(source).toContain('[6-9][0-9]{4}[\\s-]?[0-9]{5}')
+    /* The old shape, named so it cannot come back: ten consecutive digits is
+       exactly what let `98765 43210` through. */
+    expect(source).not.toContain('[6-9][0-9]{9}')
+  })
+
+  const flagged = [
+    '9876543210',
+    '98765 43210',
+    '98765-43210',
+    '+919876543210',
+    '+91 9876543210',
+    '+91 98765 43210',
+    '0 98765 43210',
+    '91 98765 43210',
+  ]
+  for (const text of flagged) {
+    it(`flags ${JSON.stringify(text)}`, () => {
+      expect(PHONE.test(text), `${text} must be flagged`).toBe(true)
+    })
+  }
+
+  const clean = [
+    'What time is your train?',
+    'I am on coach B1, see you there',
+    'Train 12951 on 2026-12-01, berth 41',
+    'Reaching by 6',
+    'My PNR is 1234567890',
+    'A2 · 36',
+  ]
+  for (const text of clean) {
+    it(`leaves ${JSON.stringify(text)} alone`, () => {
+      expect(PHONE.test(text), `${text} must not be flagged`).toBe(false)
+    })
+  }
+
+  it('over-flags a ten-digit PNR starting 6-9, and that is parity, not a bug', () => {
+    /* Named so nobody "fixes" it on one side only. The TS pattern is a bare
+       substring match with no boundaries, so it flags this too — the database
+       copy has to be at least as strict as the TS one, and being stricter in a
+       way that merely hides a message is the safe direction. */
+    expect(PHONE.test('My PNR is 6234567890')).toBe(true)
+  })
+
+  it('keeps migration #5 identical to the baseline copy it replaces', () => {
+    /* Migrations #2-#4 each ADDED an object, so the baseline (`schema.part*` →
+       `schema.sql` → `init.sql`, one schema kept byte-identical three ways)
+       could stay frozen at the init state and the migration was the whole
+       story. This one MODIFIES an object init already defines, which changes
+       the answer: `chat-safety-parity.test.ts` reads the BASELINE to assert the
+       guard, so a migration-only fix would leave that test green while it read
+       a superseded copy of the function — a test guarding something that is not
+       what runs. Both are therefore updated, and this pins them together:
+       change one and this fails until you change the other. */
+    const extract = (text: string): string => {
+      const clean = stripSqlComments(text)
+      const start = clean.indexOf('CREATE OR REPLACE FUNCTION public.check_message_safety()')
+      const end = clean.indexOf('END $$;', start)
+      expect(start, 'the guard function must exist').toBeGreaterThanOrEqual(0)
+      expect(end, 'the guard function must terminate').toBeGreaterThan(start)
+      return clean.slice(start, end + 'END $$;'.length)
+    }
+    const baseline = extract(SCHEMA)
+    const applied = extract(
+      readFileSync(
+        join(SUPABASE, 'migrations', '20261006020000_chat_guard_phone_parity.sql'),
+        'utf8',
+      ),
+    )
+    expect(baseline.length, 'the extracted body looks too short to be the guard').toBeGreaterThan(
+      300,
+    )
+    expect(applied, 'the migration must carry the same body as the baseline').toBe(baseline)
   })
 })
