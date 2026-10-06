@@ -55,6 +55,10 @@ async function makeUser(
     email: `rls-${tag}-${RUN}@seatswap.invalid`,
     password: `test-${RUN}-${tag}`,
     email_confirm: true,
+    /* Google supplies this as `full_name`; passing it here exercises the
+       migration #4 derivation end to end on a real database rather than
+       asserting only that some row appeared. */
+    user_metadata: { full_name: `Rls ${tag.toUpperCase()}` },
   })
   if (error || !data.user) throw new Error(`createUser ${tag}: ${error?.message}`)
   return data.user.id
@@ -145,6 +149,54 @@ describe.skipIf(!HAS_KEYS)(
       if (!ctx.admin) return
       for (const uid of [ctx.userA, ctx.userB]) {
         if (uid) await ctx.admin.auth.admin.deleteUser(uid).catch(() => {})
+      }
+    })
+
+    it('a sign-up gets its own per-user rows (migration #4)', async () => {
+      /* WHY THIS IS FIRST. `match_cards` INNER JOINs `profiles`, so if the
+         sign-up trigger did not take, the get_matches test below returns 0 rows
+         and fails for a reason that looks like an RLS problem. Naming the
+         precondition first turns that into one clear failure.
+
+         Before migration #4 nothing created either row: zero triggers on
+         auth.users, zero function bodies writing to profiles or settings, and
+         seed.sql writing both for two hardcoded demo uuids only. Demo data never
+         showed it, and every real traveller was invisible to matching — proven
+         by execution 2026-10-06 (get_matches returned 0 rows without these rows
+         and 2 with them; a second fixture showed the exclusion is per row). */
+      const { data, error } = await ctx.admin
+        .from('profiles')
+        .select('id, first_name, last_initial')
+        .in('id', [ctx.userA, ctx.userB])
+      expect(error).toBeNull()
+      expect((data ?? []).map((row) => row.id).sort()).toEqual(
+        [ctx.userA, ctx.userB].sort(),
+      )
+      /* The row must carry a name, not just exist: rule 13 puts "first name +
+         initial" on a match card, so an empty row would leave the card
+         unusable. `Rls A` -> first_name "Rls", last_initial "A". */
+      const byId = new Map((data ?? []).map((row) => [row.id, row]))
+      expect(byId.get(ctx.userA)?.first_name).toBe('Rls')
+      expect(byId.get(ctx.userA)?.last_initial).toBe('A')
+      expect(byId.get(ctx.userB)?.first_name).toBe('Rls')
+      expect(byId.get(ctx.userB)?.last_initial).toBe('B')
+
+      /* The second row of the same root cause. `server/admin.ts:155` pauses an
+         acceptor with an UPDATE on `settings`, and an UPDATE matching no row
+         affects 0 rows and returns NO ERROR — so without this row the operator
+         action reported success and did nothing. Asserted with the defaults the
+         table owns rather than values this trigger chose. */
+      const { data: rows, error: sErr } = await ctx.admin
+        .from('settings')
+        .select('user_id, paused, max_requests_per_day')
+        .in('user_id', [ctx.userA, ctx.userB])
+      expect(sErr).toBeNull()
+      expect((rows ?? []).map((row) => row.user_id).sort()).toEqual(
+        [ctx.userA, ctx.userB].sort(),
+      )
+      for (const row of rows ?? []) {
+        expect(row.paused).toBe(false)
+        expect(row.max_requests_per_day).toBe(3)
       }
     })
 

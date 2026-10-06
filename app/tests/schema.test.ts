@@ -601,6 +601,7 @@ describe('get_matches is applied as migration #2, not left as a proposal', () =>
   const MIGRATIONS = join(SUPABASE, 'migrations')
   const APPLIED = '20261001000000_get_matches.sql'
   const APPLIED3 = '20261006000000_create_offer.sql'
+  const APPLIED4 = '20261006010000_user_rows_on_signup.sql'
   const migration = readFileSync(join(MIGRATIONS, APPLIED), 'utf8')
   const proposal = readFileSync(
     join(import.meta.dirname, '..', 'azure', 'load', 'get-matches.spec-part2.sql'),
@@ -624,7 +625,8 @@ describe('get_matches is applied as migration #2, not left as a proposal', () =>
       '20260925000000_init.sql',
     )
     expect(ordered[1].file, 'get_matches stays migration #2').toBe(APPLIED)
-    expect(ordered[ordered.length - 1].file).toBe(APPLIED3)
+    expect(ordered[2].file, 'create_offer stays migration #3').toBe(APPLIED3)
+    expect(ordered[ordered.length - 1].file).toBe(APPLIED4)
   })
 
   it('applies the reviewed proposal rather than an edited copy of it', () => {
@@ -790,5 +792,140 @@ describe('create_offer is the sanctioned offer write, and nothing else', () => {
         new RegExp(forbidden, 'i'),
       )
     }
+  })
+})
+
+/* ------------------------------------------------------------------ *
+ * Migration #4 (2026-10-06): the two per-user rows a sign-up must create,
+ * neither of which anything created.
+ *
+ * WHY THIS BLOCK EXISTS. (1) `match_cards` joins `profiles` with a plain JOIN,
+ * so a booking whose owner has no `profiles` row is invisible to the only path
+ * cross-user matching has — `get_matches()`. Part 1's comment claimed the row
+ * is "Created on first Google sign-in" and nothing implemented it: zero
+ * triggers on auth.users, zero function bodies writing to profiles, and
+ * seed.sql writing profiles for two hardcoded demo uuids, which is why demo
+ * data never showed it. (2) `settings` has the same shape and a second symptom:
+ * `server/admin.ts:155` pauses an acceptor with an UPDATE, and an UPDATE
+ * matching no row affects 0 rows and returns NO ERROR, so the operator action
+ * reported success and did nothing.
+ *
+ * Both proven by execution 2026-10-06 against PostgreSQL 18.3 — get_matches()
+ * returned 0 rows without the profiles rows and 2 with them (and a second
+ * fixture showed the exclusion is per row), and the pause UPDATE affected 0
+ * rows, then 1 once the settings row existed.
+ *
+ * The guards below are deliberately split in two. The first group pins what
+ * migration #4 does. The second group pins the LINK — that the view still
+ * depends on the row, and that the migration did not "fix" it by loosening the
+ * join. Without the second group, replacing the INNER JOIN with a LEFT JOIN
+ * would make every test here pass while re-introducing the blank-name match
+ * card rule 13 forbids.
+ * ------------------------------------------------------------------ */
+describe('a sign-up creates the per-user rows that depend on it', () => {
+  const MIGRATIONS = join(SUPABASE, 'migrations')
+  const migration = readFileSync(
+    join(MIGRATIONS, '20261006010000_user_rows_on_signup.sql'),
+    'utf8',
+  )
+  const sql = stripSqlComments(migration)
+
+  it('fires on the sign-up event, which is the only one that matters', () => {
+    expect(sql).toMatch(
+      /CREATE TRIGGER on_auth_user_created\s+AFTER INSERT ON auth\.users\s+FOR EACH ROW EXECUTE FUNCTION public\.handle_new_user\(\);/i,
+    )
+    /* BEFORE would be wrong: auth.users has a generated default id, and a
+       BEFORE trigger cannot rely on NEW.id being final. */
+    expect(sql).not.toMatch(/BEFORE INSERT ON auth\.users/i)
+  })
+
+  it('runs elevated but pinned, and is callable by nobody', () => {
+    /* SECURITY DEFINER because the trigger fires as whoever inserted the
+       auth.users row (on Supabase, supabase_auth_admin), which has no business
+       holding INSERT on public.profiles. Pinned search_path for the same reason
+       migrations #2 and #3 pin theirs. */
+    expect(sql).toMatch(/SECURITY DEFINER\s+SET search_path = public/i)
+    expect(sql).toMatch(/REVOKE ALL ON FUNCTION public\.handle_new_user\(\) FROM PUBLIC;/i)
+    /* A trigger function needs no EXECUTE grant — it is invoked by the trigger,
+       not by callers. A GRANT here would be a second, reachable entry point to
+       a SECURITY DEFINER body that writes a row on someone else's behalf. */
+    expect(sql).not.toMatch(/GRANT EXECUTE ON FUNCTION public\.handle_new_user/i)
+  })
+
+  it('cannot fail a sign-up: the conflict arm swallows instead of raising', () => {
+    /* The cost of being wrong here is asymmetric. A raise inside a trigger on
+       auth.users turns a duplicate into "you cannot log in"; a stale profile
+       row is a cosmetic problem. So DO NOTHING, never DO UPDATE, and never a
+       RAISE. */
+    expect(sql).toMatch(/ON CONFLICT \(id\) DO NOTHING/i)
+    expect(sql).not.toMatch(/ON CONFLICT \(id\) DO UPDATE/i)
+    expect(sql).not.toMatch(/\bRAISE\b/i)
+  })
+
+  it('stores first name + initial and nothing more (rule 13)', () => {
+    /* The initial is derived as the FIRST LETTER of the last token, so a full
+       legal name from the identity provider cannot land in the column whole. */
+    expect(sql).toMatch(/upper\(left\(v_parts\[array_length\(v_parts, 1\)\], 1\)\)/i)
+    expect(sql).toMatch(/INSERT INTO public\.profiles \(id, first_name, last_initial\)/i)
+    /* gender is nullable and Google does not reliably supply it; inferring it
+       from a name would be inventing personal data. */
+    expect(sql).not.toMatch(/\bgender\b/i)
+    for (const forbidden of ['email', 'phone', 'pnr', 'berth_no']) {
+      expect(sql, `${forbidden} must not be stored from the provider payload`).not.toMatch(
+        new RegExp(forbidden, 'i'),
+      )
+    }
+  })
+
+  it('reads the name from the provider payload, with a fallback', () => {
+    expect(sql).toMatch(/raw_user_meta_data\s*->>\s*'full_name'/i)
+    expect(sql).toMatch(/raw_user_meta_data\s*->>\s*'name'/i)
+  })
+
+  it('creates the settings row the operator pause switch needs', () => {
+    /* The second symptom of the same root cause. server/admin.ts:155 pauses an
+       acceptor with `updates: [{ table: 'settings', key: 'user_id', patch:
+       { paused: true } }]` — a Supabase UPDATE, which affects 0 rows and
+       returns NO ERROR when the row is absent. So with no settings row,
+       "pause this acceptor" reported success and did nothing. Verified by
+       execution: 0 rows affected, then 1 once the row existed. */
+    expect(sql).toMatch(
+      /INSERT INTO public\.settings \(user_id\)\s+VALUES \(new\.id\)\s+ON CONFLICT \(user_id\) DO NOTHING;/i,
+    )
+    /* The column list must stay exactly (user_id). Every other column carries
+       its default in the table definition, and a default restated here is a
+       second copy of it — free to drift from the one the table owns, which is
+       the trap migration #2's header records. */
+    expect(sql, 'settings defaults belong to the table, not to this trigger').not.toMatch(
+      /INSERT INTO public\.settings \([^)]*,[^)]*\)/i,
+    )
+  })
+
+  it('keeps the derivation in exactly one place', () => {
+    /* Migration #2's own header records what happens otherwise: an earlier draft
+       repeated the clamp expression in a comment, a scripted mutation rewrote
+       the COMMENT instead of the statement, and the suite stayed green on a
+       mutation that never touched the schema. One copy, asserted. */
+    const copies = sql.match(/regexp_split_to_array/gi) ?? []
+    expect(copies.length, 'the name split must appear exactly once').toBe(1)
+  })
+
+  it('fixes the invariant at its source rather than loosening the view', () => {
+    /* THE LINK GUARD. `match_cards` is defined in part 7 and this migration must
+       not redefine it: a LEFT JOIN would make a profile-less traveller show as a
+       blank name instead of vanishing, which hides the absence this migration
+       removes and violates rule 13's "first name + initial". */
+    expect(sql).not.toMatch(/CREATE OR REPLACE VIEW/i)
+    expect(sql).not.toMatch(/match_cards/i)
+
+    const view = readFileSync(join(SUPABASE, 'schema.part7.sql'), 'utf8')
+    const viewSql = stripSqlComments(view)
+    expect(
+      viewSql,
+      'match_cards must keep requiring a profiles row — this migration is its writer',
+    ).toMatch(/JOIN public\.profiles pr ON pr\.id = b\.user_id/i)
+    expect(viewSql, 'a LEFT JOIN here would silently re-open the defect').not.toMatch(
+      /LEFT JOIN public\.profiles/i,
+    )
   })
 })
