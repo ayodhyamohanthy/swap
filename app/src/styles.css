@@ -24,7 +24,7 @@
   --color-background: #faf6ee;
   --color-card: #ffffff;
   --color-ink: #1d2a22;
-  --color-muted: #6b746d;
+  --color-muted: #66706a;
   --color-line: rgba(29, 42, 34, 0.14);
   --color-wash: rgba(31, 107, 69, 0.08);
   --color-danger: #c2410c;
@@ -120,4 +120,12 @@ strong {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* First open: "/" prerenders an empty shell and then redirects to the
+   language screen once the app hydrates. Keep the empty body invisible until
+   then so the first frame is not a blank cream page. RootDocument clears the
+   flag on mount, after the redirect has run. */
+html[data-first-open='true'] main {
+  visibility: hidden;
 }
