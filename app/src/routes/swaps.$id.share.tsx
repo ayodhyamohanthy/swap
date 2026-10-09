@@ -9,6 +9,7 @@ import { useI18n } from '@/lib/i18n'
 import { trackEvent } from '@/lib/analytics'
 import { getRequest } from '@/lib/requests'
 import { getTrip } from '@/lib/store'
+import { INSTAGRAM_INBOX_URL, instagramClipboardText, inviteLink, shareDateLabel } from '@/lib/share'
 
 /* Screens 42/44 "Share your trip card / Share good deed" (design 6c, 26b):
    a card with no private details plus the same anywhere-share sheet as the
@@ -29,8 +30,15 @@ function ShareCardScreen() {
     ? `${trip.train_name} ${trip.train_no}`
     : (trip?.train_no ?? t('shareCard.title'))
   const origin = typeof window === 'undefined' ? '' : window.location.origin
-  const link = trip ? `${origin}/train/${trip.train_no}?date=${encodeURIComponent(trip.journey_date ?? '')}` : origin
-  const text = t('shareCard.body', { train })
+  /* inviteLink drops the query when the date is unknown; the inline version
+     printed a dangling `?date=` that claimed a date and supplied none. */
+  const link = trip
+    ? inviteLink(origin, trip.journey_date ? `${trip.train_no}-${trip.journey_date}` : trip.train_no)
+    : origin
+  const dateLabel = shareDateLabel(trip?.journey_date)
+  const text = dateLabel
+    ? t('shareCard.bodyDated', { train, date: dateLabel })
+    : t('shareCard.body', { train })
 
   async function copyLink() {
     trackEvent('share_clicked', { platform: 'copy', context: 'swap' })
@@ -53,15 +61,26 @@ function ShareCardScreen() {
     }
     void copyLink()
   }
-  function open(platform: Platform) {
+  async function open(platform: Platform) {
     trackEvent('share_clicked', { platform, context: 'swap' })
+    if (platform === 'instagram') {
+      /* No Instagram text-share URL exists: copy the whole message first. */
+      try {
+        await navigator.clipboard.writeText(instagramClipboardText(text, link))
+        toast.show(t('share.instagramCopied'))
+      } catch {
+        toast.show(link)
+      }
+      window.open(INSTAGRAM_INBOX_URL, '_blank', 'noopener')
+      return
+    }
     const encoded = encodeURIComponent(link)
     const body = encodeURIComponent(`${text} ${link}`)
     const urls: Record<Platform, string> = {
       whatsapp: `https://wa.me/?text=${body}`,
       telegram: `https://t.me/share/url?url=${encoded}&text=${encodeURIComponent(text)}`,
       sms: `sms:?&body=${body}`,
-      instagram: `instagram://`,
+      instagram: INSTAGRAM_INBOX_URL,
       facebook: `https://www.facebook.com/sharer/sharer.php?u=${encoded}`,
     }
     window.open(urls[platform], '_blank', 'noopener')
@@ -106,14 +125,19 @@ function ShareCardScreen() {
       </Button>
       {showQr ? (
         <Card className="mt-2 items-center text-center">
+          <CardTitle>{t('share.qrHeading')}</CardTitle>
+          <p className="mt-1 font-head text-section text-ink">{train}</p>
           <img
             src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(link)}`}
             alt={t('share.qr')}
-            className="mx-auto size-44 rounded-card bg-card"
+            className="mx-auto my-3 size-44 rounded-card bg-card"
             width={176}
             height={176}
           />
-          <CardBody>{t('share.qrNote')}</CardBody>
+          <CardBody>
+            {dateLabel ? t('share.qrScan', { train, date: dateLabel }) : t('share.qrNote')}
+          </CardBody>
+          <p className="break-all text-caption text-muted">{link}</p>
         </Card>
       ) : null}
       <AppFooter />

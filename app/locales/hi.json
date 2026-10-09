@@ -453,6 +453,7 @@
   "shareCard": {
     "title": "अपना स्वैप शेयर करें",
     "body": "हमने {train} पर बर्थ बदली। सफ़र साथ में बेहतर।",
+    "bodyDated": "हमने {date} को {train} पर बर्थ बदली। साथ सफ़र बेहतर है।",
     "note": "कोई नाम, बर्थ या PNR शेयर नहीं होता।"
   },
   "cancelSwap": {
@@ -592,7 +593,11 @@
     "link": "कोच लिंक",
     "heading": "अपने कोच को बुलाएं",
     "coachSub": "ज़्यादा लोग, स्वैप मिलने का ज़्यादा मौका।",
-    "whatsappCta": "WhatsApp पर शेयर करें"
+    "whatsappCta": "WhatsApp पर शेयर करें",
+    "messageDated": "मुझे {date} को {train} पर बर्थ बदलनी है। SeatSwap पर जुड़िए — हम एक-दूसरे से बदल सकते हैं।",
+    "instagramCopied": "संदेश और लिंक कॉपी हो गया। Instagram में पेस्ट करें।",
+    "qrHeading": "आसपास के लोगों को दिखाएं",
+    "qrScan": "स्कैन करके SeatSwap पर {train} ({date}) खोलें और बर्थ बदलें।"
   },
   "invite": {
     "title": "SeatSwap",

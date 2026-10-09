@@ -7,7 +7,7 @@ import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/lib/i18n'
 import { trackEvent } from '@/lib/analytics'
-import { inviteLink, splitTrainDate } from '@/lib/share'
+import { INSTAGRAM_INBOX_URL, instagramClipboardText, inviteLink, shareDateLabel, splitTrainDate } from '@/lib/share'
 import { useOnline } from '@/lib/use-online'
 
 /* Screen 18 "Invite / share anywhere" (design 14b): WhatsApp, Instagram,
@@ -31,7 +31,8 @@ function ShareScreen() {
   const online = useOnline()
   const [showQr, setShowQr] = useState(false)
 
-  const { trainNo } = splitTrainDate(trainDate)
+  const { trainNo, journeyDate } = splitTrainDate(trainDate)
+  const dateLabel = shareDateLabel(journeyDate)
   const origin = typeof window === 'undefined' ? '' : window.location.origin
   const link = inviteLink(origin, trainDate)
   /* The message that lands in someone ELSE's WhatsApp. This used to be
@@ -39,7 +40,9 @@ function ShareScreen() {
      ("Share this link anywhere") — so every invite told its recipient to go and
      share it. Sender-facing copy stays on the screen; this is the invitation,
      and it is addressed to whoever receives it. */
-  const text = t('share.message', { train: trainNo })
+  const text = dateLabel
+    ? t('share.messageDated', { train: trainNo, date: dateLabel })
+    : t('share.message', { train: trainNo })
 
   async function copyLink() {
     trackEvent('share_clicked', { platform: 'copy' })
@@ -64,17 +67,27 @@ function ShareScreen() {
     void copyLink()
   }
 
-  function open(platform: Platform) {
+  async function open(platform: Platform) {
     trackEvent('share_clicked', { platform })
+    if (platform === 'instagram') {
+      /* No text-share URL exists for Instagram: put the full message on the
+         clipboard so nothing is lost, then open the app. */
+      try {
+        await navigator.clipboard.writeText(instagramClipboardText(text, link))
+        toast.show(t('share.instagramCopied'))
+      } catch {
+        toast.show(link)
+      }
+      window.open(INSTAGRAM_INBOX_URL, '_blank', 'noopener')
+      return
+    }
     const encoded = encodeURIComponent(link)
     const body = encodeURIComponent(`${text} ${link}`)
     const urls: Record<Platform, string> = {
       whatsapp: `https://wa.me/?text=${body}`,
       telegram: `https://t.me/share/url?url=${encoded}&text=${encodeURIComponent(text)}`,
       sms: `sms:?&body=${body}`,
-      /* Instagram/Facebook have no universal text-share URL — open the app
-         and let the user paste the copied link. */
-      instagram: `instagram://`,
+      instagram: INSTAGRAM_INBOX_URL,
       facebook: `https://www.facebook.com/sharer/sharer.php?u=${encoded}`,
     }
     window.open(urls[platform], '_blank', 'noopener')
@@ -159,18 +172,29 @@ function ShareScreen() {
 
       {showQr ? (
         <Card className="mt-3 items-center text-center">
+          <CardTitle>{t('share.qrHeading')}</CardTitle>
+          <p className="mt-1 font-head text-section text-ink">
+            {t('share.title', { train: trainNo })}
+          </p>
           {online ? (
             <img
               src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(link)}`}
               alt={t('share.qr')}
-              className="mx-auto size-44 rounded-card bg-card"
+              className="mx-auto my-3 size-44 rounded-card bg-card"
               width={176}
               height={176}
             />
           ) : (
             <p className="break-all font-mono text-caption text-ink">{link}</p>
           )}
-          <CardBody>{online ? t('share.qrNote') : t('share.qrOffline')}</CardBody>
+          <CardBody>
+            {online
+              ? dateLabel
+                ? t('share.qrScan', { train: trainNo, date: dateLabel })
+                : t('share.qrNote')
+              : t('share.qrOffline')}
+          </CardBody>
+          {online ? <p className="break-all text-caption text-muted">{link}</p> : null}
         </Card>
       ) : null}
       {!online ? <p className="mt-2 text-caption text-muted">{t('offline.bar')}</p> : null}

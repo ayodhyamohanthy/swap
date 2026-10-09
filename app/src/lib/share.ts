@@ -34,3 +34,28 @@ export function inviteLink(origin: string, trainDate: string): string {
   const base = `${origin}/train/${trainNo}`
   return journeyDate ? `${base}?date=${encodeURIComponent(journeyDate)}` : base
 }
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/** "2026-11-12" -> "12 Nov 2026". Anything that is not a plain ISO date comes
+ *  back as '' so callers can fall back to the date-less wording instead of
+ *  printing a broken date to a stranger. The date is a public fact about the
+ *  journey, not about a person (rule 13). */
+export function shareDateLabel(journeyDate: string | null | undefined): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(journeyDate ?? '')
+  if (!m) return ''
+  const month = MONTHS[Number(m[2]) - 1]
+  const day = Number(m[3])
+  if (!month || day < 1 || day > 31) return ''
+  return `${day} ${month} ${m[1]}`
+}
+
+/** Instagram has no web URL that takes text, so the share button copies the
+ *  whole message (text + link) first and then opens Instagram's inbox, which is
+ *  a universal link: the app on a phone, the web inbox on a desktop. The old
+ *  `instagram://` scheme opened nothing on desktop and carried nothing anywhere. */
+export const INSTAGRAM_INBOX_URL = 'https://www.instagram.com/direct/inbox/'
+
+export function instagramClipboardText(text: string, link: string): string {
+  return `${text} ${link}`
+}

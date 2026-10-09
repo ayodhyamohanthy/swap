@@ -453,6 +453,7 @@
   "shareCard": {
     "title": "Share your swap",
     "body": "We swapped berths on {train}. Travel is better together.",
+    "bodyDated": "We swapped berths on {train} on {date}. Travel is better together.",
     "note": "No names, berths or PNRs are shared."
   },
   "cancelSwap": {
@@ -592,7 +593,11 @@
     "link": "Coach link",
     "heading": "Invite your coach",
     "coachSub": "More people, better chances to find a swap.",
-    "whatsappCta": "Share on WhatsApp"
+    "whatsappCta": "Share on WhatsApp",
+    "messageDated": "I'm looking to swap my berth on train {train} on {date}. Join SeatSwap and we can swap with each other.",
+    "instagramCopied": "Message and link copied. Paste it in Instagram.",
+    "qrHeading": "Show to people nearby",
+    "qrScan": "Scan to open train {train} ({date}) on SeatSwap and swap berths."
   },
   "invite": {
     "title": "SeatSwap",
