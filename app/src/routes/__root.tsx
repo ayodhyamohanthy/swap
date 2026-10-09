@@ -1,5 +1,5 @@
 import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router'
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import appCss from '../styles.css?url'
 import { AppShell } from '@/components/app-shell'
 import { JobRunner } from '@/components/job-runner'
@@ -46,6 +46,11 @@ function RootComponent() {
 }
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
+  /* Pairs with BOOT_SCRIPT's data-first-open: by the time we mount, the
+     first-open redirect has already run, so the body can be shown. */
+  useEffect(() => {
+    delete document.documentElement.dataset.firstOpen
+  }, [])
   return (
     /* `lang` is prerendered in the default language because the server cannot
        read the stored choice, and BOOT_SCRIPT corrects it before first paint so

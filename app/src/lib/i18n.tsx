@@ -296,4 +296,4 @@ export function useI18n(): I18nValue {
 }
 
 /** Inline boot script: applies easy mode + language before first paint. */
-export const BOOT_SCRIPT = `(function(){try{var d=document.documentElement;if(localStorage.getItem('${EASY_KEY}')==='1'){d.dataset.easy='true'}var l=localStorage.getItem('${LANG_KEY}');if(l==='hi'){d.lang='hi'}}catch(e){}})();`
+export const BOOT_SCRIPT = `(function(){try{var d=document.documentElement;if(localStorage.getItem('${EASY_KEY}')==='1'){d.dataset.easy='true'}var l=localStorage.getItem('${LANG_KEY}');if(l==='hi'){d.lang='hi'}if(location.pathname==='/'){var s=JSON.parse(localStorage.getItem('seatswap.seen.v1')||'{}');if(!s.language||!s.note){d.dataset.firstOpen='true'}}}catch(e){}})();`
