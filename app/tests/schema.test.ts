@@ -604,6 +604,7 @@ describe('get_matches is applied as migration #2, not left as a proposal', () =>
   const APPLIED4 = '20261006010000_user_rows_on_signup.sql'
   const APPLIED5 = '20261006020000_chat_guard_phone_parity.sql'
   const APPLIED6 = '20261009000000_locked_berths_party_reveal.sql'
+  const APPLIED7 = '20261009010000_chat_guard_evasion_parity.sql'
   const migration = readFileSync(join(MIGRATIONS, APPLIED), 'utf8')
   const proposal = readFileSync(
     join(import.meta.dirname, '..', 'azure', 'load', 'get-matches.spec-part2.sql'),
@@ -630,7 +631,10 @@ describe('get_matches is applied as migration #2, not left as a proposal', () =>
     expect(ordered[2].file, 'create_offer stays migration #3').toBe(APPLIED3)
     expect(ordered[3].file, 'signup rows stay migration #4').toBe(APPLIED4)
     expect(ordered[4].file, 'chat-guard parity stays migration #5').toBe(APPLIED5)
-    expect(ordered[ordered.length - 1].file, 'the berth reveal is migration #6').toBe(APPLIED6)
+    expect(ordered[5].file, 'the berth reveal stays migration #6').toBe(APPLIED6)
+    expect(ordered[ordered.length - 1].file, 'chat-guard evasion parity is migration #7').toBe(
+      APPLIED7,
+    )
   })
 
   it('applies the reviewed proposal rather than an edited copy of it', () => {
@@ -1015,7 +1019,7 @@ describe('the database chat guard flags a phone number the way it is written', (
     expect(PHONE.test('My PNR is 6234567890')).toBe(true)
   })
 
-  it('keeps migration #5 identical to the baseline copy it replaces', () => {
+  it('keeps the newest guard migration identical to the baseline copy it replaces', () => {
     /* Migrations #2-#4 each ADDED an object, so the baseline (`schema.part*` →
        `schema.sql` → `init.sql`, one schema kept byte-identical three ways)
        could stay frozen at the init state and the migration was the whole
@@ -1034,11 +1038,22 @@ describe('the database chat guard flags a phone number the way it is written', (
       return clean.slice(start, end + 'END $$;'.length)
     }
     const baseline = extract(SCHEMA)
+    /* Walk to the NEWEST migration carrying the guard instead of naming one:
+       migration #7 changes the same function again, and a hard-coded path would
+       quietly start comparing the baseline against a superseded copy — which is
+       the exact failure this test exists to prevent. */
+    const MIGRATIONS_DIR = join(SUPABASE, 'migrations')
+    const GUARD = 'CREATE OR REPLACE FUNCTION public.check_message_safety()'
+    const carriers = orderMigrations(
+      readdirSync(MIGRATIONS_DIR).filter((file) => file.endsWith('.sql')),
+    )
+      .ordered.map((m) => m.file)
+      .filter((file) =>
+        readFileSync(join(MIGRATIONS_DIR, file), 'utf8').includes(GUARD),
+      )
+    expect(carriers.length, 'a migration must carry the guard').toBeGreaterThan(0)
     const applied = extract(
-      readFileSync(
-        join(SUPABASE, 'migrations', '20261006020000_chat_guard_phone_parity.sql'),
-        'utf8',
-      ),
+      readFileSync(join(MIGRATIONS_DIR, carriers[carriers.length - 1]), 'utf8'),
     )
     expect(baseline.length, 'the extracted body looks too short to be the guard').toBeGreaterThan(
       300,

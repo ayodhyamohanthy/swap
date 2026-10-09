@@ -10,10 +10,17 @@
  * stored as clean. The comment in the schema claimed it mirrored the TS guard,
  * which is exactly the kind of claim a test is for.
  *
- * This compares the three money vocabularies word for word. It cannot verify
- * the regex *shapes* (Postgres `\y` vs JS `\b`, and no lookahead in Postgres),
- * so it holds up coverage and leaves shape to review. That is the honest limit
- * of what a source-reading test can promise.
+ * This compares the three money vocabularies word for word. It used to say it
+ * could not verify the regex *shapes* — "(Postgres `\y` vs JS `\b`, and no
+ * lookahead in Postgres), so it holds up coverage and leaves shape to review" —
+ * and that sentence was wrong twice over. The shapes are exactly where the
+ * defects were: the phone pattern demanded ten CONSECUTIVE digits while the TS
+ * one allows a separator after the fifth, and neither `squishEvasion()` nor
+ * `digitsFromWords()` had a database counterpart at all. And the constraint
+ * offered for skipping them does not exist: Postgres 18 has lookahead AND
+ * lookbehind, so the TS shapes port verbatim. The tests at the bottom now run
+ * the SHIPPED pattern text through a JS engine instead of comparing it to a
+ * snapshot, so a rewrite is re-evaluated rather than matched.
  */
 const { readFileSync } = process.getBuiltinModule('node:fs') as typeof import('node:fs')
 const { join } = process.getBuiltinModule('node:path') as typeof import('node:path')
@@ -115,5 +122,122 @@ describe('the SQL chat-safety trigger covers what the TS guard covers', () => {
        the claim is fine now that a test holds it up; removing it would hide
        the intent. */
     expect(sql).toMatch(/Mirrors lib\/chat-guard\.ts/)
+  })
+})
+
+/* ------------------------------------------------------------------ *
+ * Shape parity: the shipped patterns, actually run.
+ *
+ * The `\y` caveat from the phone test still applies — JS reads `\y` as a
+ * literal `y`, so any pattern containing it is translated to `\b` before being
+ * run here. Everything else is the SHIPPED text, so these assertions follow a
+ * rewrite instead of pinning a snapshot. The behavioural authority is the
+ * differential harness recorded in docs/DECISIONS.md (it runs the real trigger
+ * under PostgreSQL 18.3 against the real TS module); these are the CI half.
+ * ------------------------------------------------------------------ */
+describe('the SQL guard carries the evasion half, and the shipped shapes behave', () => {
+  const lineWith = (needle: string): string =>
+    TRIGGER.split('\n').find((l) => l.includes(needle)) ?? ''
+  const quoted = (line: string): string => line.match(/'([^']+)'/)?.[1] ?? ''
+
+  const CASH_SOURCE = quoted(lineWith('(cash|upi|gpay'))
+  const SQUISH_SOURCE = quoted(lineWith('(?<=[^A-Za-z][A-Za-z])'))
+  const LEET = lineWith('translate(v_squished').match(/'([^']+)', '([^']+)'/)
+  const DIGIT_WORDS = Object.fromEntries(
+    [...TRIGGER.matchAll(/'\(\?<!\[a-z\]\)(\w+)\(\?!\[a-z\]\)', '(\d)'/g)].map((m) => [
+      m[1],
+      m[2],
+    ]),
+  )
+  const cashRe = new RegExp(CASH_SOURCE.replace(/\\y/g, '\\b'), 'i')
+
+  /** `squishEvasion()`, driven by the pattern the SQL actually ships. */
+  function squish(text: string): string {
+    const collapsed = `[${text}]`.replace(new RegExp(SQUISH_SOURCE, 'g'), '')
+    const from = LEET?.[1] ?? ''
+    const to = LEET?.[2] ?? ''
+    return collapsed.slice(1, -1).replace(/[@$01]/g, (ch) => to[from.indexOf(ch)] ?? ch)
+  }
+
+  /** `digitsFromWords()`, driven by the word list the SQL actually ships. */
+  function digitsFromWords(text: string): string {
+    const words = Object.keys(DIGIT_WORDS)
+    let v = text.toLowerCase()
+    for (const [word, digit] of Object.entries(DIGIT_WORDS)) {
+      v = v.replace(new RegExp(`(?<![a-z])${word}(?![a-z])`, 'g'), digit)
+    }
+    v = v.replace(/[^0-9]/g, '')
+    return new RegExp(`(^|[^a-z])(${words.join('|')})([^a-z]|$)`, 'i').test(text) ? v : ''
+  }
+
+  it('finds both normalisers in the guard, not just the raw-text patterns', () => {
+    /* These sanity assertions matter: everything below extracts a pattern out
+       of the guard body, and an extraction that silently returns '' would make
+       the behavioural tests pass vacuously. That is the trap this file's
+       TRIGGER slice was created to avoid. */
+    expect(CASH_SOURCE, 'the money pattern must be found').toContain('sell')
+    expect(SQUISH_SOURCE, 'the collapse pattern must be found').toContain(
+      '(?<=[^A-Za-z][A-Za-z])',
+    )
+    expect(LEET?.[1], 'the leet alphabet must be found').toBe('@$01')
+    expect(Object.keys(DIGIT_WORDS).length, 'all ten digit words must be found').toBe(10)
+    /* The point of the migration: the guard must TEST the normalised forms, not
+       merely be able to compute them. Computing them and matching only the raw
+       text is exactly the bug. */
+    expect(TRIGGER, 'the reconstructed digits must be tested').toMatch(/v_digits\s*~/)
+    expect(TRIGGER, 'the squished text must be tested').toMatch(/v_squished\s*~\*/)
+    /* Two pieces of the port the JS re-implementation below CANNOT check,
+       because it reproduces them itself: the sentinel that makes start and end
+       of string behave like an ordinary non-letter, and the pure-run guard from
+       docs/09. Dropping either from the SQL would leave every behavioural test
+       here green, so they are asserted against the shipped text directly. */
+    expect(TRIGGER, 'the sentinel must ship').toContain("'[' || NEW.text || ']'")
+    expect(TRIGGER, 'the pure-run guard must ship (docs/09)').toContain(
+      "IF NEW.text !~* '(^|[^a-z])(zero|one|",
+    )
+  })
+
+  it('collapses spaced-out letters and leet the way the TS guard does', () => {
+    for (const text of ['s-e-l-l it to me', 'c-a-s-h', 'U P I par', 'g p a y kar do']) {
+      expect(cashRe.test(squish(text)), `${text} must survive squishing as a money word`).toBe(
+        true,
+      )
+    }
+    expect(cashRe.test(squish('se1l it to me')), 'leet 1 -> l must decode').toBe(true)
+  })
+
+  it('collapses only runs of single letters, leaving ordinary chat as written', () => {
+    /* Exact output, not "no keyword appeared". The naive version of this
+       collapse — strip every separator that sits between two letters — turns
+       `Meet me near` into `Meetmenear`, and a keyword-absence assertion would
+       not notice, because none of these sentences contains a money word either
+       way. Asserting the string is what makes the difference visible. */
+    expect(squish('s-e-l-l')).toBe('sell')
+    expect(squish('U P I')).toBe('UPI')
+    expect(squish('se1l')).toBe('sell')
+    for (const text of ['Meet me near', 'Is Ella coming', 'Basic Ash', 'see the seller']) {
+      expect(squish(text), `${text} must come out as written`).toBe(text)
+    }
+  })
+
+  it('rebuilds a spelled-out number, and only when a digit word is present', () => {
+    expect(digitsFromWords('call nine eight 200 12345')).toBe('9820012345')
+    expect(digitsFromWords('nine eight two zero zero one two three four five')).toBe('9820012345')
+    /* The pure-run rule (docs/09): with no digit word present, joining every
+       number in a sentence would turn a train number plus a berth into a
+       phantom phone number. */
+    expect(digitsFromWords('Train 12951 on 2026-12-01, berth 41')).toBe('')
+  })
+
+  it('aligns the UPI shape with the TS guard', () => {
+    /* The only place this fix made the database guard LESS strict, and it is
+       deliberate: `pay a@okaxis` was flagged here and not on the device, and
+       the TS shape is the reviewed spec. */
+    expect(TRIGGER, 'the UPI shape must match the TS {2,}').toMatch(
+      /\[a-z0-9\._-\]\{2,\}@\[a-z\]\{2,\}/,
+    )
+    expect(TRIGGER, 'the one-character-local-part shape must be gone').not.toMatch(
+      /\[a-z0-9\._-\]\+@\[a-z\]\+/,
+    )
   })
 })

@@ -244,6 +244,8 @@ CREATE OR REPLACE FUNCTION public.check_message_safety()
 RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE
   recent int;
+  v_squished text;
+  v_digits text;
 BEGIN
   SELECT count(*) INTO recent FROM public.messages
     WHERE chat_id = NEW.chat_id AND sender_id = NEW.sender_id
@@ -279,9 +281,60 @@ BEGIN
   -- lookahead AND lookbehind, so the TS shapes port verbatim. This line is that
   -- port — it replaces the old two alternatives, and it subsumes them (the
   -- separator is optional, so ten consecutive digits still match).
-  IF NEW.text ~* '[a-z0-9._-]+@[a-z]+'
+  --
+  -- A third gap was the EVASION MACHINERY, and it is the one an adversary
+  -- reaches for on purpose. The TS guard runs two normalisers before matching:
+  -- `squishEvasion()` collapses a run of spaced-out single letters (`s-e-l-l`,
+  -- `U P I`) and decodes leet (`@`->a, `$`->s, `0`->o, `1`->l);
+  -- `digitsFromWords()` rebuilds a number that is spelled out (`nine eight 200
+  -- 12345`). Neither had a database counterpart, so `s-e-l-l it to me` and
+  -- `call nine eight 200 12345` were flagged on the sender's device and stored
+  -- clean — a deliberate bypass, invisible in the row the receiver reads.
+  --
+  -- v_squished is `squishEvasion()`. A separator collapses only when the letter
+  -- on each side is itself bounded by a non-letter, which is the TS run
+  -- condition `(^|[^A-Za-z]) [A-Za-z] ([\s\-·•._]+ [A-Za-z])+ (?![A-Za-z])`.
+  -- The sentinel is what makes that expressible: it turns start/end of string
+  -- into an ordinary non-letter, so the lookbehind and lookahead stay fixed
+  -- width. Without the per-letter boundary test a plain "strip separators
+  -- between letters" would collapse `Meet me near` into `Meetmenear` and
+  -- manufacture keyword matches out of ordinary chat; with it, `Meet me near`,
+  -- `Is Ella coming` and `ab c d` come out exactly as written.
+  --
+  -- v_digits is `digitsFromWords()`. It folds spelled digits in among the
+  -- literal ones in order, and yields '' unless a digit word is really there —
+  -- the pure-run rule from docs/09, because joining every number in a sentence
+  -- turns a train number plus a berth into a phantom phone.
+  --
+  -- The UPI shape also came down one notch to match: TS wants two characters
+  -- before the `@`, this wanted one, so `pay a@okaxis` was flagged here and not
+  -- on the device. The TS shape is the reviewed spec.
+  v_squished := '[' || NEW.text || ']';
+  v_squished := regexp_replace(
+    v_squished, '(?<=[^A-Za-z][A-Za-z])[\s\-·•._]+(?=[A-Za-z][^A-Za-z])', '', 'g');
+  v_squished := substr(v_squished, 2, length(v_squished) - 2);
+  v_squished := translate(v_squished, '@$01', 'asol');
+
+  v_digits := regexp_replace(lower(NEW.text), '(?<![a-z])zero(?![a-z])', '0', 'g');
+  v_digits := regexp_replace(v_digits, '(?<![a-z])one(?![a-z])', '1', 'g');
+  v_digits := regexp_replace(v_digits, '(?<![a-z])two(?![a-z])', '2', 'g');
+  v_digits := regexp_replace(v_digits, '(?<![a-z])three(?![a-z])', '3', 'g');
+  v_digits := regexp_replace(v_digits, '(?<![a-z])four(?![a-z])', '4', 'g');
+  v_digits := regexp_replace(v_digits, '(?<![a-z])five(?![a-z])', '5', 'g');
+  v_digits := regexp_replace(v_digits, '(?<![a-z])six(?![a-z])', '6', 'g');
+  v_digits := regexp_replace(v_digits, '(?<![a-z])seven(?![a-z])', '7', 'g');
+  v_digits := regexp_replace(v_digits, '(?<![a-z])eight(?![a-z])', '8', 'g');
+  v_digits := regexp_replace(v_digits, '(?<![a-z])nine(?![a-z])', '9', 'g');
+  v_digits := regexp_replace(v_digits, '[^0-9]', '', 'g');
+  IF NEW.text !~* '(^|[^a-z])(zero|one|two|three|four|five|six|seven|eight|nine)([^a-z]|$)' THEN
+    v_digits := '';
+  END IF;
+
+  IF NEW.text ~* '[a-z0-9._-]{2,}@[a-z]{2,}'
     OR NEW.text ~* '(^|[^0-9])(\+?91[\s-]?)?[6-9][0-9]{4}[\s-]?[0-9]{5}([^0-9]|$)'
+    OR v_digits ~ '(^|[^0-9])(\+?91[\s-]?)?[6-9][0-9]{4}[\s-]?[0-9]{5}([^0-9]|$)'
     OR NEW.text ~* '\y(cash|upi|gpay|phonepe|paytm|pay\s?me|send\s+(me\s+)?money|transfer|account\s*(no|number|detail)|ifsc|qr(\s*code)?|bribe|tip\s*(me|us)?|extra\s*(money|cash|charge|fee|payment)|sell|buy|charge\s*(extra|more))\y'
+    OR v_squished ~* '\y(cash|upi|gpay|phonepe|paytm|pay\s?me|send\s+(me\s+)?money|transfer|account\s*(no|number|detail)|ifsc|qr(\s*code)?|bribe|tip\s*(me|us)?|extra\s*(money|cash|charge|fee|payment)|sell|buy|charge\s*(extra|more))\y'
     OR NEW.text ~* '\y(khareed|kharid|bech|bhej|paise|paisa|nakad|nagad|nagdi|phone\s*pe)\y'
     OR NEW.text ~ 'नकद|पैसे|पैसा|यूपीआई|यूपीआय|खरीद|बेच|फोन\s*पे'
   THEN
