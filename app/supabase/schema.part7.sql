@@ -70,15 +70,50 @@ CREATE OR REPLACE VIEW public.match_cards WITH (security_invoker = true) AS
 REVOKE ALL ON TABLE public.match_cards FROM PUBLIC, anon;
 GRANT SELECT ON TABLE public.match_cards TO authenticated;
 
-CREATE OR REPLACE VIEW public.locked_berths WITH (security_invoker = true) AS
-  SELECT r.id AS request_id, p.booking_id, p.id AS passenger_id,
-    p.coach, p.berth_no
+-- `locked_berths` cannot be a plain `security_invoker` view, and this is the
+-- one thing about it that only execution finds. Only a FUNCTION can raise its
+-- own rights; a view has no such switch. So a `security_invoker` view over
+-- `passengers` reads that table AS THE CALLER, and the three `*_match_read`
+-- policies are dropped a few lines above — which leaves `passengers_owner` as
+-- the caller's only surviving policy on it. Each party therefore sees their OWN
+-- passenger row, the INNER JOIN drops the other side before `berth_no` is ever
+-- projected, and the view returns exactly one berth: the one you already knew.
+--
+-- Executed against PostgreSQL 18.3 rather than read: A (requester) saw {41},
+-- B (acceptor) saw {52}, C (stranger) saw {}. Privacy held — a stranger still
+-- sees nothing — but the reveal was a no-op for the only two people it exists
+-- for. Every static guard in tests/schema.test.ts passed while it did.
+--
+-- Re-adding a broad `passengers` policy is NOT the fix: that is precisely what
+-- hands berth numbers to every signed-in user, the leak rule 13 exists to stop.
+-- The fix is the shape `get_matches()` already uses — a SECURITY DEFINER body
+-- that performs the party check itself and projects only `coach` + `berth_no`.
+-- The WHERE clause was never the broken part: `is_request_party` is itself
+-- SECURITY DEFINER, so it gates WHICH REQUESTS you may see, not which passenger
+-- rows survive the join.
+CREATE OR REPLACE FUNCTION public.get_locked_berths()
+RETURNS TABLE (
+  request_id uuid, booking_id uuid, passenger_id uuid, coach text, berth_no text
+)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT r.id, p.booking_id, p.id, p.coach, p.berth_no
   FROM public.swap_requests r
   JOIN public.swap_offers o ON o.id = r.locked_offer_id
   JOIN public.passengers p
     ON p.booking_id = r.booking_id OR p.booking_id = o.acceptor_booking_id
   WHERE r.status IN ('locked', 'confirmed', 'disputed')
     AND public.is_request_party(r.id, auth.uid());
+$$;
+REVOKE ALL ON FUNCTION public.get_locked_berths() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_locked_berths() TO authenticated, service_role;
+
+-- The view keeps its name, its column list and its grant, and becomes a thin
+-- wrapper over the definer body above. `security_invoker = true` is retained on
+-- purpose: the privilege that must be checked is the CALLER's EXECUTE on the
+-- function, whereas a definer-rights view would check the view owner's instead
+-- — which is not what the GRANT below is written to mean.
+CREATE OR REPLACE VIEW public.locked_berths WITH (security_invoker = true) AS
+  SELECT * FROM public.get_locked_berths();
 REVOKE ALL ON TABLE public.locked_berths FROM PUBLIC, anon;
 GRANT SELECT ON TABLE public.locked_berths TO authenticated;
 

@@ -603,6 +603,7 @@ describe('get_matches is applied as migration #2, not left as a proposal', () =>
   const APPLIED3 = '20261006000000_create_offer.sql'
   const APPLIED4 = '20261006010000_user_rows_on_signup.sql'
   const APPLIED5 = '20261006020000_chat_guard_phone_parity.sql'
+  const APPLIED6 = '20261009000000_locked_berths_party_reveal.sql'
   const migration = readFileSync(join(MIGRATIONS, APPLIED), 'utf8')
   const proposal = readFileSync(
     join(import.meta.dirname, '..', 'azure', 'load', 'get-matches.spec-part2.sql'),
@@ -628,7 +629,8 @@ describe('get_matches is applied as migration #2, not left as a proposal', () =>
     expect(ordered[1].file, 'get_matches stays migration #2').toBe(APPLIED)
     expect(ordered[2].file, 'create_offer stays migration #3').toBe(APPLIED3)
     expect(ordered[3].file, 'signup rows stay migration #4').toBe(APPLIED4)
-    expect(ordered[ordered.length - 1].file, 'chat-guard parity is migration #5').toBe(APPLIED5)
+    expect(ordered[4].file, 'chat-guard parity stays migration #5').toBe(APPLIED5)
+    expect(ordered[ordered.length - 1].file, 'the berth reveal is migration #6').toBe(APPLIED6)
   })
 
   it('applies the reviewed proposal rather than an edited copy of it', () => {
@@ -1042,5 +1044,110 @@ describe('the database chat guard flags a phone number the way it is written', (
       300,
     )
     expect(applied, 'the migration must carry the same body as the baseline').toBe(baseline)
+  })
+})
+
+/* ------------------------------------------------------------------ *
+ * rule 13's exact-berth reveal — `locked_berths` (migration #6)
+ *
+ * The view shipped as a bare `security_invoker` view over `passengers`. Part 7
+ * drops `passengers_match_read`, which leaves `passengers_owner` as the
+ * caller's only surviving policy, so a `security_invoker` view returned each
+ * party their OWN berth and dropped the peer in the join. Executed against
+ * PostgreSQL 18.3: A saw {41}, B saw {52}, a stranger saw {} — the reveal was a
+ * no-op for the only two people it exists for, and every guard in this file
+ * passed while it was. These guards pin the SHAPE of the fix, because the shape
+ * is what was wrong: only a SECURITY DEFINER body can raise its own rights, and
+ * the tempting fix — re-add a broad `passengers` policy — would hand berth
+ * numbers to every signed-in user, which is the leak rule 13 exists to stop.
+ * ------------------------------------------------------------------ */
+describe('locked_berths reveals both berths to the two parties, and nothing to anyone else', () => {
+  const APPLIED6 = '20261009000000_locked_berths_party_reveal.sql'
+  const migration = readFileSync(join(SUPABASE, 'migrations', APPLIED6), 'utf8')
+  const sql = stripSqlComments(migration)
+
+  /** The view statement alone, so no guard can be satisfied by the function. */
+  const viewStmt = (text: string): string => {
+    const clean = stripSqlComments(text)
+    const start = clean.indexOf('CREATE OR REPLACE VIEW public.locked_berths')
+    expect(start, 'the view must exist').toBeGreaterThanOrEqual(0)
+    const end = clean.indexOf(';', start)
+    expect(end, 'the view statement must terminate').toBeGreaterThan(start)
+    return clean.slice(start, end + 1)
+  }
+
+  it('makes the view a thin wrapper, not a join that reads passengers as the caller', () => {
+    const view = viewStmt(SCHEMA)
+    expect(view).toMatch(/SELECT \* FROM public\.get_locked_berths\(\)/i)
+    /* The join is the bug. If it returns to the view, the peer row is filtered
+       by the caller's own RLS again and the reveal silently dies — the exact
+       regression that would look correct in review. */
+    expect(view, 'the view must not join passengers itself').not.toMatch(/JOIN/i)
+    expect(view, 'the view must not read a base table itself').not.toMatch(/FROM public\.swap_/i)
+    expect(view).toMatch(/WITH \(security_invoker = true\)/i)
+  })
+
+  it('does the reveal in a SECURITY DEFINER body that checks party membership itself', () => {
+    expect(sql).toMatch(/CREATE OR REPLACE FUNCTION public\.get_locked_berths\(\)/i)
+    expect(sql).toMatch(/SECURITY DEFINER SET search_path = public/i)
+    expect(sql).toMatch(/is_request_party\(r\.id, auth\.uid\(\)\)/i)
+    /* Both bookings, or the peer is dropped and the reveal is a no-op again —
+       this OR is the half of the fix that returns the OTHER person's berth. */
+    expect(sql).toMatch(
+      /p\.booking_id = r\.booking_id OR p\.booking_id = o\.acceptor_booking_id/i,
+    )
+    /* And only after payment. Dropping this filter would reveal berth numbers
+       for requests that are still merely 'searching', which rule 13 forbids. */
+    expect(sql).toMatch(/r\.status IN \('locked', 'confirmed', 'disputed'\)/i)
+  })
+
+  it('is unreachable to anon and granted only to the two sanctioned roles', () => {
+    expect(sql).toMatch(/REVOKE ALL ON FUNCTION public\.get_locked_berths\(\) FROM PUBLIC;/i)
+    expect(sql).toMatch(
+      /GRANT EXECUTE ON FUNCTION public\.get_locked_berths\(\) TO authenticated, service_role;/i,
+    )
+    expect(sql).not.toMatch(/GRANT[^;]*\banon\b/i)
+  })
+
+  it('projects only coach and berth_no — nothing else from passengers', () => {
+    /* This is the second elevated read in the schema, so it is the second place
+       a privacy leak could be introduced. Rule 13 allows exactly these two
+       berth fields after payment; everything else on `passengers` stays out. */
+    for (const forbidden of [
+      'pnr_hash',
+      'label',
+      'email',
+      'phone',
+      'quota',
+      'is_child_no_berth',
+      'berth_type',
+      'board_code',
+      'drop_code',
+    ]) {
+      expect(sql, `${forbidden} must not reach the reveal`).not.toMatch(new RegExp(forbidden, 'i'))
+    }
+    expect(sql).toMatch(/coach text, berth_no text/i)
+  })
+
+  it('keeps the migration byte-identical to the baseline block', () => {
+    /* The anti-drift guard migration #5 also carries: `schema.sql` is what this
+       file reads as "the schema", so a fixed function there plus a drifted
+       migration would read as fixed while the thing that actually runs is not.
+       Change one and this fails until you change the other. */
+    const TAIL = 'GRANT SELECT ON TABLE public.locked_berths TO authenticated;'
+    const extract = (text: string): string => {
+      const clean = stripSqlComments(text)
+      const start = clean.indexOf('CREATE OR REPLACE FUNCTION public.get_locked_berths()')
+      const end = clean.indexOf(TAIL, start)
+      expect(start, 'the reveal function must exist').toBeGreaterThanOrEqual(0)
+      expect(end, 'the reveal block must terminate').toBeGreaterThan(start)
+      return clean.slice(start, end + TAIL.length)
+    }
+    const baseline = extract(SCHEMA)
+    const applied = extract(migration)
+    expect(baseline.length, 'the extracted block looks too short to be the reveal').toBeGreaterThan(
+      300,
+    )
+    expect(applied, 'the migration must carry the same block as the baseline').toBe(baseline)
   })
 })
