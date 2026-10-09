@@ -59,15 +59,33 @@ export function clashesFor(
   declaration?: LaneDeclaration,
 ): string[]
 
-/** Vendor rows from docs/12 §2 whose status is BENCH/RESERVE/UNCLAIMED, as
- *  [vendor token, status]; an agent never adds one, so the check fails on it. */
-export const FORBIDDEN_VENDORS: [vendor: string, status: string][]
+/** One docs/12 §2 ledger row: vendor name and WIRED/RESERVE/BENCH/UNCLAIMED/PARTIAL. */
+export interface VendorRow {
+  vendor: string
+  status: string
+}
 
-/** Violations of the docs/12 §2 whitelist: one hit per BENCH/RESERVE/UNCLAIMED
- *  vendor SDK found among `dependencies` (by package name) or `specifiers`
- *  (import specifiers found in code). Each hit names the vendor and the row
- *  status that has to move to WIRED before the SDK may ship. */
+/** npm package fragments for vendors that must never ship (docs/12 §2 is the source of truth for statuses). */
+export const VENDOR_PACKAGES: Record<string, string[]>
+
+/** Ledger vendors that are programs, not shippable SDKs. */
+export const NON_PACKAGE_VENDORS: string[]
+
+/**
+ * docs/12 §2 vendor ledger rows. `unknown` holds `vendor: status` pairs with
+ * a status this guard does not understand — reported, never defaulted.
+ */
+export function parseVendorLedger(ledgerText: string): {
+  rows: VendorRow[]
+  unknown: string[]
+}
+
+/** Non-WIRED ledger vendors found in deps/imports, plus unmapped vendors. */
 export function vendorViolations(
-  dependencies?: Record<string, string>,
-  specifiers?: string[],
-): { kind: 'dependency' | 'import'; name: string; vendor: string; status: string }[]
+  ledgerText: string,
+  depNames: string[],
+  importSources: string[],
+): {
+  violations: string[]
+  uncovered: string[]
+}

@@ -363,6 +363,12 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
   **One more defect in the same file, which your note did not mention:** `DRYRUN-OK` was printed *before* the completeness check, so a run that found an unlisted script printed the success token and then exited 1 — the output carries `DRYRUN-OK scripts=2 network=0 writes=0 spend=0.00` on a status-1 run. It now comes last, and the test asserts its ABSENCE on failure.
   **On your closing argument — run the whole suite in the lane gate rather than the file:** agreed, and it is already the rule (`docs/13` lines 95 and 133). What it did not save you is the thing your own note names: the runner drops files under load and still reports success, so a full run and a single file can disagree without either being wrong about the code. Both numbers need their file count checked against `ls app/tests/*.test.*` before either is believed — on this pass the full run reported `55 passed (55)` against `57` on disk, and the two dropped files passed `30/30` on their own.
 
+- 2026-09-30 L9 → L4 (owns `routes/pay.*`): **docs/10 item 7 is yours.**
+  Make Razorpay the single primary gateway for domestic AND international,
+  demote PayPal to fallback path only, update docs/06-PAYMENTS.md to match.
+  Not started by L9: pay routes are L4's surface, and the item changes
+  checkout behavior, not just copy. L9's lane stays infra.
+
 ## Backlog (unclaimed, ready to pull)
 
 1. ~~L1: real app icons, `screenshots/` for install UI, manifest `id/shortcuts/screenshots`.~~ **done 2026-09-28 (L1).** Real icon set (deterministic zero-dependency generator: `scripts/png.mjs` + `scripts/make-icons.mjs` → 192/512/maskable/apple-touch, full-bleed alpha verified); `screenshots/` captured from the real build by `scripts/make-screenshots.mjs` and declared through `pwa.assets.mjs`; manifest gained `id`, two `shortcuts` and `screenshots`, each guarded in `scripts/verify-dist.mjs` (IHDR size, `form_factor`, label, shortcut URL and icon existence).

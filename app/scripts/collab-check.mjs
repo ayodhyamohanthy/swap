@@ -12,7 +12,6 @@
  *                       registered, or the tree names a route that is gone.
  *   4. commit message — shape rule (never empty or a single character).
  *   5. green rule     — typecheck + full test suite, unless --fast.
- *   6. vendor whitelist — docs/12 §2: no BENCH/RESERVE/UNCLAIMED vendor SDK.
  *
  * Correctness of money/copy/schema stays in the vitest suite; this only adds
  * the collaboration and staleness checks the suite cannot see.
@@ -33,7 +32,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
    can exercise them without pulling `node:child_process` into the jsdom pool —
    the mistake that broke test collection for six lanes when `translator-lib.mjs`
    did it (docs/11). */
-import { clashesFor, declaredBy, ownedByLane, parseActiveLanes, parseSurfaces, vendorViolations } from './lane-board.mjs'
+import { clashesFor, declaredBy, ownedByLane, parseActiveLanes, parseSurfaces, parseVendorLedger, vendorViolations } from './lane-board.mjs'
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '..')
 const REPO = join(APP, '..')
@@ -274,72 +273,6 @@ function hookMsgMode(msgFile) {
   process.exit(0)
 }
 
-/* ---- 6. vendor whitelist (docs/12 §2) ----
-   An agent never adds a vendor (docs/12 §2): a BENCH/RESERVE/UNCLAIMED SDK in
-   either package.json, or imported anywhere in the code roots, fails the check
-   with the row that would have to move first. */
-const VENDOR_CODE_ROOTS = () =>
-  [join(APP, 'src'), join(APP, 'functions'), join(APP, 'scripts'), join(REPO, 'server')].filter(
-    (dir) => {
-      try {
-        return statSync(dir).isDirectory()
-      } catch {
-        return false
-      }
-    },
-  )
-
-function importSpecifiers(dir, seen = new Set()) {
-  const specs = []
-  for (const entry of readdirSync(dir)) {
-    const path = join(dir, entry)
-    if (seen.has(path)) continue
-    seen.add(path)
-    if (statSync(path).isDirectory()) {
-      specs.push(...importSpecifiers(path, seen))
-      continue
-    }
-    if (!/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(entry) || /\.d\.ts$/.test(entry)) continue
-    for (const m of readFileSync(path, 'utf8').matchAll(
-      /(?:\bfrom\s*|\bimport\s*|\brequire\s*\(\s*)['"]([^'"]+)['"]/g,
-    )) {
-      specs.push({ where: relative(REPO, path), spec: m[1] })
-    }
-  }
-  return specs
-}
-
-function checkVendors() {
-  head('vendor whitelist (docs/12 §2)')
-  const deps = {}
-  for (const [label, path] of [
-    ['app/package.json', join(APP, 'package.json')],
-    ['package.json', join(REPO, 'package.json')],
-  ]) {
-    try {
-      const pkg = JSON.parse(readFileSync(path, 'utf8'))
-      for (const section of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) {
-        for (const name of Object.keys(pkg[section] ?? {})) deps[name] = label
-      }
-    } catch {
-      /* a repo without a root package.json is fine */
-    }
-  }
-  const imports = []
-  for (const root of VENDOR_CODE_ROOTS()) imports.push(...importSpecifiers(root))
-  const fileOfSpec = new Map()
-  for (const { where, spec } of imports) if (!fileOfSpec.has(spec)) fileOfSpec.set(spec, where)
-  const hits = vendorViolations(deps, imports.map((i) => i.spec))
-  if (hits.length === 0) {
-    ok(`${Object.keys(deps).length} deps, ${imports.length} imports — no BENCH/RESERVE/UNCLAIMED vendor SDK`)
-    return
-  }
-  for (const v of hits) {
-    const where = v.kind === 'dependency' ? deps[v.name] : fileOfSpec.get(v.name)
-    bad(`docs/12 §2: ${v.kind} "${v.name}" in ${where} — ${v.vendor} is ${v.status}; activation needs Ayu moving the row to WIRED`)
-  }
-}
-
 function main() {
   if (has('--hook')) return hookMode()
   const msgFile = valueOf('--hook-msg')
@@ -398,9 +331,32 @@ function main() {
     checkGenerated()
   }
 
-  /* 6. vendor whitelist (docs/12 §2): fail before the green rule so a vendor
-     SDK surfaces even when the suites are slow */
-  if (!has('--staged-only')) checkVendors()
+  /* 4. vendor whitelist (docs/12 §2, build plan L9-5): no RESERVE/BENCH/
+     UNCLAIMED vendor SDK in package.json or app imports. Statuses live in
+     the ledger; lane-board.mjs holds the vendor → package bridge. */
+  head('vendors (docs/12 §2 whitelist)')
+  try {
+    const ledger = readFileSync(join(REPO, 'docs', '12-INFRA-CREDITS.md'), 'utf8')
+    const pkg = JSON.parse(readFileSync(join(APP, 'package.json'), 'utf8'))
+    const depNames = [...Object.keys(pkg.dependencies ?? {}), ...Object.keys(pkg.devDependencies ?? {})]
+    const importSources = []
+    const walkSrc = (dir) => {
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry)
+        if (statSync(full).isDirectory()) { walkSrc(full); continue }
+        if (!/\.[jt]sx?$/.test(entry)) continue
+        const src = readFileSync(full, 'utf8')
+        for (const m of src.matchAll(/from\s+['"]([^'"]+)['"]/g)) importSources.push(m[1])
+      }
+    }
+    walkSrc(join(APP, 'src'))
+    const { violations, uncovered } = vendorViolations(ledger, depNames, importSources)
+    for (const u of uncovered) bad(`vendor ledger status this guard does not understand: ${u}`)
+    if (violations.length === 0) ok('no non-WIRED vendor SDK in dependencies or imports')
+    else for (const v of violations) bad(v)
+  } catch (err) {
+    bad(`vendor check failed to run: ${String(err && err.message ? err.message : err)}`)
+  }
 
   /* 5. green rule */
   if (!SKIP_GREEN) {
