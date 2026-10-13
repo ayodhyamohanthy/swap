@@ -18,6 +18,8 @@ import { GROUP_MAX_SWAPS } from './money'
 import { getGroup, groupForTrip } from './groups'
 import { isBlocked, tripHandle } from './safety'
 import { logActivity, listTrips, getTrip, getSnapshot, isSeen, markSeen, paymentFor, settings, tripRating, activityLog, type AppState, type Trip } from './store'
+import { isValidUuid } from './chat-sync'
+import { getSupabase, isSupabaseConfigured } from './supabase'
 
 export type RequestStatus =
   | 'draft'
@@ -801,6 +803,141 @@ export function revealedBerths(requestId: string): RevealedBerths | null {
     mineNo: mine,
     theirsNo: locked.acceptor_berth_no,
   }
+}
+
+/* ------------------------------------------------------------------ *
+ * Server-side berth reveal (2026-10-09 L8 → L3 request; migration #6).
+ *
+ * `locked_berths` / `get_locked_berths()` is correct since `880f571`, but
+ * this function above builds the Swap summary, chat header and meet screen
+ * entirely from LOCAL device state — and the view had ZERO callers. Same
+ * class as the `get_matches()` gap: the schema is right and the wiring is
+ * missing. This bridge is the wiring, following the `chat-sync.ts`
+ * precedent: async, never throws, keyless stays local.
+ *
+ * Two shapes that look interchangeable but are not, so the names say which
+ * is which. Local ids are `req_<8hex>` (`newId()` below); server
+ * `swap_requests.id` is a uuid, and the local row carries no server id yet
+ * (step-3 sync does not exist). So the bridge takes the SERVER uuid
+ * explicitly — passing a local id queries nothing, and the `isValidUuid`
+ * gate below makes that a named error instead of an empty result that reads
+ * as "no berths". A name is a claim: `serverRequestId` cannot be mistaken
+ * for the local `requestId` this file otherwise means.
+ *
+ * The merge never widens the gate and never guesses. The local lock status
+ * stays the authority (the server cannot reveal for a request this device
+ * does not hold as locked+), a complete local result is returned untouched
+ * (the server fills gaps, never overrides), and the peer is identified by
+ * EXCLUSION — the one row that is not mine — because local rows carry no
+ * booking ids to join on. Zero or two-plus candidates means ambiguity (a
+ * family booking returns every passenger of both bookings), and ambiguity
+ * returns what local knew, never a pick.
+ * ------------------------------------------------------------------ */
+
+/** One row of the `locked_berths` view: both parties' berths, parties only
+    (the view checks `is_request_party` itself and projects only
+    `coach` + `berth_no`, rule 13). */
+export interface LockedBerthRow {
+  request_id: string
+  booking_id: string
+  passenger_id: string
+  coach: string | null
+  berth_no: string | null
+}
+
+export type LockedBerthsClient = NonNullable<Awaited<ReturnType<typeof getSupabase>>>
+
+/** This device's own berth as the merge key. Null when not on the ticket. */
+export interface OwnBerth {
+  coach: string | null
+  no: string
+}
+
+/**
+ * Read the server reveal for a synced swap. Returns `{ rows: [] }` — never
+ * throws — when the id is local-only, no client exists, or the query fails.
+ * Keyless (no override, no env) performs no work at all.
+ */
+export async function fetchLockedBerths(
+  serverRequestId: string,
+  clientOverride?: LockedBerthsClient | null,
+): Promise<{ rows: LockedBerthRow[]; error?: string }> {
+  if (!isValidUuid(serverRequestId)) {
+    return { rows: [], error: 'invalid_uuid' }
+  }
+  const client = clientOverride === undefined ? await getSupabase() : clientOverride
+  if (!client) {
+    return { rows: [], error: 'no_client' }
+  }
+  try {
+    const { data, error } = await client
+      .from('locked_berths')
+      .select('request_id, booking_id, passenger_id, coach, berth_no')
+      .eq('request_id', serverRequestId)
+    if (error) {
+      return { rows: [], error: error.message }
+    }
+    return { rows: (data ?? []) as LockedBerthRow[] }
+  } catch (err) {
+    return { rows: [], error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+function compositeBerth(coach: string | null, no: string): string {
+  return coach ? `${coach} · ${no}` : no
+}
+
+/**
+ * Pure merge of server rows into a local reveal. Exported so the no-guess
+ * rule is pinnable directly: local complete wins, mine unknown or an
+ * ambiguous peer set keeps what local knew (usually null).
+ */
+export function mergeServerBerths(
+  local: RevealedBerths | null,
+  rows: LockedBerthRow[],
+  mine: OwnBerth | null,
+): RevealedBerths | null {
+  if (local) return local
+  if (!mine) return null
+  const candidates = rows.filter(
+    (row) => row.berth_no && !(row.berth_no === mine.no && (row.coach ?? null) === (mine.coach ?? null)),
+  )
+  if (candidates.length !== 1) return null
+  const peer = candidates[0]
+  const theirsNo = peer.berth_no as string
+  return {
+    mine: compositeBerth(mine.coach, mine.no),
+    theirs: compositeBerth(peer.coach, theirsNo),
+    coach: peer.coach,
+    mineNo: mine.no,
+    theirsNo,
+  }
+}
+
+/**
+ * Async reveal: the local result, server-filled when local knows the lock
+ * but not the peer's berth (e.g. status synced, offer details missing).
+ * Keyless outcome is identical to `revealedBerths()` — null stays null —
+ * because every server-dependent branch falls through to it.
+ */
+export async function revealedBerthsAsync(
+  requestId: string,
+  serverRequestId?: string,
+  clientOverride?: LockedBerthsClient | null,
+): Promise<RevealedBerths | null> {
+  const local = revealedBerths(requestId)
+  if (local) return local
+  const request = getRequest(requestId)
+  if (!request) return null
+  if (request.status !== 'locked' && request.status !== 'confirmed' && request.status !== 'disputed') {
+    return null
+  }
+  if (!serverRequestId) return null
+  if (!isSupabaseConfigured() && clientOverride === undefined) return null
+  const { rows } = await fetchLockedBerths(serverRequestId, clientOverride)
+  if (rows.length === 0) return null
+  const own = getTrip(request.trip_id)?.passengers.find((p) => p.berth_no)
+  return mergeServerBerths(null, rows, own ? { coach: own.coach ?? null, no: own.berth_no as string } : null)
 }
 
 export function offersWithStatus(status: OfferStatus): SwapOffer[] {

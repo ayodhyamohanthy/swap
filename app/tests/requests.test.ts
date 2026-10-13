@@ -10,22 +10,32 @@ import {
   acceptOffer,
   createRequest,
   declineOffer,
+  fetchLockedBerths,
   getRequest,
   incomingFor,
   lockRequest,
   matchesFor,
+  mergeServerBerths,
   offersFor,
   receivedToday,
   resetRequests,
   respondToIncoming,
   revealedBerths,
+  revealedBerthsAsync,
   sendCapped,
   sendRequest,
   sentToday,
   setRequestPaused,
   withdrawRequest,
+  type LockedBerthRow,
+  type LockedBerthsClient,
 } from '@/lib/requests'
 import { activityLog, addTrip, creditPaise, resetStore, setOpenToSwap, updateSettings, type Trip } from '@/lib/store'
+
+/* node: modules come via getBuiltinModule — a static `import 'node:fs'` is
+   mangled by Vite's browser-compat externalization under the jsdom pool. */
+const { readFileSync } = process.getBuiltinModule('node:fs') as typeof import('node:fs')
+const { join } = process.getBuiltinModule('node:path') as typeof import('node:path')
 
 const DAY = '2026-11-12'
 
@@ -294,6 +304,225 @@ describe('revealedBerths (rule 13: exact berths only after payment)', () => {
 
   it('returns null for a missing request', () => {
     expect(revealedBerths('nope')).toBeNull()
+  })
+})
+
+/* Server-side reveal reader (2026-10-09 L8 → L3 request; migration #6).
+   The view had zero callers; these pin the bridge, the no-guess merge, and
+   the fact that keyless outcomes stay identical to revealedBerths(). No test
+   here touches the network: the client is always an override stub, and the
+   keyless cases assert no client is needed at all. */
+
+const SERVER_UUID = '123e4567-e89b-12d3-a456-426614174000'
+
+const MINE_ROW: LockedBerthRow = {
+  request_id: SERVER_UUID,
+  booking_id: 'b1111111-1111-4111-8111-111111111111',
+  passenger_id: 'p1111111-1111-4111-8111-111111111111',
+  coach: 'B3',
+  berth_no: '27',
+}
+const PEER_ROW: LockedBerthRow = {
+  request_id: SERVER_UUID,
+  booking_id: 'b2222222-2222-4222-8222-222222222222',
+  passenger_id: 'p2222222-2222-4222-8222-222222222222',
+  coach: 'B4',
+  berth_no: '41',
+}
+
+/** Records the query shape so a wrong table/column/filter fails by name. */
+function stubClient(calls: string[], result: { data: unknown[] | null; error: { message: string } | null } | Error) {
+  return {
+    from: (table: string) => {
+      calls.push(`from:${table}`)
+      return {
+        select: (cols: string) => {
+          calls.push(`select:${cols}`)
+          return {
+            eq: async (col: string, val: unknown) => {
+              calls.push(`eq:${col}=${val}`)
+              if (result instanceof Error) throw result
+              return result
+            },
+          }
+        },
+      }
+    },
+  } as unknown as LockedBerthsClient
+}
+
+/** Locked locally with the peer berth missing — the gap the server fills. */
+async function seedLockedWithUnknownPeer() {
+  const { mine } = await seed()
+  const request = createRequest({ trip_id: mine.id, choices: ['UB'] })
+  sendRequest(request.id)
+  const offer = offersFor(request.id)[0]
+  offer.acceptor_berth_no = null
+  acceptOffer(offer.id)
+  lockRequest(request.id)
+  return request
+}
+
+describe('fetchLockedBerths (migration #6 server reader)', () => {
+  it('refuses a local id without touching the client', async () => {
+    const calls: string[] = []
+    const res = await fetchLockedBerths('req_1', stubClient(calls, { data: [], error: null }))
+    expect(res).toEqual({ rows: [], error: 'invalid_uuid' })
+    expect(calls).toEqual([])
+  })
+
+  it('reports no_client when keyless — no work, no network', async () => {
+    expect(await fetchLockedBerths(SERVER_UUID, null)).toEqual({ rows: [], error: 'no_client' })
+    expect(await fetchLockedBerths(SERVER_UUID)).toEqual({ rows: [], error: 'no_client' })
+  })
+
+  it('reads both berths through the locked_berths view', async () => {
+    const calls: string[] = []
+    const res = await fetchLockedBerths(
+      SERVER_UUID,
+      stubClient(calls, { data: [MINE_ROW, PEER_ROW], error: null }),
+    )
+    expect(res.error).toBeUndefined()
+    expect(res.rows).toEqual([MINE_ROW, PEER_ROW])
+    expect(calls).toEqual([
+      'from:locked_berths',
+      'select:request_id, booking_id, passenger_id, coach, berth_no',
+      `eq:request_id=${SERVER_UUID}`,
+    ])
+  })
+
+  it('returns the database error instead of throwing', async () => {
+    const calls: string[] = []
+    const res = await fetchLockedBerths(
+      SERVER_UUID,
+      stubClient(calls, { data: null, error: { message: 'denied' } }),
+    )
+    expect(res).toEqual({ rows: [], error: 'denied' })
+  })
+
+  it('catches a throwing client', async () => {
+    const res = await fetchLockedBerths(SERVER_UUID, stubClient([], new Error('boom')))
+    expect(res).toEqual({ rows: [], error: 'boom' })
+  })
+})
+
+describe('mergeServerBerths (fills gaps, never guesses)', () => {
+  const COMPLETE = {
+    mine: 'B3 · 27',
+    theirs: 'B4 · 41',
+    coach: 'B4',
+    mineNo: '27',
+    theirsNo: '41',
+  }
+
+  it('returns a complete local result untouched', () => {
+    expect(mergeServerBerths(COMPLETE, [MINE_ROW, PEER_ROW], null)).toBe(COMPLETE)
+  })
+
+  it('returns null when mine is unknown — two rows and no way to choose', () => {
+    expect(mergeServerBerths(null, [MINE_ROW, PEER_ROW], null)).toBeNull()
+  })
+
+  it('returns null when the peer set is ambiguous', () => {
+    const third: LockedBerthRow = { ...PEER_ROW, passenger_id: 'p3333333-3333-4333-8333-333333333333', berth_no: '42' }
+    expect(
+      mergeServerBerths(null, [MINE_ROW, PEER_ROW, third], { coach: 'B3', no: '27' }),
+    ).toBeNull()
+  })
+
+  it('fills the peer by exclusion and formats like the local reveal', () => {
+    expect(mergeServerBerths(null, [MINE_ROW, PEER_ROW], { coach: 'B3', no: '27' })).toEqual({
+      mine: 'B3 · 27',
+      theirs: 'B4 · 41',
+      coach: 'B4',
+      mineNo: '27',
+      theirsNo: '41',
+    })
+  })
+
+  it('renders a coach-less peer berth bare, like the local reveal', () => {
+    const coachless: LockedBerthRow = { ...PEER_ROW, coach: null }
+    expect(mergeServerBerths(null, [MINE_ROW, coachless], { coach: 'B3', no: '27' })).toEqual({
+      mine: 'B3 · 27',
+      theirs: '41',
+      coach: null,
+      mineNo: '27',
+      theirsNo: '41',
+    })
+  })
+})
+
+describe('revealedBerthsAsync (server fills the gap local cannot)', () => {
+  beforeEach(() => {
+    resetStore()
+    resetRequests()
+  })
+
+  it('names the locked_berths view so the server path cannot silently break', () => {
+    const source = readFileSync(join(import.meta.dirname, '..', 'src', 'lib', 'requests.ts'), 'utf8')
+    expect(source).toContain('locked_berths')
+    expect(source).toContain('fetchLockedBerths')
+  })
+
+  it('returns the local result without consulting the server', async () => {
+    const { mine } = await seed()
+    const request = createRequest({ trip_id: mine.id, choices: ['UB'] })
+    sendRequest(request.id)
+    acceptOffer(offersFor(request.id)[0].id)
+    lockRequest(request.id)
+    const throwing = stubClient([], new Error('must not query'))
+    await expect(revealedBerthsAsync(request.id, SERVER_UUID, throwing)).resolves.toEqual(
+      revealedBerths(request.id),
+    )
+  })
+
+  it('fills the peer berth from server rows when local lacks it', async () => {
+    const request = await seedLockedWithUnknownPeer()
+    expect(revealedBerths(request.id)).toBeNull()
+    const res = await revealedBerthsAsync(
+      request.id,
+      SERVER_UUID,
+      stubClient([], { data: [MINE_ROW, PEER_ROW], error: null }),
+    )
+    expect(res).toEqual({
+      mine: 'B3 · 27',
+      theirs: 'B4 · 41',
+      coach: 'B4',
+      mineNo: '27',
+      theirsNo: '41',
+    })
+  })
+
+  it('stays null when the server has nothing — identical to the sync result', async () => {
+    const request = await seedLockedWithUnknownPeer()
+    const res = await revealedBerthsAsync(
+      request.id,
+      SERVER_UUID,
+      stubClient([], { data: [], error: null }),
+    )
+    expect(res).toBeNull()
+  })
+
+  it('stays null before payment even with rows — the server never widens the gate', async () => {
+    const { mine } = await seed()
+    const request = createRequest({ trip_id: mine.id, choices: ['UB'] })
+    sendRequest(request.id)
+    const res = await revealedBerthsAsync(
+      request.id,
+      SERVER_UUID,
+      stubClient([], { data: [MINE_ROW, PEER_ROW], error: null }),
+    )
+    expect(res).toBeNull()
+  })
+
+  it('stays null keyless — identical to the sync result, no client needed', async () => {
+    const request = await seedLockedWithUnknownPeer()
+    await expect(revealedBerthsAsync(request.id)).resolves.toBeNull()
+    await expect(revealedBerthsAsync(request.id, SERVER_UUID)).resolves.toBeNull()
+  })
+
+  it('stays null for a missing request', async () => {
+    await expect(revealedBerthsAsync('nope', SERVER_UUID, stubClient([], { data: [MINE_ROW], error: null }))).resolves.toBeNull()
   })
 })
 
