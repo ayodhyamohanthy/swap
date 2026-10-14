@@ -19,7 +19,20 @@ const CASH_WORDS =
 const HINGLISH_WORDS =
   /\b(khareed|kharid|bech|bhej|paise|paisa|nakad|nagad|nagdi|phone\s*pe)\b/i
 /* Devanagari money verbs. No \b — it is ASCII-only — so these are plain
-   substring matches; every entry is money-specific, never a common word. */
+   substring matches; every entry is money-specific, never a common word.
+
+   KNOWN LIMITATION, deliberately not papered over: this list is the only one
+   matched against raw text alone, and it stays that way because `squishEvasion`
+   is ASCII-only BY CONSTRUCTION — its letter class is `[A-Za-z]` in both
+   copies — so it cannot collapse a spaced Devanagari run even if asked to. That
+   is a bounded gap, not an oversight: a Hindi speaker evading the guard writes
+   Latin transliteration (`bhej`, `paise`), which is what HINGLISH_WORDS covers
+   and what now gets squished. Writing `प ै स े` means orphaning the matras —
+   nobody types that. Widening the squisher to `\p{L}` here would also mean
+   matching it with a locale-dependent class in Postgres, i.e. manufacturing a
+   NEW divergence in the name of closing a theoretical one.
+   `chat-parity-differential.mjs` carries the case, marked `known`, so the gap
+   is reported on every run instead of living only in this comment. */
 const HINDI_WORDS = /नकद|पैसे|पैसा|यूपीआई|यूपीआय|खरीद|बेच|फोन\s*पे/
 
 const LEET: Record<string, string> = { '@': 'a', $: 's', '0': 'o', '1': 'l' }
@@ -102,10 +115,20 @@ export function guardMessage(text: unknown): GuardResult {
   if (UPI_ID.test(value)) reasons.push('upi_id')
   if (PHONE.test(value) || PHONE.test(digitsFromWords(value))) reasons.push('phone')
   const squished = squishEvasion(value)
+  /* The normalisers are applied to BOTH word lists that can be evaded in Latin
+     script. Until 2026-10-14 only CASH_WORDS was tested against `squished`, so
+     every Hinglish evasion — `b h e j`, `p a i s e`, `p@ise`, `b-h-e-j` — was
+     called clean by BOTH copies of the guard, and the differential harness
+     reported them as *agreeing*, because both were equally blind. Nine cases,
+     measured (backlog 17). `squished` is a superset of the raw text for these
+     words, so this can only add matches, never remove one; the three
+     `ordinary:no-hinglish-collapse` cases below pin that it adds no false ones.
+     HINDI_WORDS is the deliberate exception — see its comment above. */
   if (
     CASH_WORDS.test(value) ||
     CASH_WORDS.test(squished) ||
     HINGLISH_WORDS.test(value) ||
+    HINGLISH_WORDS.test(squished) ||
     HINDI_WORDS.test(value)
   ) {
     reasons.push('cash_words')

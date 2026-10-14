@@ -25,6 +25,7 @@
 const { readFileSync } = process.getBuiltinModule('node:fs') as typeof import('node:fs')
 const { join } = process.getBuiltinModule('node:path') as typeof import('node:path')
 import { describe, expect, it } from 'vitest'
+import { stripSqlComments } from '../scripts/staging-lib.mjs'
 
 const APP = join(import.meta.dirname, '..')
 const ts = readFileSync(join(APP, 'src', 'lib', 'chat-guard.ts'), 'utf8')
@@ -69,15 +70,23 @@ function normalise(word: string): string {
     .trim()
 }
 
-/* The guard's own body, not the whole file. Checking the whole schema made
- * this pass vacuously: a first version searched all of `schema.sql`, where the
- * words also appear in a *comment* explaining this very bug — so deleting the
- * real pattern left the test green. Only the executable `IF` matters. */
+/* The guard's own body, not the whole file — AND with its comments stripped.
+ *
+ * Checking the whole schema made this pass vacuously: a first version searched
+ * all of `schema.sql`, where the words also appear in a *comment* explaining
+ * this very bug, so deleting the real pattern left the test green. Slicing to
+ * the function body fixed that at the FILE level, but the explanatory prose
+ * lives INSIDE the body, so the vacuity survived one level down: `bhej` occurs
+ * in the line "so 'bhej do paise' … passed", so a substring check over the raw
+ * slice stayed GREEN with `bhej` deleted from the real alternation. Found by
+ * mutation (`mutate-chatguard8.mjs`, drop-one-word-from-the-hinglish-vocabulary,
+ * SURVIVED), not by reading — which is the whole reason that harness exists.
+ * Only the executable SQL counts. */
 const TRIGGER = (() => {
   const start = sql.indexOf('CREATE OR REPLACE FUNCTION public.check_message_safety()')
   const end = sql.indexOf('DROP TRIGGER IF EXISTS messages_safety_guard', start)
   if (start < 0 || end < 0) return ''
-  return sql.slice(start, end)
+  return stripSqlComments(sql.slice(start, end))
 })()
 
 function triggerHas(word: string): boolean {
@@ -123,6 +132,22 @@ describe('the SQL chat-safety trigger covers what the TS guard covers', () => {
        the intent. */
     expect(sql).toMatch(/Mirrors lib\/chat-guard\.ts/)
   })
+
+  it('is not satisfiable by the explanatory prose inside the function', () => {
+    /* The vacuity that hid this hole for a whole pass. `triggerHas` is a
+       substring match over the guard body, and that body's own comment says
+       "so 'bhej do paise' … passed" — so deleting `bhej` from the real
+       alternation left every vocabulary test GREEN, satisfied by a sentence
+       describing the bug it was supposed to catch. A probe that exists ONLY in
+       prose is the only way to assert the difference: `Meetmenear` is the
+       naive-collapse example from the sentinel paragraph and appears nowhere in
+       executable SQL. */
+    expect(TRIGGER.includes('Meetmenear'), 'comment prose must not be searchable').toBe(false)
+    expect(TRIGGER, 'the executable body must survive comment stripping').toContain(
+      'flagged_risky',
+    )
+    expect(TRIGGER, 'and the real alternation must still be there').toContain('khareed')
+  })
 })
 
 /* ------------------------------------------------------------------ *
@@ -141,6 +166,7 @@ describe('the SQL guard carries the evasion half, and the shipped shapes behave'
   const quoted = (line: string): string => line.match(/'([^']+)'/)?.[1] ?? ''
 
   const CASH_SOURCE = quoted(lineWith('(cash|upi|gpay'))
+  const HINGLISH_SOURCE = quoted(lineWith('(khareed|'))
   const SQUISH_SOURCE = quoted(lineWith('(?<=[^A-Za-z][A-Za-z])'))
   const LEET = lineWith('translate(v_squished').match(/'([^']+)', '([^']+)'/)
   const DIGIT_WORDS = Object.fromEntries(
@@ -150,6 +176,15 @@ describe('the SQL guard carries the evasion half, and the shipped shapes behave'
     ]),
   )
   const cashRe = new RegExp(CASH_SOURCE.replace(/\\y/g, '\\b'), 'i')
+  const hinglishRe = new RegExp(HINGLISH_SOURCE.replace(/\\y/g, '\\b'), 'i')
+
+  /* Whether each copy applies its normaliser to a given vocabulary. This is the
+     pair of predicates behind the cross-copy invariant below: the danger is not
+     "the SQL forgot" or "the TS forgot", it is the two drifting apart, and a
+     per-copy assertion cannot see that. */
+  const tsSquished = (name: string): boolean => ts.includes(`${name}.test(squished)`)
+  const sqlSquished = (marker: string): boolean =>
+    TRIGGER.split('\n').some((l) => l.includes('v_squished ~*') && l.includes(marker))
 
   /** `squishEvasion()`, driven by the pattern the SQL actually ships. */
   function squish(text: string): string {
@@ -239,5 +274,65 @@ describe('the SQL guard carries the evasion half, and the shipped shapes behave'
     expect(TRIGGER, 'the one-character-local-part shape must be gone').not.toMatch(
       /\[a-z0-9\._-\]\+@\[a-z\]\+/,
     )
+  })
+
+  it('squishes the Hinglish list too, in BOTH copies', () => {
+    /* Migration #8 / backlog 17. The normalisers existed and worked; they were
+       wired to the English list only, in BOTH copies, so `b h e j` came out
+       clean on both sides and the differential reported it as *agreement*.
+       Nine cases, measured. Asserted per copy on purpose: "both raw-only" is
+       also internally consistent, so the cross-copy invariant below cannot tell
+       agreeing-correctly apart from agreeing-on-the-wrong-answer. */
+    expect(tsSquished('HINGLISH_WORDS'), 'the TS guard must squish the Hinglish list').toBe(true)
+    expect(sqlSquished('(khareed|'), 'the SQL guard must squish the Hinglish list').toBe(true)
+  })
+
+  it('applies the normalisers to the same vocabularies in both copies', () => {
+    /* The drift class rather than the instance: whichever list is squished on
+       one side must be squished on the other. HINDI is currently raw-only in
+       both, which is a recorded decision and not an oversight — the squisher is
+       ASCII-only, so it cannot reach spaced Devanagari (see the HINDI_WORDS
+       comment in chat-guard.ts). That is acceptable precisely BECAUSE it is the
+       same on both sides. Change one and this fails until you change the other,
+       which is the point: the original defect was an asymmetry, not a gap. */
+    expect(sqlSquished('(cash|upi'), 'CASH must be squished on both sides').toBe(
+      tsSquished('CASH_WORDS'),
+    )
+    expect(sqlSquished('(khareed|'), 'HINGLISH must be squished on both sides').toBe(
+      tsSquished('HINGLISH_WORDS'),
+    )
+    expect(sqlSquished('नकद'), 'HINDI must be squished on both sides').toBe(
+      tsSquished('HINDI_WORDS'),
+    )
+  })
+
+  it('catches an evaded Hinglish word through the shipped pattern', () => {
+    /* Driven by the SQL's own squisher and the SQL's own Hinglish alternation,
+       so a rewrite is re-evaluated rather than matched. The raw assertion is
+       what makes this a test of the FIX rather than of the word list: these
+       strings do not match raw, which is exactly why the evasion worked. */
+    for (const text of [
+      'b h e j it to me',
+      'p a i s e de do',
+      'n a k a d de do',
+      'b-h-e-j it to me',
+    ]) {
+      expect(hinglishRe.test(text), `"${text}" must NOT match raw — that is the evasion`).toBe(
+        false,
+      )
+      expect(hinglishRe.test(squish(text)), `"${text}" must match once squished`).toBe(true)
+    }
+    expect(hinglishRe.test(squish('p@ise de do')), 'leet must decode into a Hinglish match').toBe(
+      true,
+    )
+  })
+
+  it('does not manufacture a Hinglish match out of ordinary chat', () => {
+    /* The mirror-image risk of widening the match. These are ordinary sentences
+       that contain spaced single letters, and they must stay clean — otherwise
+       the fix trades a missed warning for a false one. */
+    for (const text of ['Meet me near the b h board', 'I will be there', 'phone me later']) {
+      expect(hinglishRe.test(squish(text)), `"${text}" must stay clean`).toBe(false)
+    }
   })
 })

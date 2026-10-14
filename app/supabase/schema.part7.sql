@@ -309,6 +309,28 @@ BEGIN
   -- The UPI shape also came down one notch to match: TS wants two characters
   -- before the `@`, this wanted one, so `pay a@okaxis` was flagged here and not
   -- on the device. The TS shape is the reviewed spec.
+  --
+  -- A FOURTH gap, found 2026-10-14 and fixed here and in the TS guard in the
+  -- same change: the normalisers above were wired to the ENGLISH list only.
+  -- CASH_WORDS was tested against both NEW.text and v_squished, but HINGLISH
+  -- was tested against NEW.text alone — so every Hinglish evasion (`b h e j`,
+  -- `p a i s e`, `p@ise`, `b-h-e-j`) was stored flagged_risky = false while
+  -- ALSO being called clean by the client guard, and the differential reported
+  -- them as AGREEING. That is the failure mode a differential cannot see by
+  -- itself: agreement is not correctness, and nine cases were agreeing on the
+  -- wrong answer. Measured before the fix: 9 shared-blind, 0 dangerous.
+  -- v_squished is a superset of the raw text for these words, so testing the
+  -- HINGLISH list against it can only ADD matches, never remove one.
+  --
+  -- The Devanagari list stays raw-ONLY, and that is a bounded decision rather
+  -- than an oversight. v_squished collapses ASCII letters only — the lookbehind
+  -- and lookahead are [A-Za-z] — so it cannot squish a spaced Devanagari run
+  -- even if asked to. A Hindi speaker evading writes Latin transliteration,
+  -- which the HINGLISH list covers; `प ै स े` orphans the matras and nobody
+  -- types it. Widening the class to [[:alpha:]] would make the SQL and JS
+  -- squishers differ by LOCALE, i.e. trade a theoretical gap for a real
+  -- divergence. chat-parity-differential.mjs carries the case marked `known`,
+  -- so the gap is reported on every run instead of living in this comment.
   v_squished := '[' || NEW.text || ']';
   v_squished := regexp_replace(
     v_squished, '(?<=[^A-Za-z][A-Za-z])[\s\-·•._]+(?=[A-Za-z][^A-Za-z])', '', 'g');
@@ -336,6 +358,7 @@ BEGIN
     OR NEW.text ~* '\y(cash|upi|gpay|phonepe|paytm|pay\s?me|send\s+(me\s+)?money|transfer|account\s*(no|number|detail)|ifsc|qr(\s*code)?|bribe|tip\s*(me|us)?|extra\s*(money|cash|charge|fee|payment)|sell|buy|charge\s*(extra|more))\y'
     OR v_squished ~* '\y(cash|upi|gpay|phonepe|paytm|pay\s?me|send\s+(me\s+)?money|transfer|account\s*(no|number|detail)|ifsc|qr(\s*code)?|bribe|tip\s*(me|us)?|extra\s*(money|cash|charge|fee|payment)|sell|buy|charge\s*(extra|more))\y'
     OR NEW.text ~* '\y(khareed|kharid|bech|bhej|paise|paisa|nakad|nagad|nagdi|phone\s*pe)\y'
+    OR v_squished ~* '\y(khareed|kharid|bech|bhej|paise|paisa|nakad|nagad|nagdi|phone\s*pe)\y'
     OR NEW.text ~ 'नकद|पैसे|पैसा|यूपीआई|यूपीआय|खरीद|बेच|फोन\s*पे'
   THEN
     NEW.flagged_risky := true;

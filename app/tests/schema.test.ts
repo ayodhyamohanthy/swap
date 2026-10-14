@@ -605,6 +605,7 @@ describe('get_matches is applied as migration #2, not left as a proposal', () =>
   const APPLIED5 = '20261006020000_chat_guard_phone_parity.sql'
   const APPLIED6 = '20261009000000_locked_berths_party_reveal.sql'
   const APPLIED7 = '20261009010000_chat_guard_evasion_parity.sql'
+  const APPLIED8 = '20261014000000_chat_guard_hinglish_evasion.sql'
   const migration = readFileSync(join(MIGRATIONS, APPLIED), 'utf8')
   const proposal = readFileSync(
     join(import.meta.dirname, '..', 'azure', 'load', 'get-matches.spec-part2.sql'),
@@ -632,9 +633,11 @@ describe('get_matches is applied as migration #2, not left as a proposal', () =>
     expect(ordered[3].file, 'signup rows stay migration #4').toBe(APPLIED4)
     expect(ordered[4].file, 'chat-guard parity stays migration #5').toBe(APPLIED5)
     expect(ordered[5].file, 'the berth reveal stays migration #6').toBe(APPLIED6)
-    expect(ordered[ordered.length - 1].file, 'chat-guard evasion parity is migration #7').toBe(
-      APPLIED7,
-    )
+    expect(ordered[6].file, 'chat-guard evasion parity stays migration #7').toBe(APPLIED7)
+    expect(
+      ordered[ordered.length - 1].file,
+      'squishing the HINGLISH list is migration #8',
+    ).toBe(APPLIED8)
   })
 
   it('applies the reviewed proposal rather than an edited copy of it', () => {
