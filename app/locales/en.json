@@ -667,6 +667,8 @@
     "pauseBody": "You will not get new requests while paused.",
     "max": "Most requests per day",
     "maxBody": "How many new requests you can get each day.",
+    "maxFewer": "Fewer requests a day",
+    "maxMore": "More requests a day",
     "saved": "Saved."
   },
   "help": {

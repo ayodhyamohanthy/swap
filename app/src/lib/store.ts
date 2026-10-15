@@ -585,6 +585,17 @@ export function settings(): LocalSettings {
   return snapshot.settings
 }
 
+/* Bounds for the acceptor's daily request cap (docs/04 B2; docs/03 sets the
+   default at 3). The Settings stepper disables at both ends; this clamp is the
+   second line for any writer that is not the stepper. */
+export const MAX_REQUESTS_PER_DAY_MIN = 1
+export const MAX_REQUESTS_PER_DAY_MAX = 10
+
+export function clampMaxRequestsPerDay(n: number): number {
+  if (!Number.isFinite(n)) return defaultSettings().max_requests_per_day
+  return Math.min(MAX_REQUESTS_PER_DAY_MAX, Math.max(MAX_REQUESTS_PER_DAY_MIN, Math.round(n)))
+}
+
 export function updateSettings(patch: Partial<LocalSettings>): LocalSettings {
   const next = { ...snapshot.settings, ...patch }
   commit({ ...snapshot, settings: next })

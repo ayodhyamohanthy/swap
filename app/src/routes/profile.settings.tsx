@@ -1,12 +1,19 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import type { RouteChrome } from '@/components/app-shell'
+import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/lib/i18n'
 import { consentGranted, setConsent, startForwarding } from '@/lib/posthog'
-import { logActivity, updateSettings } from '@/lib/store'
+import {
+  clampMaxRequestsPerDay,
+  logActivity,
+  MAX_REQUESTS_PER_DAY_MAX,
+  MAX_REQUESTS_PER_DAY_MIN,
+  updateSettings,
+} from '@/lib/store'
 import { disablePushSubscription, ensurePushSubscription } from '@/lib/push'
 import { useSettings } from '@/lib/use-store'
 
@@ -85,12 +92,52 @@ function SettingsScreen() {
         checked={settings.paused}
         onChange={(next) => save({ paused: next })}
       />
-      <Row
-        title={t('settings.max')}
-        body={t('settings.maxBody')}
-        checked={settings.max_requests_per_day > 3}
-        onChange={(next) => save({ max_requests_per_day: next ? 10 : 3 }, t('settings.saved'))}
-      />
+      {/* docs/04 B2 makes the daily cap a number (docs/03 default 3), so it
+          is a stepper, not a switch: the copy asks "how many", and an on/off
+          that quietly meant 3-or-10 could never answer it. */}
+      <Card className="flex items-center gap-3">
+        <span className="flex-1">
+          <b className="block font-head text-body text-ink">{t('settings.max')}</b>
+          <span className="block text-caption text-muted">{t('settings.maxBody')}</span>
+        </span>
+        <span className="flex items-center gap-1">
+          <Button
+            variant="neutral"
+            size="icon"
+            aria-label={t('settings.maxFewer')}
+            disabled={settings.max_requests_per_day <= MAX_REQUESTS_PER_DAY_MIN}
+            onClick={() =>
+              save(
+                { max_requests_per_day: clampMaxRequestsPerDay(settings.max_requests_per_day - 1) },
+                t('settings.saved'),
+              )
+            }
+          >
+            −
+          </Button>
+          <b
+            className="w-7 text-center font-head text-section text-ink"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {settings.max_requests_per_day}
+          </b>
+          <Button
+            variant="neutral"
+            size="icon"
+            aria-label={t('settings.maxMore')}
+            disabled={settings.max_requests_per_day >= MAX_REQUESTS_PER_DAY_MAX}
+            onClick={() =>
+              save(
+                { max_requests_per_day: clampMaxRequestsPerDay(settings.max_requests_per_day + 1) },
+                t('settings.saved'),
+              )
+            }
+          >
+            +
+          </Button>
+        </span>
+      </Card>
       <Row
         title={t('alerts.title')}
         body={t('alerts.note')}
