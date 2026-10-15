@@ -61,3 +61,6 @@ Domain (currently planned: toyoufromme.website), example names (Arjun, Priya, Ri
 
 ## L3 — isolated correctness repair (Forge)
 - [x] Reject missing/unreadable backend state and forged group-coverage fallback; add behavioural regressions, preserve no-backend demos. Verified 967 tests across 68 files, typecheck and build.
+
+## L9 — owner-authorized isolated backend staging (2026-10-16)
+- [x] Add readiness-only swap-backend-staging runtime and exact account/target deployment guard; no payment effects, secrets, frontend cutover or production writes. Typecheck, 1008 tests, build and collaboration gates pass. Functional backend remains blocked on the separately verified staging Supabase setup and transactional server/payment executors described in docs/cloudflare.md.

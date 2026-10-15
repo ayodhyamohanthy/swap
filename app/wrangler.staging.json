@@ -1,0 +1,8 @@
+{
+  "name": "swap-backend-staging",
+  "account_id": "71102e7a2d820fb4ca21119099163dfc",
+  "main": "src/staging-worker.ts",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "preview_urls": false
+}

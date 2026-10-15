@@ -821,3 +821,7 @@ The owner subsequently authorized a direct `main` push of the verified repair. T
 Cloudflare inventory documentation claim, 2026-10-16. L9 released by Kat inventory agent after completing docs/cloudflare.md and this lane record. Inventory and plan only under explicit owner request. No deployment, push, resources, DNS, secrets, environment changes or existing asset renames. The root AGENTS.md pointer is unresolved on this case-sensitive checkout; docs/AGENTS.md and root agents.md were read instead.
 
 Validation for this docs-only inventory passed typecheck, 975 tests across 70 files, build with verify-dist, and collab-check with one warning. No push or infrastructure action. Account IDs, live deployment, credits and backup recoverability remain unverified without scoped access.
+
+## Swap isolated staging runtime (2026-10-16)
+
+L9 released: Kat staging agent, 2026-10-16. Readiness-only runtime and exact-target guard complete; 1008 tests/typecheck/build/collaboration checks passed. Owner-authorized narrow deployment task: app/scripts/swap-staging-deploy.mjs, app/scripts/swap-staging-deploy.d.mts, app/wrangler.staging.json, app/src/staging-worker.ts, app/tests/swap-staging.test.ts and docs/cloudflare.md. No edits to existing Worker/router, frontend, Supabase schema or production config. New runtime is readiness-only and fails closed until backend dependencies and executors are verified.
