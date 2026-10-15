@@ -320,13 +320,16 @@ export async function resolveCaller(client: SupaClient | null, fallbackId: strin
     that cannot answer gets a refusal. */
 export async function refetchRow<T>(
   client: SupaClient | null, table: string, id: string, fallback: T,
-): Promise<T> {
+): Promise<T | null> {
   if (!client) return fallback
-  const query = (client.from(table).select('*').eq('id', id).single() as unknown as Promise<{ data: T | null; error: unknown }>)
-  const { data, error } = await query
-  if (data) return data
-  if (!error) return fallback
-  throw new SwapError('state_unreadable')
+  try {
+    const query = (client.from(table).select('*').eq('id', id).single() as unknown as Promise<{ data: T | null; error: unknown }>)
+    const { data, error } = await query
+    if (error) throw new SwapError('state_unreadable')
+    return data
+  } catch {
+    throw new SwapError('state_unreadable')
+  }
 }
 
 async function persistTransition(
@@ -355,6 +358,7 @@ export const sendRequest = createServerFn({ method: 'POST' })
     const client = await getSupabase()
     const callerId = await resolveCaller(client, data.callerId)
     const request = await refetchRow(client, 'swap_requests', data.request.id, data.request)
+    if (!request) throw new SwapError('request_not_found')
     const next = applySendRequest(request, callerId, { booking_id: data.booking_id })
     const { persisted } = await persistTransition('swap_requests', data.request.id, { status: next.status }, next.activity)
     return { status: next.status, activity: next.activity, persisted }
@@ -366,7 +370,9 @@ export const acceptOffer = createServerFn({ method: 'POST' })
     const client = await getSupabase()
     const callerId = await resolveCaller(client, data.callerId)
     const request = await refetchRow(client, 'swap_requests', data.request.id, data.request)
+    if (!request) throw new SwapError('request_not_found')
     const offer = await refetchRow(client, 'swap_offers', data.offer.id, data.offer)
+    if (!offer) throw new SwapError('offer_not_found')
     const next = planAcceptOffer(request, offer, callerId)
     if (!client) return { requestStatus: next.requestStatus, offerStatus: next.offerStatus, activity: next.activity, persisted: false as const, failed: [] as string[] }
     const { persisted, failed } = await persistMulti(client, next.patches, next.activity)
@@ -379,6 +385,7 @@ export const withdrawRequest = createServerFn({ method: 'POST' })
     const client = await getSupabase()
     const callerId = await resolveCaller(client, data.callerId)
     const request = await refetchRow(client, 'swap_requests', data.request.id, data.request)
+    if (!request) throw new SwapError('request_not_found')
     const next = applyWithdrawRequest(request, callerId)
     const { persisted } = await persistTransition('swap_requests', data.request.id, { status: next.status }, next.activity)
     return { status: next.status, activity: next.activity, persisted }
@@ -390,7 +397,9 @@ export const declineOffer = createServerFn({ method: 'POST' })
     const client = await getSupabase()
     const callerId = await resolveCaller(client, data.callerId)
     const request = await refetchRow(client, 'swap_requests', data.request.id, data.request)
+    if (!request) throw new SwapError('request_not_found')
     const offer = await refetchRow(client, 'swap_offers', data.offer.id, data.offer)
+    if (!offer) throw new SwapError('offer_not_found')
     const next = planDeclineOffer(request, offer, callerId)
     if (!client) return { offerStatus: next.offerStatus, requestStatus: next.requestStatus, activity: next.activity, persisted: false as const, failed: [] as string[] }
     const { persisted, failed } = await persistMulti(client, next.patches, next.activity)
@@ -403,7 +412,9 @@ export const lockRequest = createServerFn({ method: 'POST' })
     const client = await getSupabase()
     const callerId = await resolveCaller(client, data.callerId)
     const request = await refetchRow(client, 'swap_requests', data.request.id, data.request)
+    if (!request) throw new SwapError('request_not_found')
     const offer = await refetchRow(client, 'swap_offers', data.offer.id, data.offer)
+    if (!offer) throw new SwapError('offer_not_found')
     const group = await groupCoverage(client, request.group_id ?? null, data.group ?? null)
     const next = planLockRequest(request, offer, data.siblings ?? [], callerId, { payment_id: data.payment_id ?? null, group })
     if (!client) return { status: next.status, activity: next.activity, persisted: false as const, failed: [] as string[] }
@@ -423,12 +434,13 @@ export async function groupCoverage(
   if (!client) return fallback
   try {
     const gq = await (client.from('group_trips').select('id').eq('id', groupId).single() as unknown as Promise<{ data: { id: string } | null; error: unknown }>)
-    if (gq.error || !gq.data) return fallback
+    if (gq.error) throw new SwapError('state_unreadable')
+    if (!gq.data) return null
     const pq = await (client.from('payments').select('id').eq('group_id', groupId).eq('status', 'paid').limit(1) as unknown as Promise<{ data: Array<{ id: string }> | null; error: unknown }>)
     const lq = await (client.from('swap_requests').select('id').eq('group_id', groupId).or('status.eq.locked,status.eq.confirmed') as unknown as Promise<{ data: Array<{ id: string }> | null; error: unknown }>)
-    if (pq.error || lq.error) return fallback
+    if (pq.error || lq.error || !Array.isArray(pq.data) || !Array.isArray(lq.data)) throw new SwapError('state_unreadable')
     return { paid: (pq.data?.length ?? 0) > 0, lockedCount: lq.data?.length ?? 0 }
   } catch {
-    return fallback
+    throw new SwapError('state_unreadable')
   }
 }

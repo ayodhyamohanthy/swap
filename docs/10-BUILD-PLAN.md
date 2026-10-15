@@ -60,4 +60,4 @@ your lane. Check it [x] in the same commit that completes it.
 Domain (currently planned: toyoufromme.website), example names (Arjun, Priya, Riya), admin figures, QR pattern, US$ estimate.
 
 ## L3 — isolated correctness repair (Forge)
-- [ ] Reject missing/unreadable backend state and forged group-coverage fallback; add behavioural regressions, preserve no-backend demos.
+- [x] Reject missing/unreadable backend state and forged group-coverage fallback; add behavioural regressions, preserve no-backend demos. Verified 967 tests across 68 files, typecheck and build.
