@@ -18,6 +18,10 @@
 
 Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
 
+## Forge local-only claim (2026-10-16)
+
+L3 is active for Forge on this isolated branch only. Narrow server-boundary repair in the otherwise unassigned `app/src/server/functions.ts` plus `app/tests/server-state.test.ts`: configured-backend missing/unreadable rows must never reuse caller-supplied state, and group payment/cap reads must fail closed. No UI, schema, dependencies, deployment or push. Offline fallback is preserved. Baseline gates passed (959 tests, typecheck, build, collab-check).
+
 ## Requests (cross-lane needs)
 
 - `<date> <lane> → <lane>: <what you need>` — owner replies with `ack` or `done`.

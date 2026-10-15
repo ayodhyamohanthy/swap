@@ -58,3 +58,6 @@ your lane. Check it [x] in the same commit that completes it.
 
 ## Placeholders to replace
 Domain (currently planned: toyoufromme.website), example names (Arjun, Priya, Riya), admin figures, QR pattern, US$ estimate.
+
+## L3 — isolated correctness repair (Forge)
+- [ ] Reject missing/unreadable backend state and forged group-coverage fallback; add behavioural regressions, preserve no-backend demos.
