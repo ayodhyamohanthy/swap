@@ -332,14 +332,26 @@ export async function refetchRow<T>(
   }
 }
 
-async function persistTransition(
-  table: string, id: string, patch: Record<string, unknown>, activity: ActivityWrite,
+export async function persistRequestTransition(
+  client: SupaClient | null,
+  id: string,
+  status: SwapStatus,
+  activity: ActivityWrite,
 ): Promise<{ persisted: boolean }> {
+  if (!client) return { persisted: false }
   try {
-    const client = await getSupabase()
-    if (!client) return { persisted: false }
-    const updater = (client.from(table).update(patch).eq('id', id) as unknown as Promise<{ error: unknown }>)
-    const { error } = await updater
+    /* Authenticated clients cannot UPDATE swap_requests directly. All status
+       changes must go through the SECURITY DEFINER RPC, which also enforces
+       party authorization and the database state machine. */
+    const rpc = client.rpc.bind(client) as unknown as (
+      fn: string,
+      args: { p_req: string; p_status: SwapStatus; p_locked_offer: string | null },
+    ) => Promise<{ error: unknown }>
+    const { error } = await rpc('apply_request_transition', {
+      p_req: id,
+      p_status: status,
+      p_locked_offer: null,
+    })
     if (error) return { persisted: false }
     const logger = (client.from('activity_log').insert({
       actor_id: activity.actor_id, actor_role: activity.actor_role,
@@ -360,7 +372,7 @@ export const sendRequest = createServerFn({ method: 'POST' })
     const request = await refetchRow(client, 'swap_requests', data.request.id, data.request)
     if (!request) throw new SwapError('request_not_found')
     const next = applySendRequest(request, callerId, { booking_id: data.booking_id })
-    const { persisted } = await persistTransition('swap_requests', data.request.id, { status: next.status }, next.activity)
+    const { persisted } = await persistRequestTransition(client, data.request.id, next.status, next.activity)
     return { status: next.status, activity: next.activity, persisted }
   })
 
@@ -387,7 +399,7 @@ export const withdrawRequest = createServerFn({ method: 'POST' })
     const request = await refetchRow(client, 'swap_requests', data.request.id, data.request)
     if (!request) throw new SwapError('request_not_found')
     const next = applyWithdrawRequest(request, callerId)
-    const { persisted } = await persistTransition('swap_requests', data.request.id, { status: next.status }, next.activity)
+    const { persisted } = await persistRequestTransition(client, data.request.id, next.status, next.activity)
     return { status: next.status, activity: next.activity, persisted }
   })
 

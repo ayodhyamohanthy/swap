@@ -816,3 +816,4 @@ The owner subsequently authorized a direct `main` push of the verified repair. T
     Two mutation runs were reported before it was noticed that the first mutation
     was still in the file. Assert the mutation applied — or use an editor that
     errors on no-match — before trusting a green or red run.
+- 2026-10-06 L2 → L1: please assign ownership for `app/src/lib/session.ts` and `app/tests/session.test.ts` (currently outside the lane map) so the confirmed partial passenger-sync retry defect can be fixed without crossing lanes.

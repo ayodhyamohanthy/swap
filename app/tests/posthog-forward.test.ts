@@ -46,12 +46,12 @@ describe('analytics forwarding is off until the traveller says otherwise', () =>
     setSenderForTests(async () => true)
   })
 
-  it('queues nothing with no consent, and the keyless build stays inert', () => {
+  it('queues nothing with no consent, and the keyless build stays inert', async () => {
     /* The default build has no key, so this is also the "nothing to break"
      * case: no timer, no queue, no request. */
     enqueue(row('request_sent', { matches: 3 }))
     expect(queuedCount()).toBe(0)
-    expect(flush()).resolves.toBe(0)
+    await expect(flush()).resolves.toBe(0)
   })
 
   it('still queues nothing with consent but no key', () => {
