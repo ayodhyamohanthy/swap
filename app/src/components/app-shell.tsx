@@ -1,6 +1,6 @@
 import { Link, useLocation, useMatches } from '@tanstack/react-router'
 import { ArrowLeftRight, Bell, ChevronLeft, House, Settings, User } from 'lucide-react'
-import type { ComponentType, ReactNode } from 'react'
+import { useEffect, useState, type ComponentType, type ReactNode } from 'react'
 import { isAdminRoute } from '@/lib/admin'
 import { useI18n } from '@/lib/i18n'
 import { useOnline } from '@/lib/use-online'
@@ -176,10 +176,40 @@ export function AppFooter() {
   )
 }
 
+/* The chrome the prerendered SPA shell is drawn with. The deployment serves
+   that one HTML file - rendered at `/` - for every route (Workers Static
+   Assets SPA fallback: `not_found_handling = "single-page-application"` in
+   wrangler.toml), so hydration on a deep link compares this route's chrome
+   against the home chrome in the served HTML. A strapline that Home shows and
+   Settings does not is a text mismatch, a setup screen with no TopBar or tab
+   bar at all is an HTML mismatch, and React answers each with a #418 and
+   throws the whole server-rendered tree away.
+
+   So the first client render draws HOME_CHROME whatever the route, and the
+   route's real chrome takes over only after mount. Nothing visible changes:
+   the served HTML already shows the home chrome until React runs - today it
+   then discards the tree and re-renders; after this it keeps the tree and
+   updates just the chrome. The index route's staticData IS this object, so
+   the shell and the route can never drift apart (guarded by
+   tests/shell-prerender-parity.test.tsx). Designs 11a/25a draw the /updates
+   bell and the strapline on Home. */
+export const HOME_CHROME: RouteChrome = {
+  chrome: 'tabs',
+  tab: 'home',
+  showUpdates: true,
+  tagline: true,
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const matches = useMatches()
   const leaf = matches[matches.length - 1]
-  const chrome = (leaf?.staticData ?? {}) as RouteChrome
+  const routeChrome = (leaf?.staticData ?? {}) as RouteChrome
+  /* Hydration parity (see HOME_CHROME): until the first effect runs, the
+     shell must draw exactly what the prerendered HTML drew - the home chrome -
+     whatever route is being hydrated. */
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  const chrome = mounted ? routeChrome : HOME_CHROME
   const mode = chrome.chrome ?? 'tabs'
   /* The admin console is a desktop tool (design 23: sidebar + six tiles + chart
      at ~1080px) and lays itself out with `lg:` rules — but `.app-column` clamps
@@ -188,14 +218,12 @@ export function AppShell({ children }: { children: ReactNode }) {
      of the column; every passenger screen keeps it, because phone-first is the
      product design, not an accident.
 
-     `useLocation` is the router's own state, so on `/` — the route the SPA
-     shell is prerendered at — server and client agree exactly and nothing
-     changes for any route except /admin. On a direct /admin load the client
-     drops the class the '/'-prerendered HTML carries; that deep link already
-     fails hydration once today on its chrome (TopBar/Tabs vs bare), and React
-     reports one #418 per hydration attempt, so this adds no new error. */
+     `useLocation` is the router's own state, so the column follows the
+     current path on the client after mount. */
   const location = useLocation()
-  const inColumn = !isAdminRoute(location.pathname)
+  /* Mounted-gated like the chrome above: the prerendered shell always carries
+     `app-column`, so the first render keeps it even on /admin. */
+  const inColumn = !mounted || !isAdminRoute(location.pathname)
 
   return (
     <div className={cn('flex min-h-dvh flex-col', inColumn && 'app-column')}>

@@ -1,7 +1,7 @@
 import { Link, createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { ChevronRight, FileText, Gift, Lock, Plus } from 'lucide-react'
 import { useState, useEffect, type FormEvent } from 'react'
-import { AppFooter, type RouteChrome } from '@/components/app-shell'
+import { AppFooter, HOME_CHROME } from '@/components/app-shell'
 import { InstallPrompt } from '@/components/install-prompt'
 import { PastTripCard, TripCard } from '@/components/trip-card'
 import { Button } from '@/components/ui/button'
@@ -19,16 +19,9 @@ import { useCreditPaise, useRequestsState, useTrips } from '@/lib/use-store'
    asked when a request is sent or accepted (AGENTS.md 8). */
 
 export const Route = createFileRoute('/')({
-  staticData: {
-    chrome: 'tabs',
-    tab: 'home',
-    /* Designs 11a and 25a draw a bell to /updates on Home; 1a's older gear
-       retires (it only ever linked to /profile, and Profile has its own
-       settings rows). */
-    showUpdates: true,
-    /* Design 1a puts the strapline under the wordmark on Home. */
-    tagline: true,
-  } satisfies RouteChrome,
+  /* The prerendered shell's chrome (see HOME_CHROME in app-shell): served as
+     the first paint of every route, so it is defined there, once. */
+  staticData: HOME_CHROME,
   beforeLoad: () => {
     /* First open only: language, then the one-time note. Skipped while the
        shell is prerendered (no localStorage on the server). */

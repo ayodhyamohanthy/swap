@@ -190,7 +190,10 @@ describe('Home is three designs, one per state (25a empty, 1a trips, 11a past)',
   })
 
   it('shows the brand strapline on Home only (design 1a)', () => {
-    expect(read('src/routes/index.tsx')).toMatch(/tagline: true/)
+    /* Home's chrome is HOME_CHROME in app-shell (single source for the
+       prerendered shell, see tests/shell-prerender-parity), so the strapline
+       flag lives there now. */
+    expect(read('src/components/app-shell.tsx')).toMatch(/tagline: true/)
     expect(read('src/components/app-shell.tsx')).toMatch(/t\('brand\.tagline'\)/)
     for (const file of ['src/routes/swaps.index.tsx', 'src/routes/profile.index.tsx']) {
       expect(read(file), `${file} must not ask for the Home strapline`).not.toMatch(/tagline: true/)
