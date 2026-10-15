@@ -22,6 +22,10 @@ Lane states: `free` → `active: <agent, time>` → `done. <one-line summary>`.
 
 L3 is released by Forge on this isolated branch only. Narrow server-boundary repair in the otherwise unassigned `app/src/server/functions.ts` plus `app/tests/server-state.test.ts`: configured-backend missing/unreadable rows must never reuse caller-supplied state, and group payment/cap reads must fail closed. No UI, schema, dependencies, deployment or push. Offline fallback is preserved. Baseline gates passed (959 tests, typecheck, build, collab-check). Repair reproduced seven failures before the fix; all eight new regressions and the full 967-test suite now pass, plus typecheck/build.
 
+## Integration authorization (Forge, 2026-10-16)
+
+The owner subsequently authorized a direct `main` push of the verified repair. The earlier local-only/no-push wording records the original scope only. Rebased onto `fa745c6` without conflicts; rerunning typecheck, full tests, build and collaboration checks before a normal fast-forward push.
+
 ## Requests (cross-lane needs)
 
 - `<date> <lane> → <lane>: <what you need>` — owner replies with `ack` or `done`.
