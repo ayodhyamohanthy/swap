@@ -24,6 +24,20 @@ by listing nothing).
 - Ambiguity → make the smallest reasonable choice, record it in
   docs/DECISIONS.md (append-only), keep moving. Never stall on input.
 
+## Founder standing rules (Ayu, Oct 16 2026)
+1. SESSION-START SYNC: at the start of every session, before acting, read
+   the founder's decisions and rules for this project: this file (Hard
+   rules + this section), docs/DECISIONS.md (append-only log), and the
+   vendor whitelist (docs/12 §2). The whole team stays in sync on
+   decisions; nobody acts on a stale picture of them.
+2. MERITOCRACY: if you see a better approach than a recorded decision,
+   always recommend it, with evidence — and ask Ayu. He takes the call.
+   Never override a recorded decision on your own.
+3. CURRENT DECISIONS LIST: this file's Hard rules + this section +
+   docs/DECISIONS.md are the live list. When Ayu rules on something new,
+   record it here (or append to DECISIONS.md) in the same commit that
+   acts on it.
+
 ## Definition of done — no partial credit
 1. `npm run typecheck` clean
 2. `npm run test` — full suite passes
