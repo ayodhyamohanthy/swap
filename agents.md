@@ -40,6 +40,10 @@ by listing nothing).
   in code, package.json, or config. RESERVE/BENCH vendors require Ayu
   moving the row to WIRED first. An agent never adds a vendor.
 - NEVER build persistent infrastructure on expiring credits (docs/12 §0).
+- MONEY RULE (Ayu, Oct 16 2026): never choose money-spending options.
+  Choose free or money-earning options only. Paid plans/add-ons are
+  dropped, not proposed as defaults. If a task seems to require spend,
+  that is a blocker: report it with a free or earning alternative.
 - MOBILE-FIRST is a contract, not a preference: docs/17-MOBILE-FIRST.md.
   360px baseline, 44px touch targets, 16px inputs, safe-area insets,
   ≤200KB gz initial JS. /designs is truth for UI. A screen that only
