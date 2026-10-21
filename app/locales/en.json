@@ -888,5 +888,26 @@
     "actedFailed": "That did not go through. Nothing was changed.",
     "userTimeline": "User timeline",
     "timelineAutomation": "Automated"
+  },
+  "tip": {
+    "title": "Say thanks to {name}",
+    "choose": "Tip with cash",
+    "note": "You pay cash; {name} gets it all as credit, never cash. One tip per swap. No refunds.",
+    "payUpi": "Pay ₹{amount} with UPI",
+    "payPaypal": "Pay ₹{amount} with PayPal",
+    "noThanks": "No thanks",
+    "waitingTitle": "Waiting for your bank",
+    "waitingBody": "Your bank is still confirming ₹{amount}. The tip reaches {name} only after the bank confirms.",
+    "sentTitle": "Tip sent",
+    "sentBody": "You tipped {name} ₹{amount} - they get it all as credit.",
+    "sentNote": "Credit is never cash and is valid for 12 months.",
+    "unavailableTitle": "No tip needed here",
+    "unavailableBody": "Tips open only after a swap is confirmed done, and only once per swap.",
+    "failedBody": "That tip did not go through. No money was taken. You can try again.",
+    "badAmount": "Tips come in ₹10, ₹20 or ₹50.",
+    "backToSwap": "Back to the swap",
+    "cardTitle": "Say thanks to {name}",
+    "cardNote": "Tip ₹10, ₹20 or ₹50. {name} gets it all as credit, never cash.",
+    "cardCta": "Tip {name}"
   }
 }

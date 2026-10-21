@@ -1059,7 +1059,7 @@ function updatesFrom(
   /* Credit added + expiring (docs/04 notifications, rule 4: 12-month life). */
   for (const tx of app.wallet) {
     if (tx.amount_paise <= 0) continue
-    if (tx.kind === 'acceptor_credit' || tx.kind === 'swap_to_credit' || tx.kind === 'admin_adjust') {
+    if (tx.kind === 'acceptor_credit' || tx.kind === 'swap_to_credit' || tx.kind === 'tip_credit' || tx.kind === 'admin_adjust') {
       rows.push({
         id: `u_tx_${tx.id}`,
         kind: 'credit_added',

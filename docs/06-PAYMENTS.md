@@ -30,3 +30,14 @@ Number format `SS-#####`. Lines: SeatSwap fee ₹50 · Thank-you credit ₹50 ·
 
 ## Tax note for the owner
 GST on the ₹50 fee should be confirmed with an accountant before live payments.
+
+## Tips (owner rulings 2026-10-21)
+
+After a swap is confirmed done, the requester may tip the helper ₹10 / ₹20 / ₹50 in cash (Razorpay / PayPal). Rules:
+
+- The helper receives 100% of the tip as credit (`wallet_tx` kind `tip_credit`, 12-month validity). Never cash. No split — SeatSwap takes no cut and absorbs the gateway fee.
+- Credit can never pay for a tip (`credit_used_paise` is always 0).
+- One tip per swap; requester only; only after both sides confirmed. Enforced in `lib/tips` (`tipGateFor`, `beginTip`) and re-checked at the write.
+- The payment row opens BEFORE the gateway order (keyed `tip:<requestId>` so it never reads as the swap's own payment). Only a captured payment settles the credit, idempotently on the payment id. A failed tip charges nothing, holds nothing, and may be retried.
+- No refunds. Disputes go through support; `tip_credit` is never auto-clawed-back.
+- "Credit is never transferable" stays literally true: no credit moves between travellers — the helper's tip credit is newly minted from a cash payment.

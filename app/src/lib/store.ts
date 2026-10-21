@@ -10,6 +10,7 @@
    - No free rewards: the wallet starts empty and steps 1-2 can only read it. */
 
 import { trackEvent } from './analytics'
+import { TIP_PRESETS_PAISE } from './money'
 import {
   hashPnr,
   isChairCar,
@@ -79,7 +80,7 @@ export interface WalletTx {
   id: string
   user_id: string | null
   amount_paise: number
-  kind: 'acceptor_credit' | 'swap_to_credit' | 'used' | 'expired' | 'admin_adjust'
+  kind: 'acceptor_credit' | 'swap_to_credit' | 'tip_credit' | 'used' | 'expired' | 'admin_adjust'
   ref_request_id: string | null
   expires_at: string | null
   created_at: string
@@ -619,7 +620,7 @@ export interface CreditInput {
   to: 'requester' | 'acceptor'
   /** Always positive paise. Credit is a balance, never a payout. */
   amountPaise: number
-  kind: 'acceptor_credit' | 'swap_to_credit'
+  kind: 'acceptor_credit' | 'swap_to_credit' | 'tip_credit'
   ref_request_id?: string | null
   /**
    * Accepted only so `outcomes.CreditWrite` is assignable. The stored expiry is
@@ -632,10 +633,18 @@ export interface CreditInput {
 }
 
 /** Fixed credit values per kind (rules 3, 6) — anything else is rejected so the
-    local ledger can never mint arbitrary credit that the database would refuse. */
-const CREDIT_AMOUNTS: Record<CreditInput['kind'], number> = {
+    local ledger can never mint arbitrary credit that the database would refuse.
+    Tips are the one variable kind, and even they may only be a preset: the
+    helper receives 100% of a cash tip as credit, so the ledger must never mint
+    a tip amount the requester was never charged. */
+const CREDIT_AMOUNTS: Record<'acceptor_credit' | 'swap_to_credit', number> = {
   acceptor_credit: 5000,
   swap_to_credit: 10000,
+}
+
+function creditAmountAllowed(kind: CreditInput['kind'], amountPaise: number): boolean {
+  if (kind === 'tip_credit') return (TIP_PRESETS_PAISE as readonly number[]).includes(amountPaise)
+  return CREDIT_AMOUNTS[kind] === amountPaise
 }
 
 /**
@@ -652,7 +661,7 @@ const CREDIT_AMOUNTS: Record<CreditInput['kind'], number> = {
  * appends an activity_log row.
  */
 export function credit(input: CreditInput): WalletTx {
-  if (input.amountPaise !== CREDIT_AMOUNTS[input.kind]) {
+  if (!creditAmountAllowed(input.kind, input.amountPaise)) {
     throw new Error('credit_amount_must_match_kind')
   }
   const expires = new Date()
@@ -679,6 +688,13 @@ export function credit(input: CreditInput): WalletTx {
 /* ------------------------------------------------------------------ *
  * Payments ledger — local mirror of `payments` + `receipts` (docs/06)  *
  * ------------------------------------------------------------------ */
+
+/** The credit row written for one source event (a tip payment id, a request
+    id). Idempotency lives here: a retried webhook or a double capture must
+    find the row it already wrote instead of minting the credit twice. */
+export function walletTxForRef(refId: string): WalletTx | undefined {
+  return snapshot.wallet.find((row) => row.ref_request_id === refId)
+}
 
 export function listPayments(): PaymentRow[] {
   return snapshot.payments

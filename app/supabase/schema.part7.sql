@@ -89,7 +89,9 @@ ALTER TABLE public.wallet_tx ALTER COLUMN expires_at
   SET DEFAULT (now() + interval '12 months');
 ALTER TABLE public.wallet_tx ADD CONSTRAINT wallet_tx_amount_check CHECK (
   amount_paise <> 0 AND (
-    (kind IN ('acceptor_credit', 'swap_to_credit') AND amount_paise IN (5000, 9900))
+    (kind IN ('acceptor_credit', 'swap_to_credit') AND amount_paise IN (5000, 10000))
+    -- Tips: helper gets 100% of a ₹10/₹20/₹50 cash tip as credit (owner 2026-10-21).
+    OR (kind = 'tip_credit' AND amount_paise IN (1000, 2000, 5000))
     -- Unused group cover converts at the full ₹199 (docs/01, pay.groupUnder).
     OR (kind = 'swap_to_credit' AND amount_paise = 19900)
     OR (kind = 'used' AND amount_paise < 0)
@@ -97,7 +99,7 @@ ALTER TABLE public.wallet_tx ADD CONSTRAINT wallet_tx_amount_check CHECK (
   )
 );
 ALTER TABLE public.wallet_tx ADD CONSTRAINT wallet_tx_expiry_check CHECK (
-  (kind IN ('acceptor_credit', 'swap_to_credit') AND expires_at IS NOT NULL)
+  (kind IN ('acceptor_credit', 'swap_to_credit', 'tip_credit') AND expires_at IS NOT NULL)
   OR (kind IN ('used', 'expired', 'admin_adjust'))
 );
 

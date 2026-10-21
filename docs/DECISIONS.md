@@ -23,3 +23,12 @@ Owner ruling (iMessage phonemsg-01M5E537NGY2DTGP7KQ09EQCXX, 8:06 AM IST, replyin
 - "back" framing rejected: helpers pay nothing, so the credit is earned, not returned.
 - Tips (phonemsg-01M5E58MD1JZ2HMXB2VNP1MQ63, 8:09 AM IST): helper gets 100% of every tip, as credit. No split. Design proposal to the owner before building.
 - PayPal estimate rate unchanged (display hint only); ₹100 still estimates to about US$1.2.
+
+## 2026-10-21 (later) — Tips approved: cash-paid, credit-received
+
+Owner rulings (iMessage phonemsg-01M5E537NGY2DTGP7KQ09EQCXX 8:06 "allow people to tip more too"; phonemsg-01M5E58MD1JZ2HMXB2VNP1MQ63 8:09 "No split on tip"; phonemsg-01M5EEZ3DV2BAX60PYXKEGYGSQ 10:59 "Swap requesters can pay in cash but we would be crediting as credits"; 👍 tapback 11:14 approving the final design, relayed and confirmed to him at 11:14:45 in phonemsg-01M5EFV5ZPGS4Q5S3511JAH5BY with no correction):
+
+- Presets ₹10/₹20/₹50, cash via the existing rails, shown only after the swap is confirmed done. Optional, dismissible, once per swap, no pressure UI.
+- Helper receives 100% as credit (12-month, never cash). No split; SeatSwap absorbs the ~2% gateway fee.
+- Credit never pays for a tip. No self-serve refunds. Capture-before-credit, idempotent on payment id. "Never transferable" copy unchanged (no credit moves between users).
+- Server side: webhook planner extended for tip capture/failure; DB-backed tip persistence (a tip marker on `payments`) is a schema decision for when payment hosting is wired (step 3+), same status as the rest of the server payment layer.

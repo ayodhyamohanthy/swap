@@ -69,6 +69,7 @@ import { Route as SwapsIdMeetRouteImport } from './routes/swaps.$id.meet'
 import { Route as SwapsIdRateRouteImport } from './routes/swaps.$id.rate'
 import { Route as SwapsIdShareRouteImport } from './routes/swaps.$id.share'
 import { Route as SwapsIdSummaryRouteImport } from './routes/swaps.$id.summary'
+import { Route as SwapsIdTipRouteImport } from './routes/swaps.$id.tip'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -370,6 +371,11 @@ const SwapsIdSummaryRoute = SwapsIdSummaryRouteImport.update({
   path: '/$id/summary',
   getParentRoute: () => SwapsRoute,
 } as any)
+const SwapsIdTipRoute = SwapsIdTipRouteImport.update({
+  id: '/$id/tip',
+  path: '/$id/tip',
+  getParentRoute: () => SwapsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -427,6 +433,7 @@ export interface FileRoutesByFullPath {
   '/swaps/$id/rate': typeof SwapsIdRateRoute
   '/swaps/$id/share': typeof SwapsIdShareRoute
   '/swaps/$id/summary': typeof SwapsIdSummaryRoute
+  '/swaps/$id/tip': typeof SwapsIdTipRoute
   '/groups/$id/': typeof GroupsIdIndexRoute
   '/pay/$requestId/': typeof PayRequestIdIndexRoute
   '/profile/payments/': typeof ProfilePaymentsIndexRoute
@@ -481,6 +488,7 @@ export interface FileRoutesByTo {
   '/swaps/$id/rate': typeof SwapsIdRateRoute
   '/swaps/$id/share': typeof SwapsIdShareRoute
   '/swaps/$id/summary': typeof SwapsIdSummaryRoute
+  '/swaps/$id/tip': typeof SwapsIdTipRoute
   '/groups/$id': typeof GroupsIdIndexRoute
   '/pay/$requestId': typeof PayRequestIdIndexRoute
   '/profile/payments': typeof ProfilePaymentsIndexRoute
@@ -544,6 +552,7 @@ export interface FileRoutesById {
   '/swaps/$id/rate': typeof SwapsIdRateRoute
   '/swaps/$id/share': typeof SwapsIdShareRoute
   '/swaps/$id/summary': typeof SwapsIdSummaryRoute
+  '/swaps/$id/tip': typeof SwapsIdTipRoute
   '/groups/$id/': typeof GroupsIdIndexRoute
   '/pay/$requestId/': typeof PayRequestIdIndexRoute
   '/profile/payments/': typeof ProfilePaymentsIndexRoute
@@ -608,6 +617,7 @@ export interface FileRouteTypes {
     | '/swaps/$id/rate'
     | '/swaps/$id/share'
     | '/swaps/$id/summary'
+    | '/swaps/$id/tip'
     | '/groups/$id/'
     | '/pay/$requestId/'
     | '/profile/payments/'
@@ -662,6 +672,7 @@ export interface FileRouteTypes {
     | '/swaps/$id/rate'
     | '/swaps/$id/share'
     | '/swaps/$id/summary'
+    | '/swaps/$id/tip'
     | '/groups/$id'
     | '/pay/$requestId'
     | '/profile/payments'
@@ -724,6 +735,7 @@ export interface FileRouteTypes {
     | '/swaps/$id/rate'
     | '/swaps/$id/share'
     | '/swaps/$id/summary'
+    | '/swaps/$id/tip'
     | '/groups/$id/'
     | '/pay/$requestId/'
     | '/profile/payments/'
@@ -1180,6 +1192,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SwapsIdSummaryRouteImport
       parentRoute: typeof SwapsRoute
     }
+    '/swaps/$id/tip': {
+      id: '/swaps/$id/tip'
+      path: '/$id/tip'
+      fullPath: '/swaps/$id/tip'
+      preLoaderRoute: typeof SwapsIdTipRouteImport
+      parentRoute: typeof SwapsRoute
+    }
   }
 }
 
@@ -1276,6 +1295,7 @@ interface SwapsRouteChildren {
   SwapsIdRateRoute: typeof SwapsIdRateRoute
   SwapsIdShareRoute: typeof SwapsIdShareRoute
   SwapsIdSummaryRoute: typeof SwapsIdSummaryRoute
+  SwapsIdTipRoute: typeof SwapsIdTipRoute
   SwapsIdIndexRoute: typeof SwapsIdIndexRoute
 }
 
@@ -1288,6 +1308,7 @@ const SwapsRouteChildren: SwapsRouteChildren = {
   SwapsIdRateRoute: SwapsIdRateRoute,
   SwapsIdShareRoute: SwapsIdShareRoute,
   SwapsIdSummaryRoute: SwapsIdSummaryRoute,
+  SwapsIdTipRoute: SwapsIdTipRoute,
   SwapsIdIndexRoute: SwapsIdIndexRoute,
 }
 

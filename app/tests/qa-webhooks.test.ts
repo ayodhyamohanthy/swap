@@ -38,3 +38,23 @@ describe('webhook replays (step 14: replay the provider until it is a no-op)', (
     expect(migration).toMatch(/CREATE UNIQUE INDEX.*payments_provider_ref_uidx/si)
   })
 })
+
+describe('tip webhooks (owner 2026-10-21: cash tip, 100% credit, no refunds)', () => {
+  it('a captured tip settles credit and a notification — never a lock', () => {
+    const seen = new Set<string>()
+    const captured = applyWebhookEvent(seen, { providerRef: 'pay_tip_1', kind: 'captured' }, { isTip: true })
+    expect(captured.payStatus).toBe('paid')
+    expect(captured.effects).toEqual(['tip_credit', 'notify_acceptor', 'activity_log'])
+    expect(captured.effects).not.toContain('lock_request')
+    /* Replay dedupes: a double webhook never mints the credit twice. */
+    expect(applyWebhookEvent(seen, { providerRef: 'pay_tip_1', kind: 'captured' }, { isTip: true }).deduped).toBe(true)
+  })
+
+  it('a failed tip releases nothing — tips never hold credit', () => {
+    const seen = new Set<string>()
+    const failed = applyWebhookEvent(seen, { providerRef: 'pay_tip_2', kind: 'failed' }, { isTip: true })
+    expect(failed.payStatus).toBe('failed')
+    expect(failed.effects).toEqual(['activity_log'])
+    expect(failed.effects).not.toContain('release_credit_hold')
+  })
+})

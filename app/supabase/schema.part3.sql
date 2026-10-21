@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS public.wallet_tx (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
   amount_paise int NOT NULL,
-  kind text NOT NULL CHECK (kind IN ('acceptor_credit', 'swap_to_credit', 'used', 'expired', 'admin_adjust')),
+  kind text NOT NULL CHECK (kind IN ('acceptor_credit', 'swap_to_credit', 'tip_credit', 'used', 'expired', 'admin_adjust')),
   ref_request_id uuid REFERENCES public.swap_requests (id) ON DELETE SET NULL,
   expires_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now()

@@ -374,9 +374,20 @@ export async function verifyPaypalWebhook(
 export function applyWebhookEvent(
   seen: Set<string>,
   event: { providerRef: string; kind: 'captured' | 'failed' | 'completed' | 'denied' },
+  opts: { isTip?: boolean } = {},
 ): { deduped: boolean; payStatus: 'paid' | 'failed' | null; effects: string[] } {
   if (seen.has(event.providerRef)) return { deduped: true, payStatus: null, effects: [] }
   seen.add(event.providerRef)
+  /* A captured tip settles the helper's credit (100% of the amount, idempotent
+     on the payment id) — never a lock, and a failed tip holds nothing, so
+     there is no credit hold to release (tips never spend credit). */
+  if (opts.isTip) {
+    if (event.kind === 'captured' || event.kind === 'completed') {
+      return { deduped: false, payStatus: 'paid',
+        effects: ['tip_credit', 'notify_acceptor', 'activity_log'] }
+    }
+    return { deduped: false, payStatus: 'failed', effects: ['activity_log'] }
+  }
   if (event.kind === 'captured' || event.kind === 'completed') {
     return { deduped: false, payStatus: 'paid',
       effects: ['lock_request', 'supersede_offers', 'reveal_berths', 'notify_both', 'activity_log'] }

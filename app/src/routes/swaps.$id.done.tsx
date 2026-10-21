@@ -9,6 +9,7 @@ import { useI18n } from '@/lib/i18n'
 import { trackEvent } from '@/lib/analytics'
 import { demoRequest } from '@/lib/demo-swap'
 import { acceptedOffer, offersFor, revealedBerths } from '@/lib/requests'
+import { tipGateFor } from '@/lib/tips'
 
 /* After-confirm states (docs/04 A14, designs 2c/20b/20c/25b/26a):
    swapped vs earned-50 vs added-to-credit vs answers-don't-match vs
@@ -109,6 +110,19 @@ function SwappedState({ id, name }: { id: string; name: string }) {
         <CardBody className="font-semibold text-ink">{t('confirmExtra.earnedLine', { name })}</CardBody>
         <CardBody>{t('confirmExtra.kinder')}</CardBody>
       </Card>
+      {/* One quiet, optional thank-you — cash from the requester, 100% credit
+          for the helper, never pressured, once per swap (owner 2026-10-21). */}
+      {tipGateFor(id) === 'tippable' ? (
+        <Card className="mt-4">
+          <CardBody className="font-semibold text-ink">{t('tip.cardTitle', { name })}</CardBody>
+          <CardBody>{t('tip.cardNote', { name })}</CardBody>
+          <Button className="mt-2" variant="outline" asChild>
+            <Link to="/swaps/$id/tip" params={{ id }}>
+              {t('tip.cardCta', { name })}
+            </Link>
+          </Button>
+        </Card>
+      ) : null}
       <Button className="mt-2" variant="ghost" asChild>
         <Link to="/swaps/$id/rate" params={{ id }}>
           {t('rating.title')}
