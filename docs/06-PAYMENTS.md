@@ -1,9 +1,8 @@
-# 06 — Payments (Razorpay + PayPal)
+# 06 — Payments (Razorpay)
 
 ## Choosing the provider
-- Default: **Razorpay** (Indian cards, UPI, net banking, wallets). Show UPI apps first.
-- "International traveller?" → **PayPal**. Also auto-suggest PayPal when the browser locale/currency is non-INR, but let the user switch.
-- Amount always ₹100 INR (₹199 for a group trip). PayPal converts; show "about US$X" as an estimate only.
+- **Razorpay only** (Indian cards, UPI, net banking, wallets). Show UPI apps first. Owner ruling 2026-10-21: India-only for now - Razorpay covers every payment method, so PayPal was removed from every user-facing surface (method picker, appreciation screen, the /pay/$id/paypal route, both locales, USD-estimate copy). The `src/lib/paypal/` client, its unit tests, the payment `provider` column and the admin ledger label stay so international payments can return from git history.
+- Amount always ₹100 INR (₹199 for a group trip).
 
 ## Razorpay flow
 1. Server fn `createRazorpayOrder(requestId)` → validates request is `accepted_awaiting_payment` and caller is the requester; computes `amount = 10000 - creditUsed`; creates order (receipt = request id); inserts `payments(status='created')`.
@@ -11,11 +10,6 @@
 3. On handler success → server fn `verifyRazorpaySignature` (HMAC SHA256 of `order_id|payment_id` with key secret) → mark `pending` until webhook.
 4. Webhook `/api/public/webhooks/razorpay` (verify `X-Razorpay-Signature`): `payment.captured` → `paid` → lock request, supersede other offers, reveal berths, notify both, write activity_log. `payment.failed` → `failed`.
 5. Idempotent on `provider_ref`.
-
-## PayPal flow
-1. Server fn `createPaypalOrder(requestId)` (Orders v2, currency INR, intent CAPTURE).
-2. Client: PayPal JS buttons → approve → server fn `capturePaypalOrder`.
-3. Webhook `/api/public/webhooks/paypal` (verify via PayPal verify-webhook-signature API): `PAYMENT.CAPTURE.COMPLETED` → `paid`; `DENIED` → `failed`.
 
 ## Credit
 - If credit balance ≥ amount → no provider; `provider='credit'`, instant lock.
@@ -26,7 +20,7 @@
 Number format `SS-#####`. Lines: SeatSwap fee ₹50 · Thank-you credit ₹50 · credit used (if any) · Total. Downloadable PDF + share.
 
 ## Secrets (server only)
-`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_WEBHOOK_ID`. Public: Razorpay key id and PayPal client id may be exposed to the browser.
+`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` (plus the PayPal trio if international returns). Public: the Razorpay key id may be exposed to the browser.
 
 ## Tax note for the owner
 GST on the ₹50 fee should be confirmed with an accountant before live payments.
