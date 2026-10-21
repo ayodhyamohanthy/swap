@@ -60,7 +60,7 @@ function DoneScreen() {
   const name = acceptedOffer(requestId)?.acceptor_name ?? t('common.traveller')
   /* `amount_paise` is GROSS; `receipt.total` is the cash the gateway captured.
      The "… paid · Razorpay" line below used the gross, so a credit-covered
-     swap told the payer that Razorpay had taken ₹99 when it took ₹49. The
+     swap told the payer that Razorpay had taken ₹100 when it took ₹50. The
      method named and the amount named have to be the same transaction. */
   const receipt = splitReceipt(payment.amount_paise, payment.credit_used_paise, isGroup)
   /* One label per line, for both branches. The group branch looked the key up

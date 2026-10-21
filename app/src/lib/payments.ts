@@ -1,5 +1,5 @@
 /* SeatSwap payments — pure money logic (AGENTS.md rules 1-6, 9; docs/03, 06, 09).
-   Money is ALWAYS integer paise. ₹99 = 9900 = ₹49 fee + ₹50 thank-you.
+   Money is ALWAYS integer paise. ₹100 = 10000 = ₹50 fee + ₹50 thank-you.
    Group trip: ₹199 covers up to 3 swaps (docs/04 C).
    No discounts, no coupons. Credit is never cash, expires 12 months. */
 
@@ -19,7 +19,7 @@ export type PayState = (typeof PAY_STATES)[number]
 export type PayProviderKind = 'razorpay' | 'paypal' | 'credit' | null
 
 export interface Quote {
-  /** Full price: 9900 single, 19900 group. */
+  /** Full price: 10000 single, 19900 group. */
   total: number
   /** Credit applied (oldest-first upstream; here: min(balance, total)). */
   creditUsed: number
@@ -70,7 +70,7 @@ export function chargeDuePaise(
  *
  * Both PayPal-facing screens compute this from the amount the payer is actually
  * charged, so a credit-covered order estimates on what is left (money.test.ts
- * pins that: ₹49 → "US$0.6", not "US$1.2"). But the rate hint rounds to zero
+ * pins that: ₹50 → "US$0.6", not "US$1.2"). But the rate hint rounds to zero
  * below about ₹4.13 — and `formatUsdTenths` *throws* on zero. So any small
  * remainder, including the `due = 0` of a fully credit-covered order, took the
  * screen down during render: a crash on the one screen whose entire job is to
@@ -97,21 +97,21 @@ export interface Receipt {
 }
 
 /**
- * Receipt lines: fee ₹49 · thank-you ₹50 · credit used (if any) · Total (docs/06).
+ * Receipt lines: fee ₹50 · thank-you ₹50 · credit used (if any) · Total (docs/06).
  *
  * The Total is what the gateway actually captured, and the lines above it SUM
  * to it — the one property a receipt has to have. It did not have it. `total`
- * returned the full ₹99 while a credit-used line subtracted ₹50 from the list,
+ * returned the full ₹100 while a credit-used line subtracted ₹50 from the list,
  * so a credit-covered swap printed
  *
- *     SeatSwap fee            ₹49
+ *     SeatSwap fee            ₹50
  *     Thank-you credit ₹50
  *     Credit used             -₹50
- *     Total                   ₹99
+ *     Total                   ₹100
  *
  * and no arithmetic reaches that total. Design 29b's lines sum to its total
- * exactly; design 29a states the same split in words — "₹49 + ₹50 credit". The
- * gross ₹99 is still the headline everywhere it belongs (`pay.under`, the
+ * exactly; design 29a states the same split in words — "₹50 + ₹50 credit". The
+ * gross ₹100 is still the headline everywhere it belongs (`pay.under`, the
  * method screen, the history row); it is just not what a *Total* means.
  *
  * `total` is therefore derived from `lines` rather than stated alongside them,
@@ -160,8 +160,8 @@ export function isCreditSpendable(row: CreditLedgerRow, nowMs: number): boolean 
     row, debits included, floored at zero.
 
     Filtering negatives out (rather than subtracting them) let an already-spent
-    ₹99 keep funding swaps for ever: `[+9900, -9900]` still quoted 9900, so the
-    same credit paid for any number of ₹99 swaps and the ₹49 fee was never
+    ₹100 keep funding swaps for ever: `[+9900, -10000]` still quoted 10000, so the
+    same credit paid for any number of ₹100 swaps and the ₹50 fee was never
     collected. The local mirror already summed negatives (store.creditPaise),
     so server and device disagreed about what a wallet was worth. */
 export function spendableCreditPaise(rows: CreditLedgerRow[], nowMs: number): number {
@@ -218,7 +218,7 @@ export interface CreditAward {
 }
 
 /**
- * outcomeToCredit — swap didn't happen → ₹99 to requester credit (never bank).
+ * outcomeToCredit — swap didn't happen → ₹100 to requester credit (never bank).
  * Only exception: failed-bank (money auto-returned by bank in 3–5 days).
  */
 export function outcomeToCredit(outcome: PayOutcome): CreditAward {

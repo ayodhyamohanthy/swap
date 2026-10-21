@@ -22,7 +22,7 @@ describe("the pay screen's next step follows the payment state, not merely its e
     /* `startPayment` writes a `created` row the moment checkout opens — before
        a byte reaches Razorpay. Branching on "a payment exists and is not
        failed" therefore put a traveller who had merely *opened* checkout (or
-       whose gateway handoff died) on "Your bank is still confirming ₹99 /
+       whose gateway handoff died) on "Your bank is still confirming ₹100 /
        Please don't pay again", for a payment the bank had never heard of. The
        instruction is right for `pending` and wrong for `created`. */
     expect(src).toMatch(/paid\?\.status === 'pending'/)

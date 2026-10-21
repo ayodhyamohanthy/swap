@@ -12,7 +12,7 @@
      row would subtract it twice. The 30-day reminder is the Updates list's
      `needsCreditReminder` rows (requests.ts), which read the same expiry.
    - The unused ₹199 group cover (server/jobs.ts). `store.credit()` accepts only
-     the fixed ₹50/₹99 values, so the device cannot mint a 19900 credit; that
+     the fixed ₹50/₹100 values, so the device cannot mint a 19900 credit; that
      conversion needs a ledger kind first, and it belongs to the server job.
 
    Timing anchors: a PNR carries a journey *date*, never an arrival timestamp, so

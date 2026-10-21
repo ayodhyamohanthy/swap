@@ -3,9 +3,9 @@
    place that WRITES credit, so rules 3-6 are auditable in one screenful:
 
    - both say "swapped"        -> confirmed, acceptor earns ₹50 credit (rule 3)
-   - both agree it didn't happen -> voided, requester's ₹99 becomes credit (rule 6)
+   - both agree it didn't happen -> voided, requester's ₹100 becomes credit (rule 6)
    - answers differ             -> disputed, nothing moves until admin decides
-   - any cancel after payment   -> voided, ₹99 to requester credit
+   - any cancel after payment   -> voided, ₹100 to requester credit
 
    Credit is never cash and there is deliberately no path back to a bank here. */
 
@@ -42,8 +42,8 @@ export function applyResolution(requestId: string, resolution: Resolution): Answ
   /* Rule 6 refunds money that was actually collected. `locked` is reachable
      without a payment of its own — a group trip pays ₹199 once and covers up to
      three member swaps, and `lockCoveredRequest` locks them with no payment row
-     — so a covered swap that then fails must NOT credit ₹99 that was never
-     charged. That is not a rounding argument, it is ₹99 minted from nothing:
+     — so a covered swap that then fails must NOT credit ₹100 that was never
+     charged. That is not a rounding argument, it is ₹100 minted from nothing:
      permanently overstating the traveller's balance and understating revenue by
      the same amount, with a `credit_added` log row asserting it happened.
 
@@ -53,7 +53,7 @@ export function applyResolution(requestId: string, resolution: Resolution): Answ
 
      The acceptor's ₹50 is NOT filtered: rule 3 pays it for a swap that was
      accepted, and an acceptor who gave up a berth did so regardless of who
-     paid for the transaction. Only the requester-side ₹99 is conditional on
+     paid for the transaction. Only the requester-side ₹100 is conditional on
      having been charged. */
   const paid = paymentFor(requestId)?.status === 'paid'
   const credits = paid ? resolution.credits : resolution.credits.filter((entry) => entry.to === 'acceptor')
@@ -69,7 +69,7 @@ export function applyResolution(requestId: string, resolution: Resolution): Answ
   return { resolution, request: updated ?? undefined }
 }
 
-/** Cancel after payment (either side, PNR cancelled, berth changed): ₹99 credit. */
+/** Cancel after payment (either side, PNR cancelled, berth changed): ₹100 credit. */
 export function voidSwap(requestId: string): AnswerResult {
   return applyResolution(requestId, cancelAfterPay())
 }

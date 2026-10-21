@@ -2,7 +2,7 @@
    A13-14/B6, docs/09 copy). Pure logic: no I/O, so it is unit-testable.
    Rules: both swapped → confirmed (acceptor +₹50 credit, 12mo expiry);
    agreed no_show/not_possible/changed_mind or any cancel after pay → voided
-   (requester +₹99 credit); answers differ → disputed (no promised time);
+   (requester +₹100 credit); answers differ → disputed (no promised time);
    silence 12h after arrival → confirmed. */
 
 import { CREDIT_VALIDITY_MONTHS, PRICE_PAISE, THANK_YOU_PAISE } from './money'
@@ -43,7 +43,7 @@ export function resolveConfirmations(
     }
   }
   if (requester === acceptor) {
-    // Agreed it didn't happen — requester gets ₹99 credit, never bank.
+    // Agreed it didn't happen — requester gets ₹100 credit, never bank.
     return {
       status: 'voided',
       credits: [
@@ -55,7 +55,7 @@ export function resolveConfirmations(
   return { status: 'disputed', credits: [], resultKey: 'disputed' }
 }
 
-/** Cancel after payment (either side, PNR cancelled, berth changed) → voided + ₹99 credit. */
+/** Cancel after payment (either side, PNR cancelled, berth changed) → voided + ₹100 credit. */
 export function cancelAfterPay(): Resolution {
   return {
     status: 'voided',

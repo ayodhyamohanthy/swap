@@ -24,7 +24,7 @@ Tab = which bottom tab is highlighted. "—" = no tab bar. Design page refers to
 | 18 | Invite / share anywhere | `/share/$trainDate` | Swaps | 14b |
 | 19 | Chart is out | push → `/trips/$id` | Home | 7c |
 | 20 | Updates | `/updates` | Swaps | 13a |
-| 21 | Arjun said yes · pay ₹99 | `/pay/$requestId` | Swaps | 3c |
+| 21 | Arjun said yes · pay ₹100 | `/pay/$requestId` | Swaps | 3c |
 | 22 | 2nd choice match | `/request/$id` | Swaps | 14c |
 | 23 | Choose how to pay | `/pay/$requestId/method` | Swaps | 27a |
 | 24 | Waiting for UPI | `/pay/$requestId/upi` | Swaps | 27b |

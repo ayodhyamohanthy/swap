@@ -6,10 +6,10 @@ import { createRequest, sendRequest, offersFor, acceptOffer, resetRequests, getR
 import { lockCoveredRequest } from '@/lib/checkout'
 import { voidSwap } from '@/lib/settle'
 
-/* Rule 6 has a precondition this file used to skip: the ₹99 only becomes credit
- * if ₹99 was actually collected. A swap can reach `locked` with NO payment of
+/* Rule 6 has a precondition this file used to skip: the ₹100 only becomes credit
+ * if ₹100 was actually collected. A swap can reach `locked` with NO payment of
  * its own — a group trip pays ₹199 once and covers up to 3 member swaps — so
- * voiding one credits ₹99 that was never charged, permanently overstating the
+ * voiding one credits ₹100 that was never charged, permanently overstating the
  * requester's balance and understating real revenue by the same amount. */
 describe('rule 6 needs money to have moved', () => {
   beforeEach(() => {
@@ -33,7 +33,7 @@ describe('rule 6 needs money to have moved', () => {
     )
   }
 
-  it('issues no ₹99 for a swap that was never charged for', async () => {
+  it('issues no ₹100 for a swap that was never charged for', async () => {
     const t1 = await trip('B1', '11', 1)
     const t2 = await trip('B2', '22', 2)
     /* A third trip, open to swap, is what the request matches against. */
@@ -69,7 +69,7 @@ describe('rule 6 needs money to have moved', () => {
     const result = voidSwap(request.id)
 
     /* The swap still settles — the family is not left in limbo — but no money
-       is conjured. Before the fix this credited ₹99 and logged it. */
+       is conjured. Before the fix this credited ₹100 and logged it. */
     expect(result.resolution?.status).toBe('voided')
     expect(getRequest(request.id)?.status).toBe('voided')
     expect(creditPaise() - before).toBe(0)
@@ -79,7 +79,7 @@ describe('rule 6 needs money to have moved', () => {
 /* The other half of the same rule: when a payment HAS been captured, a lock
  * that cannot happen must not lose the money. `confirmCaptured` marks the
  * payment paid and *then* locks, so anything thrown from the lock used to
- * strand a real ₹99 — neither locked nor credited, and the rule-6 refund path
+ * strand a real ₹100 — neither locked nor credited, and the rule-6 refund path
  * needs `locked`/`disputed`, which is never reached. */
 describe('a captured payment is never stranded by a failed lock', () => {
   beforeEach(() => {
@@ -145,7 +145,7 @@ describe('a captured payment is never stranded by a failed lock', () => {
       if (request) lockCoveredRequest(request.id)
     }
 
-    /* The fourth pays its own ₹99, so `lockRequest`'s `ownPaid` check is true
+    /* The fourth pays its own ₹100, so `lockRequest`'s `ownPaid` check is true
        and the cap is legitimately skipped — the bundle does not cover it, so it
        is an ordinary per-request swap and must lock. That is the designed
        behaviour, and it is why the cap throw could only ever have fired on a
@@ -153,7 +153,7 @@ describe('a captured payment is never stranded by a failed lock', () => {
     const fourth = await accepted(members[3], acceptors[3])
     expect(fourth).not.toBeNull()
     if (!fourth) return
-    startPayment({ request_id: fourth.id, provider: 'razorpay', amount_paise: 9900, credit_used_paise: 0, status: 'pending' })
+    startPayment({ request_id: fourth.id, provider: 'razorpay', amount_paise: 10000, credit_used_paise: 0, status: 'pending' })
 
     let ticket: ReturnType<typeof confirmCaptured> | undefined
     expect(() => {

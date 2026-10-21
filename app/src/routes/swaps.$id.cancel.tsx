@@ -10,7 +10,7 @@ import { listTrips } from '@/lib/store'
 import { demoRequest } from '@/lib/demo-swap'
 
 /* Screen 31 "Cancel this swap?" (design 25c): cancelling after payment moves
-   the ₹99 to the requester's credit — never back to the bank (rule 6). */
+   the ₹100 to the requester's credit — never back to the bank (rule 6). */
 export const Route = createFileRoute('/swaps/$id/cancel')({
   staticData: { chrome: 'tabs', tab: 'swaps' } satisfies RouteChrome,
   component: CancelSwapScreen,
@@ -23,7 +23,7 @@ function CancelSwapScreen() {
   const locked = request ? acceptedOffer(request.id) : undefined
   const name = locked?.acceptor_name ?? demoRequest(id).acceptorName
   /* Whose money is this? Only the side that holds the trip on this device
-     paid the ₹99 (rule 6); the acceptor never pays (rule 3). */
+     paid the ₹100 (rule 6); the acceptor never pays (rule 3). */
   const requesterSide = Boolean(request && listTrips().some((trip) => trip.id === request.trip_id))
   return (
     <div>
@@ -42,12 +42,12 @@ function CancelSwapScreen() {
         variant="danger"
         onClick={() => {
           /* Either side cancelling after payment voids the swap and moves
-             the ₹99 to the requester's credit — never back to a bank.
+             the ₹100 to the requester's credit — never back to a bank.
              Before the screen may claim that, both gates must hold: the void
              has to actually settle (an already-confirmed swap cannot be
              voided), and the viewer has to be the side that paid. The
              acceptor lands on the swap's status screen instead of being told
-             ₹99 joined a credit they never funded. */
+             ₹100 joined a credit they never funded. */
           const cancellable = request?.status === 'locked' || request?.status === 'disputed'
           const settled = cancellable ? Boolean(voidSwap(id).resolution) : false
           if (settled && requesterSide) {

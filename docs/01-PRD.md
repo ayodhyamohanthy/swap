@@ -12,7 +12,7 @@ Indian train passengers often get berths that don't suit them: families split ac
 | Admin | SeatSwap team (1 person at launch) | See every action, fix problems, move money to credit |
 
 ## Core value
-"Tell us what berth you want. We find people on your train who want to swap. You pay ₹99 only when someone says yes."
+"Tell us what berth you want. We find people on your train who want to swap. You pay ₹100 only when someone says yes."
 
 ## Scope v1
 - All Indian trains, all classes (1A, 2A, 3A, 3E, SL, CC, EC, 2S).

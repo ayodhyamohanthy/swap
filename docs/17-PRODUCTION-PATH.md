@@ -130,9 +130,9 @@ then — spend the **$5,000 Microsoft for Startups** credit:
    telemetry event, never silent.
 4. Amount rule already enforced (server computes from request row) —
    add the test that a tampered client amount is ignored.
-5. DoD: one real ₹99 UPI payment in Razorpay test mode locks a swap
+5. DoD: one real ₹100 UPI payment in Razorpay test mode locks a swap
    end-to-end through the live webhook; replayed webhook is a no-op;
-   rule 6 path (swap didn't happen → ₹99 to credit) exercised.
+   rule 6 path (swap didn't happen → ₹100 to credit) exercised.
 
 ## W4 — Eyes open: Sentry + PostHog (fixes M1, M2) — credits: $5k Sentry + $50k PostHog
 

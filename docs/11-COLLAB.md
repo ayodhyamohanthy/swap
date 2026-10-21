@@ -49,7 +49,7 @@ to attribute files.
 - `validateSearch` with defaults makes `search` REQUIRED on every `<Link>`
   to that route — update all callers when you add one.
 - Money is integer paise everywhere; every state transition writes an
-  `activity_log` row; credit values are fixed per kind (5000/9900).
+  `activity_log` row; credit values are fixed per kind (5000/10000).
 - Banned words and the exact dispute line are enforced by `tests/copy.test.ts`
   and `tests/locales.test.ts` — run the suite, don't guess.
 

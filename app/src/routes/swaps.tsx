@@ -16,7 +16,7 @@ import { useRequestsState, useTrips, useUnreadUpdates } from '@/lib/use-store'
    traveller comes back for: the requests I sent, the requests other people
    sent me, and the Updates bell. Requests and swaps used to be reachable only
    from the screen that created them, so a traveller who navigated away could
-   never find their own ₹99 pay screen again.
+   never find their own ₹100 pay screen again.
 
    History is NOT here: a withdrawn or ended request has nothing left to do, and
    docs/04 gives it a home in Updates. `voided`/`disputed` do stay, because

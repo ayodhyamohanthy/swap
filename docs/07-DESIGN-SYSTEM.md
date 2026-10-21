@@ -2,7 +2,7 @@
 
 ## Principles
 - One clear primary button per screen. Lots of white space. Plain lists. Big tap targets (min 48 px).
-- Short sentences, everyday words. Numbers large (₹99, ₹50).
+- Short sentences, everyday words. Numbers large (₹100, ₹50).
 - Works on cheap Android phones: fast first load (< 200 KB JS for first screen goal), no heavy animation.
 
 ## Tokens
@@ -64,7 +64,7 @@ grid belongs to the admin routes, which are desktop-first and already are.
 Top bar (wordmark "SeatSwap" left, settings icon right) · bottom tab bar (Home, Swaps, Profile) · trip card · berth chip ("Berth ••" before payment) · match row (initials avatar, "✓ Google verified", berth type, coach, choice rank) · primary button · outline button (saffron) · check row · price breakdown card · status timeline · chat bubbles + quick-reply chips · empty state with single action · offline banner.
 
 ## Wording rules
-- Use: "Swap summary", "thank-you credit", "No swap? ₹99 goes to your credit", "Pay only inside SeatSwap", "SeatSwap is not an official railway service."
+- Use: "Swap summary", "thank-you credit", "No swap? ₹100 goes to your credit", "Pay only inside SeatSwap", "SeatSwap is not an official railway service."
 - Never: TTE, pass, official, Indian Railways, authorised, legal, grievance, refund-to-bank (except bank failure).
 - Before payment always "Berth ••".
 

@@ -19,7 +19,7 @@ export interface RouteChrome {
   chrome?: 'tabs' | 'plain' | 'setup'
   tab?: TabId
   /** Back chevron on a *tabbed* screen. `plain` already implies it; the designs
-      also draw "<  SeatSwap" above a tab bar — 3c (pay ₹99), 22b (delete
+      also draw "<  SeatSwap" above a tab bar — 3c (pay ₹100), 22b (delete
       account), 1c (your berth) — so the chevron and the tabs are separate
       decisions. L3 once asked for a `sub` mode for this; the ink says the fix
       is a flag, not a fourth mode. */

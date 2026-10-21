@@ -169,7 +169,7 @@ describe('accept then pay (rules 2, 3)', () => {
     const accepted = acceptOffer(offer.id)
     expect(accepted.request?.status).toBe('accepted_awaiting_payment')
     expect(accepted.offer?.status).toBe('accepted')
-    /* Rule 2: the swap is NOT locked until the ₹99 lands. */
+    /* Rule 2: the swap is NOT locked until the ₹100 lands. */
     expect(getRequest(request.id)?.locked_offer_id).toBeNull()
     /* Rule 2 again: still no money. */
     expect(creditPaise()).toBe(0)

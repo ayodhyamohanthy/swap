@@ -3,7 +3,7 @@
  * One definition, read by every screen in the pay flow. It used to live inside
  * the `/pay/$requestId` index route, which is why it drifted: the child screens
  * render through the parent's <Outlet/>, so the index component never ran for
- * `/method` or `/paypal` and those screens could still draw a live "Pay ₹99"
+ * `/method` or `/paypal` and those screens could still draw a live "Pay ₹100"
  * over a swap that was already paid. L4 filed that on 2026-09-28.
  *
  * `covered` is deliberately its own state: a member swap already paid for by a

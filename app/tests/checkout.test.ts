@@ -116,7 +116,7 @@ describe('capture and failure', () => {
 
   it('never spends credit or claims a lock when the request stopped being payable', async () => {
     /* The requester withdraws while the gateway is still confirming. The money
-       is captured, but no swap happened: rule 6 sends the ₹99 to their credit
+       is captured, but no swap happened: rule 6 sends the ₹100 to their credit
        via the outcome path, so the planned credit spend must not happen and
        the caller must not be told the swap locked. */
     const { request } = await acceptedJourney()
@@ -139,21 +139,21 @@ describe('capture and failure', () => {
     credit({ to: 'requester', amountPaise: 5000, kind: 'acceptor_credit' })
     const ticket = beginCheckout(request.id, 'paypal', false, false, 5000)
     expect(ticket.creditUsed).toBe(5000)
-    expect(ticket.due).toBe(4900)
+    expect(ticket.due).toBe(5000)
   })
 
   it('a forged credit figure cannot exceed the real balance', async () => {
     const { request } = await acceptedJourney()
     credit({ to: 'requester', amountPaise: 5000, kind: 'acceptor_credit' })
-    const ticket = beginCheckout(request.id, 'paypal', false, false, 9900)
+    const ticket = beginCheckout(request.id, 'paypal', false, false, 10000)
     expect(ticket.creditUsed).toBe(5000)
-    expect(ticket.due).toBe(4900)
+    expect(ticket.due).toBe(5000)
   })
 
   it('a negative credit override is treated as no credit', async () => {
     const { request } = await acceptedJourney()
     credit({ to: 'requester', amountPaise: 5000, kind: 'acceptor_credit' })
-    const ticket = beginCheckout(request.id, 'paypal', false, false, -9900)
+    const ticket = beginCheckout(request.id, 'paypal', false, false, -10000)
     expect(ticket.creditUsed).toBe(0)
     expect(ticket.due).toBe(PRICE_PAISE)
   })
@@ -192,7 +192,7 @@ describe('a swap can never be charged twice (rules 2, 6)', () => {
 
   it('refuses a second charge for a swap the ₹199 group trip already covered', async () => {
     /* A covered lock settles with NO payment row of its own (docs/04 C), so the
-       only thing between it and a second ₹99 was `payableStatus`'s
+       only thing between it and a second ₹100 was `payableStatus`'s
        `already_paid` branch — which its only caller computed and dropped. */
     const mine = await addTrip({
       pnr: '4512789630',

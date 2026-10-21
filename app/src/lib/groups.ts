@@ -84,7 +84,7 @@ export function groupForTrip(tripId: string): GroupTrip | undefined {
     `(group_id, booking_id)` primary key, so the database would accept the same
     booking in two groups — but `groupForTrip()` then has to pick one, and which
     bundle it picks decides whether that member's swap is covered by the ₹199
-    already paid or costs another ₹99. No screen can disambiguate the choice, so
+    already paid or costs another ₹100. No screen can disambiguate the choice, so
     the local model refuses the state instead of resolving it at random. */
 function freeTripIds(tripIds: string[]): string[] {
   const seen = new Set<string>()

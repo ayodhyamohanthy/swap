@@ -590,7 +590,7 @@ export function lockRequest(requestId: string, paidOfferId?: string): SwapReques
      Returning `undefined` rather than throwing, and that is load-bearing.
      `confirmCaptured` calls this AFTER marking the payment paid, so a throw
      here propagates out of a payment that has already been captured: the caller
-     catches it, the request is still `accepted_awaiting_payment`, the ₹99 is
+     catches it, the request is still `accepted_awaiting_payment`, the ₹100 is
      neither locked nor credited, and the outcome path that would refund it
      under rule 6 needs `locked`/`disputed` — which is never reached. The money
      is simply unaccounted for. The other "cannot lock" case below returns
@@ -883,7 +883,7 @@ export function respondToIncoming(tripId: string, response: IncomingResponse): I
      the function is also called by tests and any future caller). */
   if (current.state === response) return incomingFor(tripId)
   /* docs/03: the FIRST acceptance is what moves `searching` to
-     `accepted_awaiting_payment`, and docs/04 A.9's "Someone says yes → Pay ₹99"
+     `accepted_awaiting_payment`, and docs/04 A.9's "Someone says yes → Pay ₹100"
      reads the request from there. This function used to write only the
      incoming map — while logging `offer_accepted` — so the log claimed an
      acceptance the state machine had never seen: the offer stayed `sent`, the

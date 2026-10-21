@@ -163,7 +163,7 @@ describe('auto-confirm 12h after arrival', () => {
     expect(creditPaise()).toBe(before + 5000)
   })
 
-  it('does not settle the ₹99 to credit — the swap is treated as done (rule 6 is not triggered)', async () => {
+  it('does not settle the ₹100 to credit — the swap is treated as done (rule 6 is not triggered)', async () => {
     const request = await silentLocked()
     runDueJobs(AFTER)
     expect(creditRows().some((tx) => tx.kind === 'swap_to_credit')).toBe(false)

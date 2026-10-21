@@ -40,7 +40,7 @@ import { planConsumeCredit, type CreditLedgerRow } from '@/lib/payments'
     covering it, and the `payments` row webhooks reconcile against. Shared by
     Razorpay and PayPal so the two paths can never disagree about the amount —
     they used to charge different totals for the same swap (PayPal took the full
-    price while the client also spent the credit: ₹149 for a ₹99 swap). */
+    price while the client also spent the credit: ₹149 for a ₹100 swap). */
 export interface PreparedPayment {
   /** What the gateway must actually charge, in paise. */
   due: number

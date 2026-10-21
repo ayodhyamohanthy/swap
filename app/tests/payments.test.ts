@@ -7,13 +7,13 @@ import { isCreditSpendable, spendableCreditPaise, type CreditLedgerRow } from '@
 
 describe('buildQuote', () => {
   it('charges full price with no credit', () => {
-    expect(buildQuote(0)).toEqual({ total: 9900, creditUsed: 0, due: 9900, provider: null })
+    expect(buildQuote(0)).toEqual({ total: 10000, creditUsed: 0, due: 10000, provider: null })
   })
   it('applies partial credit and still needs a provider', () => {
-    expect(buildQuote(3000)).toEqual({ total: 9900, creditUsed: 3000, due: 6900, provider: null })
+    expect(buildQuote(3000)).toEqual({ total: 10000, creditUsed: 3000, due: 7000, provider: null })
   })
   it('covers the full price by credit with no provider', () => {
-    expect(buildQuote(9900)).toEqual({ total: 9900, creditUsed: 9900, due: 0, provider: 'credit' })
+    expect(buildQuote(10000)).toEqual({ total: 10000, creditUsed: 10000, due: 0, provider: 'credit' })
     expect(buildQuote(20000).provider).toBe('credit')
   })
   it('quotes the group price', () => {
@@ -27,29 +27,29 @@ describe('buildQuote', () => {
   })
 })
 describe('splitReceipt', () => {
-  it('lists fee 4900 + thank-you 5000 = 9900', () => {
-    const r = splitReceipt(9900, 0)
+  it('lists fee 5000 + thank-you 5000 = 10000', () => {
+    const r = splitReceipt(10000, 0)
     expect(r.total).toBe(PRICE_PAISE)
-    expect(r.lines.find((l) => l.label === 'fee')?.amountPaise).toBe(4900)
+    expect(r.lines.find((l) => l.label === 'fee')?.amountPaise).toBe(5000)
     expect(r.lines.find((l) => l.label === 'thank_you')?.amountPaise).toBe(5000)
   })
   it('shows credit used when applied, and totals the cash actually captured', () => {
-    const r = splitReceipt(9900, 3000)
+    const r = splitReceipt(10000, 3000)
     expect(r.lines.find((l) => l.label === 'credit_used')?.amountPaise).toBe(-3000)
-    expect(r.total).toBe(6900)
+    expect(r.total).toBe(7000)
   })
   /* The one property a receipt has to have, and the one it did not have. The
-     credit-used line was a deduction while `total` returned the gross ₹99, so a
-     credit-covered swap printed lines adding to ₹49 underneath a "Total ₹99".
+     credit-used line was a deduction while `total` returned the gross ₹100, so a
+     credit-covered swap printed lines adding to ₹50 underneath a "Total ₹100".
      Design 29b's lines sum to its total exactly; design 29a shows the same
-     split in words ("₹49 + ₹50 credit"). Swept across the range rather than
+     split in words ("₹50 + ₹50 credit"). Swept across the range rather than
      pinned at a point, including ₹0 cash and the group price. */
   it('lines always sum to the total', () => {
     const cases: [number, number, boolean][] = [
-      [9900, 0, false],
-      [9900, 3000, false],
-      [9900, 4900, false],
-      [9900, 9900, false],
+      [10000, 0, false],
+      [10000, 3000, false],
+      [10000, 5000, false],
+      [10000, 10000, false],
       [19900, 0, true],
       [19900, 5000, true],
       [19900, 19900, true],
@@ -61,12 +61,12 @@ describe('splitReceipt', () => {
     }
   })
   it('a fully credit-covered swap totals zero, not the gross price', () => {
-    expect(splitReceipt(9900, 9900).total).toBe(0)
+    expect(splitReceipt(10000, 10000).total).toBe(0)
   })
   it('never lets credit exceed the charge and drive the total negative', () => {
-    const r = splitReceipt(9900, 999999)
+    const r = splitReceipt(10000, 999999)
     expect(r.total).toBe(0)
-    expect(r.lines.find((l) => l.label === 'credit_used')?.amountPaise).toBe(-9900)
+    expect(r.lines.find((l) => l.label === 'credit_used')?.amountPaise).toBe(-10000)
   })
 })
 describe('nextPayState', () => {
@@ -87,10 +87,10 @@ describe('outcomeToCredit', () => {
   it('awards nothing when swapped', () => {
     expect(outcomeToCredit('swapped').amountPaise).toBe(0)
   })
-  it('moves 9900 to requester credit when the swap did not happen', () => {
+  it('moves 10000 to requester credit when the swap did not happen', () => {
     for (const o of ['no_show', 'not_possible', 'changed_mind'] as const) {
       const c = outcomeToCredit(o)
-      expect(c).toMatchObject({ to: 'requester', amountPaise: 9900, kind: 'swap_to_credit', expiresMonths: 12 })
+      expect(c).toMatchObject({ to: 'requester', amountPaise: 10000, kind: 'swap_to_credit', expiresMonths: 12 })
     }
   })
   it('never refunds to bank except bank failure', () => {
@@ -121,7 +121,7 @@ describe('planConsumeCredit', () => {
       tx('neg', -2000, null),
       tx('good', 5000, '2027-01-01T00:00:00.000Z'),
     ]
-    const plan = planConsumeCredit(rows, 9900, Date.parse('2026-11-12T00:00:00.000Z'))
+    const plan = planConsumeCredit(rows, 10000, Date.parse('2026-11-12T00:00:00.000Z'))
     expect(plan.usedTxIds).toEqual(['good'])
     expect(plan.usedTotal).toBe(5000)
   })
@@ -150,13 +150,13 @@ describe('spendableCreditPaise', () => {
   })
 
   it('SUBTRACTS a spend instead of ignoring it', () => {
-    expect(spendableCreditPaise([row({ amount_paise: 9900 }), spent('u1', 9900)], NOW)).toBe(0)
+    expect(spendableCreditPaise([row({ amount_paise: 10000 }), spent('u1', 10000)], NOW)).toBe(0)
   })
 
   it('spent credit cannot fund a second swap', () => {
-    /* The exploit: one earned ₹99, already spent on swap A, quoted as if it were
+    /* The exploit: one earned ₹100, already spent on swap A, quoted as if it were
        still there, so swap B and every swap after it cost SeatSwap nothing. */
-    const ledger = [row({ id: 'c1', amount_paise: 9900 }), spent('u1', 9900)]
+    const ledger = [row({ id: 'c1', amount_paise: 10000 }), spent('u1', 10000)]
     expect(spendableCreditPaise(ledger, NOW)).toBe(0)
     expect(buildQuote(spendableCreditPaise(ledger, NOW))).toEqual({
       total: PRICE_PAISE, creditUsed: 0, due: PRICE_PAISE, provider: null,
@@ -164,18 +164,18 @@ describe('spendableCreditPaise', () => {
   })
 
   it('a partial spend leaves only the remainder', () => {
-    expect(spendableCreditPaise([row({ amount_paise: 9900 }), spent('u1', 4000)], NOW)).toBe(5900)
+    expect(spendableCreditPaise([row({ amount_paise: 10000 }), spent('u1', 4000)], NOW)).toBe(6000)
   })
 
   it('never reports a negative balance', () => {
-    expect(spendableCreditPaise([row({ amount_paise: 1000 }), spent('u1', 9900)], NOW)).toBe(0)
+    expect(spendableCreditPaise([row({ amount_paise: 1000 }), spent('u1', 10000)], NOW)).toBe(0)
   })
 
   it('an expired credit row does not cancel a spend that already happened', () => {
-    /* +9900 expires, the -9900 `used` row never does: the wallet is empty, not
+    /* +9900 expires, the -10000 `used` row never does: the wallet is empty, not
        negative, and the user simply sees no credit. */
     expect(spendableCreditPaise(
-      [row({ amount_paise: 9900, expires_at: '2026-01-01T00:00:00.000Z' }), spent('u1', 9900)], NOW,
+      [row({ amount_paise: 10000, expires_at: '2026-01-01T00:00:00.000Z' }), spent('u1', 10000)], NOW,
     )).toBe(0)
   })
 
@@ -188,7 +188,7 @@ describe('spendableCreditPaise', () => {
   })
 
   it('a wallet of only expired credit still owes the full price', () => {
-    const rows = [row({ amount_paise: 9900, expires_at: '2026-01-01T00:00:00.000Z' })]
+    const rows = [row({ amount_paise: 10000, expires_at: '2026-01-01T00:00:00.000Z' })]
     expect(buildQuote(spendableCreditPaise(rows, NOW))).toEqual({
       total: PRICE_PAISE, creditUsed: 0, due: PRICE_PAISE, provider: null,
     })
@@ -206,14 +206,14 @@ describe('isCreditSpendable', () => {
   it('accepts positive unexpired credit only', () => {
     expect(isCreditSpendable(row({}), NOW)).toBe(true)
     expect(isCreditSpendable(row({ amount_paise: 0 }), NOW)).toBe(false)
-    expect(isCreditSpendable(row({ amount_paise: -9900 }), NOW)).toBe(false)
+    expect(isCreditSpendable(row({ amount_paise: -10000 }), NOW)).toBe(false)
     expect(isCreditSpendable(row({ expires_at: '2026-01-01T00:00:00.000Z' }), NOW)).toBe(false)
   })
 
   it('never plans a debit row for consumption', () => {
-    const plan = planConsumeCredit([row({ id: 'c1', amount_paise: 9900 }), row({ id: 'u1', amount_paise: -9900 })], 9900, NOW)
+    const plan = planConsumeCredit([row({ id: 'c1', amount_paise: 10000 }), row({ id: 'u1', amount_paise: -10000 })], 10000, NOW)
     expect(plan.usedTxIds).toEqual(['c1'])
-    expect(plan.usedTotal).toBe(9900)
+    expect(plan.usedTotal).toBe(10000)
   })
 })
 
@@ -225,11 +225,11 @@ describe('isCreditSpendable', () => {
    of the work. */
 describe('usdEstimateFor', () => {
   it('estimates from the amount actually charged, not the list price', () => {
-    expect(usdEstimateFor(9900)).toBe('US$1.2')
-    expect(usdEstimateFor(4900)).toBe('US$0.6')
+    expect(usdEstimateFor(10000)).toBe('US$1.2')
+    expect(usdEstimateFor(5000)).toBe('US$0.6')
   })
   it('never throws on a zero, negative or tiny charge', () => {
-    for (const paise of [0, 1, 100, 412, 413, 4900, 9900, -5, Number.NaN]) {
+    for (const paise of [0, 1, 100, 412, 413, 5000, 10000, -5, Number.NaN]) {
       expect(() => usdEstimateFor(paise), `charge ${paise}`).not.toThrow()
       expect(usdEstimateFor(paise), `charge ${paise}`).toMatch(/^US\$\d+\.\d$/)
     }
@@ -273,7 +273,7 @@ describe('receipt labels cannot drift between the two branches', () => {
      captured. This file has two of them and a fix landed in one: the group
      branch was corrected while the single-swap branch — the one a credit-
      covered swap actually renders — kept printing the GROSS, telling the payer
-     Razorpay had taken ₹99 when it took ₹49. An edit that succeeds is not an
+     Razorpay had taken ₹100 when it took ₹50. An edit that succeeds is not an
      edit that reached everywhere. */
   it('states the captured cash on every paid line, in both branches', () => {
     const amounts = [...src.matchAll(/t\('pay\.paidLine', \{\s*amount: ([^,]+),/g)].map((m) => m[1].trim())

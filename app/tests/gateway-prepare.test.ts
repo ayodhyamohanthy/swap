@@ -1,8 +1,8 @@
 /* `prepareGatewayPayment` is the one place that decides what a gateway charges
-   and which credit covers it (rule 1: ₹99 = ₹49 fee + ₹50 credit, credit only
+   and which credit covers it (rule 1: ₹100 = ₹50 fee + ₹50 credit, credit only
    ever LOWERS what is due). It is shared by Razorpay and PayPal precisely so the
-   two can never disagree — when they did, PayPal took the full ₹99 while the
-   client also spent ₹50 of credit, billing ₹149 for a ₹99 swap. */
+   two can never disagree — when they did, PayPal took the full ₹100 while the
+   client also spent ₹50 of credit, billing ₹149 for a ₹100 swap. */
 import { describe, expect, it } from 'vitest'
 import type { SupaClient } from '@/server/functions'
 import { prepareGatewayPayment } from '@/server/payments'
@@ -82,8 +82,8 @@ describe('prepareGatewayPayment — the amount charged', () => {
   it('charges the full price with no credit', async () => {
     const { client } = fakeClient({ request: request() })
     const p = await prepareGatewayPayment(client, REQUESTER, { requestId: 'req_1', isGroup: false, useCredit: true })
-    expect(p.total).toBe(9900)
-    expect(p.due).toBe(9900)
+    expect(p.total).toBe(10000)
+    expect(p.due).toBe(10000)
     expect(p.creditUsed).toBe(0)
     expect(p.holdId).toBeNull()
   })
@@ -93,37 +93,37 @@ describe('prepareGatewayPayment — the amount charged', () => {
       request: request(), wallet: [{ id: 'w1', amount_paise: 5000, expires_at: null }],
     })
     const p = await prepareGatewayPayment(client, REQUESTER, { requestId: 'req_1', isGroup: false, useCredit: true })
-    /* The exact bug: due must be 4900, never 9900, or the payer is charged the
+    /* The exact bug: due must be 5000, never 10000, or the payer is charged the
        full price AND the ₹50 credit is spent. */
-    expect(p.total).toBe(9900)
+    expect(p.total).toBe(10000)
     expect(p.creditUsed).toBe(5000)
-    expect(p.due).toBe(4900)
+    expect(p.due).toBe(5000)
     expect(inserted(state, 'wallet_tx')).toMatchObject([{ amount_paise: -5000, kind: 'used' }])
-    expect(inserted(state, 'payments')).toMatchObject([{ amount_paise: 9900, credit_used_paise: 5000 }])
+    expect(inserted(state, 'payments')).toMatchObject([{ amount_paise: 10000, credit_used_paise: 5000 }])
   })
 
   it('credit is only ever spent in whole paise off the total, never over', async () => {
     const { client } = fakeClient({
-      request: request(), wallet: [{ id: 'w1', amount_paise: 9900, expires_at: null }],
+      request: request(), wallet: [{ id: 'w1', amount_paise: 10000, expires_at: null }],
     })
     const p = await prepareGatewayPayment(client, REQUESTER, { requestId: 'req_1', isGroup: false, useCredit: true })
-    expect(p.creditUsed).toBe(9900)
+    expect(p.creditUsed).toBe(10000)
     expect(p.due).toBe(0)
   })
 
   it('an already-SPENT credit row does not lower the price again', async () => {
-    /* wallet_tx is signed: +9900 earned, -9900 already spent. The balance is 0,
-       so this swap must cost the full ₹99. */
+    /* wallet_tx is signed: +10000 earned, -10000 already spent. The balance is 0,
+       so this swap must cost the full ₹100. */
     const { client } = fakeClient({
       request: request(),
       wallet: [
-        { id: 'c1', amount_paise: 9900, expires_at: null },
-        { id: 'u1', amount_paise: -9900, expires_at: null },
+        { id: 'c1', amount_paise: 10000, expires_at: null },
+        { id: 'u1', amount_paise: -10000, expires_at: null },
       ],
     })
     const p = await prepareGatewayPayment(client, REQUESTER, { requestId: 'req_1', isGroup: false, useCredit: true })
     expect(p.creditUsed).toBe(0)
-    expect(p.due).toBe(9900)
+    expect(p.due).toBe(10000)
   })
 
   it('useCredit:false ignores the balance entirely', async () => {
@@ -132,10 +132,10 @@ describe('prepareGatewayPayment — the amount charged', () => {
     })
     const p = await prepareGatewayPayment(client, REQUESTER, { requestId: 'req_1', isGroup: false, useCredit: false })
     expect(p.creditUsed).toBe(0)
-    expect(p.due).toBe(9900)
+    expect(p.due).toBe(10000)
   })
 
-  it('prices a group trip at ₹199, not ₹99', async () => {
+  it('prices a group trip at ₹199, not ₹100', async () => {
     const { client } = fakeClient({ group: { id: 'g1', organiser_id: REQUESTER, name: 'Family' } })
     const p = await prepareGatewayPayment(client, REQUESTER, { requestId: 'g1', isGroup: true, useCredit: true })
     expect(p.total).toBe(19900)
@@ -208,12 +208,12 @@ describe('prepareGatewayPayment — credit-only settlement', () => {
     /* Without the lock the request stays payable next to a paid row and can be
        charged a second time. */
     const { client, state } = fakeClient({
-      request: request(), wallet: [{ id: 'w1', amount_paise: 9900, expires_at: null }],
+      request: request(), wallet: [{ id: 'w1', amount_paise: 10000, expires_at: null }],
     })
     const p = await prepareGatewayPayment(client, REQUESTER, { requestId: 'req_1', isGroup: false, useCredit: true })
     expect(p.due).toBe(0)
-    expect(p.creditUsed).toBe(9900)
-    expect(inserted(state, 'payments')).toMatchObject([{ provider: 'credit', status: 'paid', credit_used_paise: 9900 }])
+    expect(p.creditUsed).toBe(10000)
+    expect(inserted(state, 'payments')).toMatchObject([{ provider: 'credit', status: 'paid', credit_used_paise: 10000 }])
     expect(state.rpcs).toEqual([['apply_request_transition', { p_req: 'req_1', p_status: 'locked', p_locked_offer: null }]])
   })
 
@@ -228,7 +228,7 @@ describe('prepareGatewayPayment — credit-only settlement', () => {
 
   it('surfaces a failed lock instead of reporting success', async () => {
     const { client } = fakeClient({
-      request: request(), wallet: [{ id: 'w1', amount_paise: 9900, expires_at: null }],
+      request: request(), wallet: [{ id: 'w1', amount_paise: 10000, expires_at: null }],
       rpcError: new Error('bad_request_transition'),
     })
     await expect(

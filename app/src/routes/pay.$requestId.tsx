@@ -30,7 +30,7 @@ function PayLayout() {
     layout renders this instead of a live payment UI when `payGateFor` says the
     id is not payable — the index screen had this branch inline, so the child
     screens (`/method`, `/paypal`, `/upi`, `/status`) rendered a working
-    "Pay ₹99" for a swap that was already settled and only refused on tap.
+    "Pay ₹100" for a swap that was already settled and only refused on tap.
     Never a dead end: always a way back to the request, swap or group. */
 export function PayBlocked({
   requestId,
@@ -92,7 +92,7 @@ export function PayScreen() {
 
   /* A member swap covered by a paid group trip locks with no extra charge
      (docs/04 C) — unless the group already covers GROUP_MAX_SWAPS, in which
-     case this swap pays the normal per-request ₹99 below. */
+     case this swap pays the normal per-request ₹100 below. */
   const covering =
     !isGroupRequestId(requestId) && request?.group_id
       ? getGroup(request.group_id)
@@ -229,7 +229,7 @@ export function PayScreen() {
         </span>
       </div>
       {/* Design 03c ends on "Pay with UPI" — the action, not a status page.
-          Reuses `pay.payNow` ("Pay ₹49") rather than a new key: the design
+          Reuses `pay.payNow` ("Pay ₹50") rather than a new key: the design
           names the instrument because its method screen is one tap away, and
           the amount is the more useful of the two on a screen that has just
           shown a credit discount change.
@@ -239,7 +239,7 @@ export function PayScreen() {
           *created*. `startPayment` writes a `created` row the moment checkout
           opens, before a byte reaches Razorpay, so a first-time payer who
           backed out of the method screen, or whose gateway handoff was killed,
-          landed on "Your bank is still confirming ₹99 / Please don't pay again"
+          landed on "Your bank is still confirming ₹100 / Please don't pay again"
           for a payment the bank had never heard of. The instruction not to pay
           again is the right instinct applied to the wrong state: the honest
           thing there is to let them pay.

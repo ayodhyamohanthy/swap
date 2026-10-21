@@ -216,11 +216,11 @@ describe('group checkout (docs/01, docs/04 C)', () => {
     const t2 = await memberTrip('B1', '12', 'LB')
     const partial = createGroup('Partial family', [t1])
     const full = createGroup('Full family', [t2])
-    credit({ to: 'requester', amountPaise: 9900, kind: 'swap_to_credit', ref_request_id: null })
+    credit({ to: 'requester', amountPaise: 10000, kind: 'swap_to_credit', ref_request_id: null })
     credit({ to: 'acceptor', amountPaise: 5000, kind: 'acceptor_credit', ref_request_id: null })
-    /* Balance 14900 < 19900: gateway still due the rest. */
-    expect(beginCheckout(partial.id, 'razorpay').due).toBe(5000)
-    credit({ to: 'requester', amountPaise: 9900, kind: 'swap_to_credit', ref_request_id: null })
+    /* Balance 15000 < 19900: gateway still due the rest. */
+    expect(beginCheckout(partial.id, 'razorpay').due).toBe(4900)
+    credit({ to: 'requester', amountPaise: 10000, kind: 'swap_to_credit', ref_request_id: null })
     const covered = beginCheckout(full.id, 'razorpay')
     expect(covered.settled).toBe(true)
     expect(covered.provider).toBe('credit')
@@ -254,9 +254,9 @@ describe('group checkout (docs/01, docs/04 C)', () => {
         expect(listPayments().filter((p) => p.request_id === request.id)).toHaveLength(0)
       } else {
         expect(() => lockCoveredRequest(request.id)).toThrow('group_swap_cap')
-        /* The 4th swap is not blocked outright — it pays the normal ₹99. */
+        /* The 4th swap is not blocked outright — it pays the normal ₹100. */
         const single = beginCheckout(request.id, 'razorpay')
-        expect(single.total).toBe(9900)
+        expect(single.total).toBe(10000)
         confirmCaptured(request.id, 'order_demo_4th')
         expect(getRequest(request.id)?.status).toBe('locked')
       }
@@ -264,13 +264,13 @@ describe('group checkout (docs/01, docs/04 C)', () => {
     expect(groupLockedCount(group.id)).toBe(4)
   })
 
-  it('unpaid-group members pay the normal ₹99', async () => {
+  it('unpaid-group members pay the normal ₹100', async () => {
     const t1 = await memberTrip('B1', '11', 'LB')
     createGroup('Sharma family', [t1])
     await acceptorTrip()
     const request = await acceptedMemberRequest(t1)
     const ticket = beginCheckout(request.id, 'razorpay')
-    expect(ticket.total).toBe(9900)
+    expect(ticket.total).toBe(10000)
     confirmCaptured(request.id, 'order_demo_solo')
     expect(getRequest(request.id)?.status).toBe('locked')
   })
@@ -411,7 +411,7 @@ describe('one trip belongs to one family trip', () => {
   it('refuses to put one booking in two ₹199 bundles', async () => {
     /* `group_for_trip()` picks the first group containing the trip, and which
        one it picks decides whether a member's swap is covered by the ₹199
-       already paid or costs another ₹99. Nothing in the UI asks, so the model
+       already paid or costs another ₹100. Nothing in the UI asks, so the model
        refuses the state. */
     const t1 = await member()
     const t2 = await member()

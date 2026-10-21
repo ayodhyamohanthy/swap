@@ -97,13 +97,13 @@ describe('AppShell: a route header replaces the wordmark bar, never stacks on it
 
 /* Second chrome pass — rule 12 ("exactly 3 bottom tabs … setup screens show no
    tab bar") and docs/05's Tab column. 22 routes were `chrome: 'plain'`: back
-   chevron, no tab bar, so they were dead ends — from "Arjun said yes · pay ₹99"
+   chevron, no tab bar, so they were dead ends — from "Arjun said yes · pay ₹100"
    there was no way to Home except the browser. docs/05 gives every one of them a
    tab, and the designs draw the bar: 3c/27a/27b/27c/28a/28c (pay), 4a/19c
    (incoming), 2c/4c/6b/6c/9c/13b/13c/20a/20b/20c/25b/25c/26a (swaps),
    21c/22a/29a/29b/10b (profile), 7c/8c/21a/21b (trip detail).
 
-   Three screens draw the chevron *and* the bar (3c pay ₹99, 22b delete account,
+   Three screens draw the chevron *and* the bar (3c pay ₹100, 22b delete account,
    1c your berth), which is what RouteChrome.back exists for — L3 had asked for a
    fourth mode; the ink says a flag.
 

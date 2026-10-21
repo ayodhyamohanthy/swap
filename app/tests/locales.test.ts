@@ -77,7 +77,7 @@ describe('locale catalogs', () => {
     expect(CATALOGS.en.footer.line1.toLowerCase()).toContain('ticket')
   })
 
-  it('shows the one price, ₹99, and never a discount (rules 1, 2, 6)', () => {
+  it('shows the one price, ₹100, and never a discount (rules 1, 2, 6)', () => {
     const price = `₹${PRICE_PAISE / 100}`
     for (const lang of SHIPPED_LANGS) {
       const catalog = CATALOGS[lang]
@@ -89,9 +89,9 @@ describe('locale catalogs', () => {
       expect(copy, `${lang} offers a discount`).not.toMatch(/\b(?:discount|% ?off)\b/i)
     }
     /* Pay only after acceptance, and a swap that didn't happen becomes credit. */
-    expect(CATALOGS.en.swaps.sub).toContain('₹99')
+    expect(CATALOGS.en.swaps.sub).toContain('₹100')
     expect(CATALOGS.en.swaps.noSwap).toContain('credit')
-    expect(CATALOGS.hi.swaps.noSwap).toContain('₹99')
+    expect(CATALOGS.hi.swaps.noSwap).toContain('₹100')
   })
 
   it('keeps the credit rules visible (rule 4)', () => {

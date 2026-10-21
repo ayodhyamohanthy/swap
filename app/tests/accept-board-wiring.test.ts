@@ -3,7 +3,7 @@
    `respondToIncoming` used to write ONLY the incoming map while logging
    `offer_accepted` — the activity log claimed an acceptance the state machine
    had never seen: offer stayed `sent`, request stayed `searching`, so
-   "Someone says yes → Pay ₹99" was unreachable from real taps and the log was
+   "Someone says yes → Pay ₹100" was unreachable from real taps and the log was
    lying about a row that had not moved. These tests pin the bridge, the two
    stand-in cases where there is no offer to move, and rule 2 (acceptance
    waits, it does not lock). */
@@ -74,7 +74,7 @@ describe('the accept board drives the offer (docs/03 first acceptance)', () => {
     const offer = offersFor(request.id)[0]
     expect(offer.status).toBe('accepted')
     expect(offer.responded_at).toBeTruthy()
-    /* Rule 2: acceptance waits for the ₹99 — no lock, no money. */
+    /* Rule 2: acceptance waits for the ₹100 — no lock, no money. */
     expect(getRequest(request.id)?.locked_offer_id).toBeNull()
     expect(creditPaise()).toBe(0)
     /* docs/04 A.9: the requester hears about it from the Updates list. */

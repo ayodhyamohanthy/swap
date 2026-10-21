@@ -12,7 +12,7 @@ import { isGroupRequestId } from '@/lib/groups'
  *
  * `PayLayout` renders only an <Outlet/>, so `PayScreen`'s gate never ran for
  * `/method` or `/paypal` — a swap that was already paid, or not yet accepted,
- * still rendered a live "Pay ₹99" form. Money was never at risk (lib/checkout
+ * still rendered a live "Pay ₹100" form. Money was never at risk (lib/checkout
  * refuses and the method screen redirects with the right copy) but the screen
  * was still lying about there being something to pay, which is the whole trust
  * problem rule 2 exists to prevent. L4 filed this on 2026-09-28.

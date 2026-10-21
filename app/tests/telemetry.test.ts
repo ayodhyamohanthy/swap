@@ -127,10 +127,10 @@ describe('scrubMeta: what may leave the device', () => {
       phone: '+919900000000',
       email: 'a@b.com',
       ticket_url: 'https://x/y.jpg',
-      amount_paise: 9900,
+      amount_paise: 10000,
     })
     expect(Object.keys(scrubbed)).toEqual(['amount_paise'])
-    expect(scrubbed.amount_paise).toBe(9900)
+    expect(scrubbed.amount_paise).toBe(10000)
   })
 
   it('drops PII-shaped values even under a harmless key', () => {
@@ -147,8 +147,8 @@ describe('scrubMeta: what may leave the device', () => {
   })
 
   it('drops a 10-digit number, which is a PNR or a phone either way', () => {
-    expect(scrubMeta({ id: 2415438901, amount_paise: 9900 }).id).toBeUndefined()
-    expect(scrubMeta({ amount_paise: 9900 }).amount_paise).toBe(9900)
+    expect(scrubMeta({ id: 2415438901, amount_paise: 10000 }).id).toBeUndefined()
+    expect(scrubMeta({ amount_paise: 10000 }).amount_paise).toBe(10000)
   })
 
   it('keeps real zero and false, which a truthiness check would eat', () => {
@@ -180,7 +180,7 @@ describe('posthog capture body', () => {
     const body = posthogCaptureBody(
       config,
       'payment_paid',
-      { amount_paise: 9900, pnr: '2415438901' },
+      { amount_paise: 10000, pnr: '2415438901' },
       'anon_1',
       1_700_000_000_000,
     )
@@ -189,7 +189,7 @@ describe('posthog capture body', () => {
       event: 'payment_paid',
       distinct_id: 'anon_1',
       timestamp: new Date(1_700_000_000_000).toISOString(),
-      properties: { amount_paise: 9900, $lib: 'seatswap-pwa' },
+      properties: { amount_paise: 10000, $lib: 'seatswap-pwa' },
     })
   })
 })

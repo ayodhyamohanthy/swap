@@ -326,7 +326,7 @@ describe('filterSwaps — the All chip is the sum of the parts', () => {
 describe('swapsToCsv carries design 17\'s columns', () => {
   it('writes both vocabularies: the phase for reading, the status for grepping', () => {
     const csv = swapsToCsv([
-      swapRow({ status: 'locked', acceptor_name: 'Arjun S', amount_paise: 4900 }),
+      swapRow({ status: 'locked', acceptor_name: 'Arjun S', amount_paise: 5000 }),
     ])
     const [header, line] = csv.trim().split('\n')
     expect(header.split(',')).toEqual([
@@ -343,7 +343,7 @@ describe('swapsToCsv carries design 17\'s columns', () => {
     expect(line).toContain('paid')
     expect(line).toContain('locked')
     expect(line).toContain('Arjun S')
-    expect(line).toContain('4900')
+    expect(line).toContain('5000')
   })
 
   it('leaves the acceptor blank rather than writing the word null', () => {
@@ -368,7 +368,7 @@ describe('collectedPaise (design 17 Amount, rule 1)', () => {
   })
 
   it('counts the cash, not the list price', () => {
-    /* Design 17 prints ₹49 on a swap part-paid with credit and ₹99 on the ones
+    /* Design 17 prints ₹50 on a swap part-paid with credit and ₹100 on the ones
        paid in full. This is that rule, and it is the same one `moneyInTodayPaise`
        uses — a tile and a table on one console must not disagree. */
     expect(collectedPaise(paid(PRICE_PAISE, 0))).toBe(PRICE_PAISE)
@@ -533,8 +533,8 @@ describe('buildOverview money in (rule 1)', () => {
     setPaymentStatus(row.id, 'paid')
 
     const paid = activityLog().find((entry) => entry.action === 'payment_paid')
-    expect(paid?.meta).toMatchObject({ amount_paise: 9900, credit_used_paise: 5000 })
-    expect(overview().moneyInTodayPaise).toBe(4900)
+    expect(paid?.meta).toMatchObject({ amount_paise: 10000, credit_used_paise: 5000 })
+    expect(overview().moneyInTodayPaise).toBe(5000)
   })
 
   it('counts a credit-only payment as no money in', () => {
@@ -552,7 +552,7 @@ describe('buildOverview money in (rule 1)', () => {
 
   /* Never assume an unreadable row collected the full price. */
   it('leaves an unknown credit portion out and counts it, rather than guessing', () => {
-    logActivity('payment_paid', { amount_paise: 9900 }, { type: 'payment', id: 'pay_pruned' })
+    logActivity('payment_paid', { amount_paise: 10000 }, { type: 'payment', id: 'pay_pruned' })
     const stats = overview({ payments: [] })
     expect(stats.moneyInTodayPaise).toBe(0)
     expect(stats.moneyInUnknownToday).toBe(1)
@@ -564,27 +564,27 @@ describe('buildOverview credit given (rule 4)', () => {
 
   it('counts credit issued today, not the balance still outstanding', () => {
     logActivity('credit_added', { to: 'u_acc', amount_paise: 5000, kind: 'acceptor_credit' })
-    logActivity('credit_added', { to: 'u_req', amount_paise: 9900, kind: 'swap_to_credit' })
-    logActivity('credit_used', { amount_paise: 4900 })
+    logActivity('credit_added', { to: 'u_req', amount_paise: 10000, kind: 'swap_to_credit' })
+    logActivity('credit_used', { amount_paise: 5000 })
 
     const stats = overview({ wallet: [liveCredit(10000)] })
-    expect(stats.creditGivenTodayPaise).toBe(14900)
+    expect(stats.creditGivenTodayPaise).toBe(15000)
     expect(stats.creditInCirculationPaise).toBe(10000)
   })
 
   /* Design 18's "Moved to credit" tile, which the board recorded as needing a
-     definition because rule 6's ₹99 and the acceptor's ₹50 are both
+     definition because rule 6's ₹100 and the acceptor's ₹50 are both
      `credit_added` rows. They are — but the ledger already separates them by
      `kind`, so the tile is a narrower filter, not a new decision. */
   it('counts only the rule-6 kind as moved to credit', () => {
     logActivity('credit_added', { to: 'u_acc', amount_paise: 5000, kind: 'acceptor_credit' })
-    logActivity('credit_added', { to: 'u_req', amount_paise: 9900, kind: 'swap_to_credit' })
-    logActivity('credit_added', { to: 'u_req2', amount_paise: 9900, kind: 'swap_to_credit' })
+    logActivity('credit_added', { to: 'u_req', amount_paise: 10000, kind: 'swap_to_credit' })
+    logActivity('credit_added', { to: 'u_req2', amount_paise: 10000, kind: 'swap_to_credit' })
 
     const stats = overview()
-    expect(stats.movedToCreditTodayPaise).toBe(19800)
+    expect(stats.movedToCreditTodayPaise).toBe(20000)
     /* The ₹50 thank-yous are NOT money moved — rule 3 is an earn. */
-    expect(stats.creditGivenTodayPaise).toBe(24800)
+    expect(stats.creditGivenTodayPaise).toBe(25000)
   })
 
   /* The property that makes the two tiles coherent side by side: design 18 draws
@@ -594,7 +594,7 @@ describe('buildOverview credit given (rule 4)', () => {
      would stop holding. */
   it('keeps moved-to-credit a strict subset of credit given', () => {
     logActivity('credit_added', { to: 'u_acc', amount_paise: 5000, kind: 'acceptor_credit' })
-    logActivity('credit_added', { to: 'u_req', amount_paise: 9900, kind: 'swap_to_credit' })
+    logActivity('credit_added', { to: 'u_req', amount_paise: 10000, kind: 'swap_to_credit' })
 
     const stats = overview()
     /* `<=` alone is too weak — it also holds when the filter is missing
@@ -615,8 +615,8 @@ describe('buildOverview credit given (rule 4)', () => {
   /* Design 18's fourth tile. `useCredit` stores `-amount` in the wallet but logs
      the positive magnitude, so the tile sums the log as-is. */
   it('counts credit spent today as a positive number', () => {
-    logActivity('credit_used', { amount_paise: 4900 })
-    logActivity('credit_used', { amount_paise: 1100 })
+    logActivity('credit_used', { amount_paise: 5000 })
+    logActivity('credit_used', { amount_paise: 1000 })
 
     const stats = overview()
     expect(stats.creditUsedTodayPaise).toBe(6000)
@@ -634,7 +634,7 @@ describe('buildOverview credit given (rule 4)', () => {
   it('leaves expired credit out of circulation', () => {
     const expired = {
       id: 'w_old',
-      amount_paise: 9900,
+      amount_paise: 10000,
       expires_at: new Date(Date.now() - 86_400_000).toISOString(),
     }
     const stats = overview({ wallet: [expired, liveCredit(5000)] })
@@ -669,7 +669,7 @@ describe('filterActivity by category (design 15)', () => {
   function seed() {
     logActivity('pnr_added', { train_no: '12951' })
     logActivity('request_sent', {})
-    logActivity('payment_paid', { amount_paise: 9900, credit_used_paise: 0 })
+    logActivity('payment_paid', { amount_paise: 10000, credit_used_paise: 0 })
     logActivity('swap_confirmed', {}, { type: 'swap_request', id: 'req_1' })
     logActivity('report_filed', { reason: 'cash' })
     logActivity('sign_in', { method: 'google' })
@@ -876,7 +876,7 @@ describe('filterActivity by category (design 15)', () => {
     })
 
     it('keeps every label short enough to read in a row', () => {
-      /* These are row headings, not sentences (design 15: "Paid ₹99",
+      /* These are row headings, not sentences (design 15: "Paid ₹100",
          "Sent request"). A label that grew into a sentence would wrap the
          list; catch it here rather than on the screen. */
       const tooLong: string[] = []
@@ -935,13 +935,13 @@ describe('admin money is paise (rule 1)', () => {
 })
 
 describe('server admin planners move money and state, then log (docs/04-D)', () => {
-  it('moves a dead paid swap to ₹99 requester credit (rule 6)', async () => {
+  it('moves a dead paid swap to ₹100 requester credit (rule 6)', async () => {
     const { planAdminAction } = await import('@/server/admin')
     const plan = planAdminAction('credit_added', 'req_1', { payerId: 'u_pay', reason: 'no show' })
     expect(plan.updates).toContainEqual({ table: 'swap_requests', id: 'req_1', patch: { status: 'voided' } })
     expect(plan.inserts).toContainEqual({
       table: 'wallet_tx',
-      row: expect.objectContaining({ user_id: 'u_pay', amount_paise: 9900, kind: 'swap_to_credit', ref_request_id: 'req_1' }),
+      row: expect.objectContaining({ user_id: 'u_pay', amount_paise: 10000, kind: 'swap_to_credit', ref_request_id: 'req_1' }),
     })
     expect(plan.activityAction).toBe('credit_added')
   })
@@ -960,7 +960,7 @@ describe('server admin planners move money and state, then log (docs/04-D)', () 
     const { planAdminAction } = await import('@/server/admin')
     const voided = planAdminAction('dispute_resolved', 'dsp_1', { requestId: 'req_3', payerId: 'u_pay', resolution: 'voided', reason: 'no show' })
     expect(voided.updates).toContainEqual({ table: 'swap_requests', id: 'req_3', patch: { status: 'voided' } })
-    expect(voided.inserts.some((i) => i.table === 'wallet_tx' && (i.row as { amount_paise: number }).amount_paise === 9900)).toBe(true)
+    expect(voided.inserts.some((i) => i.table === 'wallet_tx' && (i.row as { amount_paise: number }).amount_paise === 10000)).toBe(true)
     const done = planAdminAction('dispute_resolved', 'dsp_2', { requestId: 'req_4', acceptorId: 'u_acc', resolution: 'confirmed' })
     expect(done.updates).toContainEqual({ table: 'swap_requests', id: 'req_4', patch: { status: 'confirmed' } })
     expect(done.inserts.some((i) => i.table === 'wallet_tx' && (i.row as { amount_paise: number }).amount_paise === 5000)).toBe(true)
@@ -1291,11 +1291,11 @@ describe('activityDetails reads an allow-list, never the whole meta (rule 13)', 
   })
 
   it('renders money as whole rupees from paise', () => {
-    expect(activityDetails(row({ amount_paise: 9900, provider: 'razorpay' }, 'payment_paid'))).toBe(
-      'razorpay · ₹99',
+    expect(activityDetails(row({ amount_paise: 10000, provider: 'razorpay' }, 'payment_paid'))).toBe(
+      'razorpay · ₹100',
     )
-    expect(activityDetails(row({ amount_paise: 9900, credit_used_paise: 5000 }, 'payment_paid'))).toBe(
-      '₹99 · ₹50',
+    expect(activityDetails(row({ amount_paise: 10000, credit_used_paise: 5000 }, 'payment_paid'))).toBe(
+      '₹100 · ₹50',
     )
   })
 
@@ -1452,9 +1452,9 @@ describe('creditSummary (design 24)', () => {
   })
 
   it('separates credit given from credit used by sign', () => {
-    const summary = creditSummary([tx('a', 5000, inDays(300)), tx('b', -9900, null)], NOW)
+    const summary = creditSummary([tx('a', 5000, inDays(300)), tx('b', -10000, null)], NOW)
     expect(summary.givenPaise).toBe(5000)
-    expect(summary.usedPaise).toBe(9900)
+    expect(summary.usedPaise).toBe(10000)
   })
 
   it('reduces the balance when credit is spent', () => {
@@ -1470,10 +1470,10 @@ describe('creditSummary (design 24)', () => {
 
   it('given - used - balance is exactly the credit that expired away', () => {
     const summary = creditSummary(
-      [tx('a', 9900, inDays(-2)), tx('b', 5000, inDays(300)), tx('c', -2000, null)],
+      [tx('a', 10000, inDays(-2)), tx('b', 5000, inDays(300)), tx('c', -2000, null)],
       NOW,
     )
-    expect(summary.givenPaise - summary.usedPaise - summary.balancePaise).toBe(9900)
+    expect(summary.givenPaise - summary.usedPaise - summary.balancePaise).toBe(10000)
   })
 
   it('floors the balance at zero rather than showing a negative', () => {
@@ -1736,7 +1736,7 @@ describe("paymentRows — design 18's table", () => {
     )
     expect(rows[0].amount_paise).toBe(PRICE_PAISE)
     expect(rows[0].credit_used_paise).toBe(THANK_YOU_PAISE)
-    /* The design's ₹49 on a ₹99 swap paid with ₹50 credit. */
+    /* The design's ₹50 on a ₹100 swap paid with ₹50 credit. */
     expect(rows[0].received_paise).toBe(PRICE_PAISE - THANK_YOU_PAISE)
   })
 
@@ -1789,7 +1789,7 @@ describe("paymentsToCsv — design 18's columns", () => {
       'id,swap,request_id,provider,amount_paise,credit_used_paise,received_paise,status,outcome,created_at',
     )
     expect(lines[1]).toBe(
-      'pay_1,#a1b2c3d4,req_a1b2c3d4,razorpay,9900,5000,4900,paid,to_credit,2026-11-12T22:41:00.000Z',
+      'pay_1,#a1b2c3d4,req_a1b2c3d4,razorpay,10000,5000,5000,paid,to_credit,2026-11-12T22:41:00.000Z',
     )
   })
 

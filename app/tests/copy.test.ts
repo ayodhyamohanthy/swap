@@ -138,9 +138,9 @@ describe('banned words in app source', () => {
 })
 
 describe('pricing copy (rules 1, 4, 5)', () => {
-  it('₹99 is always ₹49 + ₹50', () => {
+  it('₹100 is always ₹50 + ₹50', () => {
     expect(FEE_PAISE + THANK_YOU_PAISE).toBe(PRICE_PAISE)
-    expect(PRICE_PAISE).toBe(9900)
+    expect(PRICE_PAISE).toBe(10000)
   })
 
   it('never advertises a discount, coupon or free reward', () => {
@@ -160,7 +160,7 @@ describe('pricing copy (rules 1, 4, 5)', () => {
     expect(en.payments.empty).toMatch(/only after someone accepts/i)
   })
 
-  it('says an unspent ₹99 goes to credit, never back to the bank', () => {
+  it('says an unspent ₹100 goes to credit, never back to the bank', () => {
     expect(en.swaps.noSwap).toMatch(/goes to your credit/i)
     expect(en.pay.under).toMatch(/credit/i)
   })

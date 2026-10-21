@@ -13,7 +13,7 @@ import { useAppState } from '@/lib/use-store'
 
 /* Admin A6 "Credits" (design 24). Credit is never cash and is never sent back
    to a bank (rules 4 and 6) — the only way out is spending it on a future swap.
-   A swap that did not happen moves ₹99 into this ledger, it does not refund.
+   A swap that did not happen moves ₹100 into this ledger, it does not refund.
 
    The manual adjust below is a CREDIT grant, not a payout. A reason is
    mandatory and the tap is itself written to the activity log, so every admin

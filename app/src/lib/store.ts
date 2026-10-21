@@ -92,7 +92,7 @@ export interface PaymentRow {
   payer_id: string | null
   provider: 'razorpay' | 'paypal' | 'credit'
   provider_ref: string | null
-  /** Full price charged: 9900 single, 19900 group. */
+  /** Full price charged: 10000 single, 19900 group. */
   amount_paise: number
   credit_used_paise: number
   currency: 'INR'
@@ -635,7 +635,7 @@ export interface CreditInput {
     local ledger can never mint arbitrary credit that the database would refuse. */
 const CREDIT_AMOUNTS: Record<CreditInput['kind'], number> = {
   acceptor_credit: 5000,
-  swap_to_credit: 9900,
+  swap_to_credit: 10000,
 }
 
 /**
@@ -643,7 +643,7 @@ const CREDIT_AMOUNTS: Record<CreditInput['kind'], number> = {
  *
  * Two callers, and nothing else:
  * - the acceptor earns ₹50 when a swap is confirmed as done (rules 3, 5)
- * - a swap that did not happen moves the requester's ₹99 in here, which is
+ * - a swap that did not happen moves the requester's ₹100 in here, which is
  *   never a bank refund (rule 6)
  *
  * The shape matches `CreditWrite` from `@/lib/outcomes`, so a resolved swap can

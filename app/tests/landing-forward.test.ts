@@ -4,7 +4,7 @@
 
    Why a unit test on the table rather than a render test: the two decisions
    that can lie about money are invisible to every other suite. `voided` only
-   ever gets written by a resolution that also credited the ₹99, but nothing
+   ever gets written by a resolution that also credited the ₹100, but nothing
    stopped the acceptor — who never paid (rule 3) — from being shown
    "Added to your credit" (rule 6). And a dispute has to reach screen 49's
    held-money copy (rule 7) instead of quietly sitting on the offline ticket.
@@ -28,7 +28,7 @@ describe('landing forwarder (docs/05 screens 47/48/49)', () => {
 
   it('shows the credit screen to the side that paid, and only that side', () => {
     expect(landingForward('voided', true)).toEqual({ kind: 'credit' })
-    /* The acceptor never pays ₹99; "Added to your credit" would invent it. */
+    /* The acceptor never pays ₹100; "Added to your credit" would invent it. */
     expect(landingForward('voided', false)).toEqual({ kind: 'status' })
   })
 

@@ -33,7 +33,7 @@ export async function razorpayCreateOrder(
         'Content-Type': 'application/json',
       },
       /* receipt is the idempotency key: a retried or double-clicked request maps
-         to the same Razorpay order, so we can never ask for ₹99 twice. */
+         to the same Razorpay order, so we can never ask for ₹100 twice. */
       body: JSON.stringify({
         amount: input.amountPaise,
         currency: 'INR',

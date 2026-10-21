@@ -157,7 +157,7 @@ export function planAdminAction(
         activityAction: 'user_blocked',
       }
     case 'credit_added': {
-      /* Rule 6: a paid swap that did not happen moves ₹99 to requester credit.
+      /* Rule 6: a paid swap that did not happen moves ₹100 to requester credit.
 
          The credit belongs to a SPECIFIC traveller, and `wallet_tx.user_id` is
          `NOT NULL REFERENCES auth.users(id)`. This planner used to write
@@ -166,7 +166,7 @@ export function planAdminAction(
          failed on NOT NULL *after* the `voided` update had already been
          persisted, and `persistInserts` writes the `credit_added` activity row
          regardless of whether the row landed. The result: the swap is voided,
-         the ₹99 is gone, and the audit log states credit was issued. The
+         the ₹100 is gone, and the audit log states credit was issued. The
          operator sees `persisted: false` and has no reason to look further.
 
          So this refuses rather than half-does. Throwing before any write means

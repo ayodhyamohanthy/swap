@@ -1,7 +1,7 @@
 /* The Swaps tab is the only place a traveller can come back to their own
    requests. Before this screen listed them, `/pay/$requestId` — the screen rule
    2 makes you reach after someone accepts — existed only as a link on the
-   screen that created the request, so any navigation away lost the ₹99. These
+   screen that created the request, so any navigation away lost the ₹100. These
    tests pin the row model: where each state taps to, and which states are
    listed at all. */
 import { describe, expect, it } from 'vitest'
@@ -50,7 +50,7 @@ describe('the list holds actions, not history', () => {
       row('voided', '2026-09-03T10:00:00.000Z'),
       row('disputed', '2026-09-04T10:00:00.000Z'),
     ]).map((request) => request.status)
-    /* voided/disputed stay: rule 6's ₹99-to-credit lives behind them. */
+    /* voided/disputed stay: rule 6's ₹100-to-credit lives behind them. */
     expect(statuses).toEqual(['disputed', 'voided'])
   })
 

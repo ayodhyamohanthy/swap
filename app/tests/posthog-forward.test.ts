@@ -104,7 +104,7 @@ describe('the send path, with a key configured', () => {
      * looks identical from the outside to a healthy one. */
     setConsent(true)
     enqueue(row('request_sent', { matches: 3, train_no: '12951' }))
-    enqueue(row('swap_locked', { amount_paise: 9900 }))
+    enqueue(row('swap_locked', { amount_paise: 10000 }))
     expect(queuedCount()).toBe(2)
 
     const sent = await flush()
@@ -188,7 +188,7 @@ describe('scrub is the privacy boundary, not the callers', () => {
      * future one adding `pnr_last4` must be dropped rather than forwarded. */
     const meta = {
       train_no: '12951',
-      amount_paise: 9900,
+      amount_paise: 10000,
       pnr_last4: '4821',
       pnr_hash: 'deadbeef',
       first_name: 'Riya',
@@ -236,8 +236,8 @@ describe('scrub is the privacy boundary, not the callers', () => {
       .toEqual({})
     /* And the check is shape-based, not "contains a digit": a train number and
      * an amount are digits and must survive. */
-    expect(scrub({ train_no: '12951', amount_paise: 9900 }))
-      .toEqual({ train_no: '12951', amount_paise: 9900 })
+    expect(scrub({ train_no: '12951', amount_paise: 10000 }))
+      .toEqual({ train_no: '12951', amount_paise: 10000 })
     expect(scrub({ context: 'pnr_added' })).toEqual({ context: 'pnr_added' })
   })
 })
@@ -315,7 +315,7 @@ describe('trackEvent cannot break the transition it observes', () => {
       throw new Error('QuotaExceededError')
     }
     try {
-      expect(() => trackEvent('swap_locked', { amount_paise: 9900 })).not.toThrow()
+      expect(() => trackEvent('swap_locked', { amount_paise: 10000 })).not.toThrow()
     } finally {
       window.localStorage.setItem = original
     }

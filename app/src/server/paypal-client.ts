@@ -133,7 +133,7 @@ export function paypalCaptureStatus(status: string): PaypalCaptureResult['status
  *
  * The capture receipt is also parsed for what was ACTUALLY taken: amount,
  * currency and the order's custom_id. A COMPLETED status alone only says some
- * money moved on some order — without these the caller cannot tell a ₹99
+ * money moved on some order — without these the caller cannot tell a ₹100
  * payment for this swap from a ₹1 order that someone reused the id of. */
 export async function paypalCaptureOrder(
   deps: ProviderDeps,

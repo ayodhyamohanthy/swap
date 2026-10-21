@@ -20,7 +20,7 @@
    parts must be (`splitReceipt` total = sum of lines). A stated total
    and a computed total will eventually disagree; only one bug class
    survives if the total is derived.
-3. **Money is integer paise.** ₹99 = 9900. No floats, no `toFixed`
+3. **Money is integer paise.** ₹100 = 10000. No floats, no `toFixed`
    arithmetic, format only at render.
 4. **One module, one job.** `analytics.ts` logs on-device; `telemetry.ts`
    is the ONE network forwarder; `chat-guard.ts` owns risky-message
@@ -89,7 +89,7 @@
    that is only sometimes true ("● Live", "Fewer people here yet…").
    Copy branches on state or stays state-neutral.
 4. **Every money figure names what it measures.** Method + amount must be
-   the same transaction ("₹49 paid · Razorpay", never the gross next to
+   the same transaction ("₹50 paid · Razorpay", never the gross next to
    the method that took less).
 5. **Empty, loading, error, offline states are part of the screen**, not
    afterthoughts. A screen is not "done" with only its happy path.

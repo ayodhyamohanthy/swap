@@ -154,7 +154,7 @@ export function beginCheckout(
   /* Nothing left to charge for, and no payment row to reconcile against: the
      swap settled without a payment of its own — a lock covered by a paid ₹199
      group trip (docs/04 C). This branch used to fall straight through to
-     `startPayment`, minting a second ₹99 for a swap the group had already paid
+     `startPayment`, minting a second ₹100 for a swap the group had already paid
      for. Reachable because `/pay/$requestId/method` gates nothing on its own
      and the parent route's guard lives in `PayScreen`, not in its `<Outlet/>`.
      `payableStatus` already computed `already_paid`; its only caller dropped
@@ -214,7 +214,7 @@ export function confirmCaptured(requestId: string, providerRef?: string): Checko
   /* Lock FIRST, and only trust the lock. If the request stopped being payable
      while the gateway was confirming (withdrawn, expired, another offer took
      it), the money is genuinely captured but no swap happened — rule 6 sends
-     that ₹99 to the requester's credit through the outcome path, so the
+     that ₹100 to the requester's credit through the outcome path, so the
      planned credit spend must NOT happen here and no screen may claim a lock. */
   if (!lockRequest(requestId)) return ticket(paid, false)
   spendCredit(paid)
@@ -245,7 +245,7 @@ export function lockCoveredRequest(requestId: string): SwapRequest {
      inside `lockRequest`. That throw used to be the only signal, and it cost
      the captured-payment path its refund: `confirmCaptured` calls `lockRequest`
      after the money is already marked paid, so anything thrown from there
-     strands a real ₹99. This function has no payment behind it — nothing has
+     strands a real ₹100. This function has no payment behind it — nothing has
      been charged yet — so refusing loudly here is correct and costs nobody
      money. */
   if (groupLockedCount(group.id) >= GROUP_MAX_SWAPS) {

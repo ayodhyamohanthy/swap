@@ -20,7 +20,7 @@ import { formatRupees } from '@/lib/money'
 import { useAppState, useRequestsState } from '@/lib/use-store'
 
 /* Admin A5 "Payments" (design 18). A payment row only exists once a swap is
-   locked. Amounts are integer paise end to end: ₹99 = ₹49 fee + ₹50 credit,
+   locked. Amounts are integer paise end to end: ₹100 = ₹50 fee + ₹50 credit,
    and the group price is ₹199 for up to 3 swaps.
 
    This screen used to render `const rows: AdminPaymentRow[] = []` — a literal
@@ -53,7 +53,7 @@ const OUTCOME_TONE: Record<PaymentOutcome, 'primary' | 'accent' | 'danger' | 'ne
    The When track is `8.5rem` because design 15's activity table already measured
    this exact `date · time` string — `Tue, 29 Sept · 22:41` — and needed 136px
    for it. At 6rem the text overflowed its track and printed hard against the
-   amount (`22:41₹99`), which every left-edge geometry check passed: the cell
+   amount (`22:41₹100`), which every left-edge geometry check passed: the cell
    started in the right column and merely ran past the end of it.
 
    Design 18 leads with Time. Swap leads here instead, matching design 17's
@@ -206,11 +206,11 @@ function AdminPayments() {
                         ·
                       </span>
                       {/* Amount is what the gateway actually captured — gross
-                          minus credit used — which is the design's ₹49 on a ₹99
+                          minus credit used — which is the design's ₹50 on a ₹100
                           swap paid with ₹50 credit, and the same definition as
                           `moneyInTodayPaise` and design 17's Amount column. The
                           gross and the credit share are on the tooltip, because
-                          `₹49` alone cannot say whether ₹50 of credit was used. */}
+                          `₹50` alone cannot say whether ₹50 of credit was used. */}
                       <span
                         className="lg:col-start-3 lg:row-start-1 lg:text-body lg:text-ink lg:tabular-nums"
                         title={

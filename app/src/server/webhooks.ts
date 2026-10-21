@@ -193,7 +193,7 @@ export const createPaypalOrder = createServerFn({ method: 'POST' })
       /* Same authz and the SAME quote as Razorpay: only the requester (or the
          group organiser), only while awaiting payment, and the gateway charges
          price-minus-credit. This used to order the full price while the client
-         also spent the credit, billing ₹149 for a ₹99 swap (rule 1). */
+         also spent the credit, billing ₹149 for a ₹100 swap (rule 1). */
       const client = await getSupabase()
       if (!client) throw new Error('backend_unconfigured')
       const callerId = await resolveCaller(client, data.callerId ?? '')

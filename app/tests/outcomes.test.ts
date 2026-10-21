@@ -13,7 +13,7 @@ describe('resolveConfirmations', () => {
     for (const o of ['no_show', 'not_possible', 'changed_mind'] as const) {
       const r = resolveConfirmations(o, o)
       expect(r.status).toBe('voided')
-      expect(r.credits).toMatchObject([{ to: 'requester', amountPaise: 9900, kind: 'swap_to_credit' }])
+      expect(r.credits).toMatchObject([{ to: 'requester', amountPaise: 10000, kind: 'swap_to_credit' }])
     }
   })
   it('disputes when answers differ', () => {
@@ -24,7 +24,7 @@ describe('resolveConfirmations', () => {
 describe('cancelAfterPay', () => {
   it('voids with requester +9900 credit', () => {
     expect(cancelAfterPay()).toMatchObject({ status: 'voided', resultKey: 'credit_added' })
-    expect(cancelAfterPay().credits[0].amountPaise).toBe(9900)
+    expect(cancelAfterPay().credits[0].amountPaise).toBe(10000)
   })
 })
 describe('shouldAutoConfirm', () => {

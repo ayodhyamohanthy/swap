@@ -55,7 +55,7 @@ function MethodScreen() {
   /* The estimate must describe the SAME amount the sentence names. This read
      `usdTenthsFor(isGroup ? 19900 : PRICE_PAISE)` — the FULL price — while
      `paypalNote` quotes `quote.due`, so a credit-covered order rendered
-     "PayPal shows about US$1.2 as an estimate. You are charged ₹49.": one
+     "PayPal shows about US$1.2 as an estimate. You are charged ₹50.": one
      sentence, two different amounts, with the dollar figure describing the one
      the payer is not paying. `usdEstimateFor` also floors the tenths, because
      this screen is reached with `due = 0` (fully credit-covered) and with small
@@ -124,7 +124,7 @@ function MethodScreen() {
         <CardTitle>{isGroup ? t('pay.groupTitle') : `${t('pay.title', { name })}`} · {isGroup ? t('pay.pay199') : t('pay.pay99')}</CardTitle>
         {/* One statement of the amount due, not two. `pay.due` is already
             "To pay ₹{amount}", so the `· {formatRupees(quote.due)}` that used to
-            follow it rendered the same figure twice — "To pay ₹49 · ₹49" — from
+            follow it rendered the same figure twice — "To pay ₹50 · ₹50" — from
             two different formatters of one number. Design 27a draws no body line
             at all; this keeps the useful clarification and drops the echo. */}
         <CardBody>{t('pay.due', { amount: quote.due / 100 })}</CardBody>

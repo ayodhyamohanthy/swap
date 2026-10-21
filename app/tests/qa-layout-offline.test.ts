@@ -304,9 +304,9 @@ describe('The pay screen is the design\'s 3c, not a bare ledger', () => {
   })
 
   it('keeps the price fixed at 49 + 50 with no discount path (rules 1, 4)', () => {
-    expect(en.pay.fee).toContain('₹49')
+    expect(en.pay.fee).toContain('₹50')
     expect(en.pay.thankYou).toContain('₹50')
-    expect(hi.pay.fee).toContain('₹49')
+    expect(hi.pay.fee).toContain('₹50')
     expect(hi.pay.thankYou).toContain('₹50')
     const src = read('src/routes/pay.$requestId.tsx')
     /* Credit may only lower the amount — no second price, no coupon. */

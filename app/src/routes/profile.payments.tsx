@@ -9,7 +9,7 @@ import { formatRupees } from '@/lib/money'
 import { useAppState } from '@/lib/use-store'
 
 /* Screen 58 "Payments & receipts" (design 29a). Every row is an integer-paise
-   `wallet_tx` row: a payment, credit earned, or ₹99 moved to credit when a swap
+   `wallet_tx` row: a payment, credit earned, or ₹100 moved to credit when a swap
    did not happen (rules 3-6). Credit is never shown as cash and never as a
    withdrawal. Sending requests costs nothing, so an empty list is normal. */
 

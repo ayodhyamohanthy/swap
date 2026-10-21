@@ -16,7 +16,7 @@
    - 0 matches → **You're the first on this train** → share coach link (all platforms).
 7. **Google sign-in** (first send only) → **Privacy** consent (alerts unticked) → **Turn on alerts** (Not now allowed).
 8. **Your request** (manage): edit, pause, withdraw. No reply → "Share" / "Try another berth type".
-9. **Someone says yes** (push + Updates) → **Pay ₹99** screen: breakdown ₹49 + ₹50, credit line only if balance > 0, "No swap? ₹99 goes to your credit".
+9. **Someone says yes** (push + Updates) → **Pay ₹100** screen: breakdown ₹50 + ₹50, credit line only if balance > 0, "No swap? ₹100 goes to your credit".
    - 2nd-choice acceptance → "You got your 2nd choice" · Accept this / Keep waiting (1st choice stays open until paid).
    - Two accept at once → first to be paid for wins; others see "Someone else was faster".
 10. **Choose how to pay**: Razorpay (GPay, PhonePe, Paytm, UPI ID, card, net banking) or "International traveller? Pay with PayPal".
@@ -25,15 +25,15 @@
 12. **On board**: chat (quick replies "I'm at my berth now", "Meet me near the coach door"), cash-word warning + Report & block, **Found each other?** ("I've met Arjun" / "Can't find them"), **Swap summary** (works offline).
 13. **Did you swap?** Yes / Other person didn't come / Swap wasn't possible / We changed our mind.
 14. **After**: "You swapped" → share card → rating → add another trip.
-    - Went wrong → ₹99 to credit (valid 12 months). Answers differ → held, reply as soon as we can.
-15. **Changes**: PNR cancelled → ₹99 to credit. Berth changed after chart → Keep swap / Cancel · move to credit.
+    - Went wrong → ₹100 to credit (valid 12 months). Answers differ → held, reply as soon as we can.
+15. **Changes**: PNR cancelled → ₹100 to credit. Berth changed after chart → Keep swap / Cancel · move to credit.
 
 ## B. Acceptor
 1. Adds PNR → "I'm open to swap" (no reward for this).
 2. Filters (Settings): women only, families only, same coach, pause, max per day.
 3. Request arrives (push / Updates / WhatsApp link / on-board board): shows "You give Lower · you get Upper", first name, reason, "Earn ₹50 credit · you pay nothing". Accept / Decline.
    - From link without app → browser page, Google sign-in, accept.
-4. **Waiting for payment**: "Priya pays ₹99. You pay nothing." Can back out until paid.
+4. **Waiting for payment**: "Priya pays ₹100. You pay nothing." Can back out until paid.
    - Someone else was faster → friendly message, stay open.
 5. After payment → berth revealed, chat, Found each other, Swap summary, Did you swap?
 6. Confirmed → **You earned ₹50** → share good deed → rating → "Travelling again? Add PNR".

@@ -3,7 +3,7 @@
    on tap is not the same as not offering: the child screens under the
    `/pay/$requestId` layout render through the parent's `<Outlet/>`, so the
    guard that lived inside `PayScreen` never ran for `/method`, `/paypal`,
-   `/upi` or `/status`. A confirmed swap still drew a working "Pay ₹99". */
+   `/upi` or `/status`. A confirmed swap still drew a working "Pay ₹100". */
 
 const { readFileSync } = process.getBuiltinModule('node:fs') as typeof import('node:fs')
 const { join } = process.getBuiltinModule('node:path') as typeof import('node:path')

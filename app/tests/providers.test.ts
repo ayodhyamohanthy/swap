@@ -53,11 +53,11 @@ function stubFetch(
 }
 
 const RZP = (deps: ProviderDeps) =>
-  razorpayCreateOrder(deps, { amountPaise: 9900, receipt: 'req_9', requestId: 'req_9' })
+  razorpayCreateOrder(deps, { amountPaise: 10000, receipt: 'req_9', requestId: 'req_9' })
 
 describe('paiseToDecimalString', () => {
   it('renders whole rupees with two decimals', () => {
-    expect(paiseToDecimalString(9900)).toBe('99.00')
+    expect(paiseToDecimalString(10000)).toBe('100.00')
     expect(paiseToDecimalString(19900)).toBe('199.00')
   })
 
@@ -75,7 +75,7 @@ describe('paiseToDecimalString', () => {
 describe('razorpayCreateOrder', () => {
   it('posts integer paise to /orders with basic auth and the receipt', async () => {
     const { deps, calls } = stubFetch([
-      { match: '/orders', body: { id: 'order_live_1', amount: 9900, currency: 'INR', receipt: 'req_9' } },
+      { match: '/orders', body: { id: 'order_live_1', amount: 10000, currency: 'INR', receipt: 'req_9' } },
     ])
     const result = await RZP(deps)
     expect(calls).toHaveLength(1)
@@ -85,7 +85,7 @@ describe('razorpayCreateOrder', () => {
     expect(calls[0].headers.Authorization).toBe(`Basic ${expected}`)
     const sent = JSON.parse(calls[0].body)
     /* paise on the wire — never rupees, never a float (docs/02). */
-    expect(sent.amount).toBe(9900)
+    expect(sent.amount).toBe(10000)
     expect(sent.currency).toBe('INR')
     /* receipt is the idempotency key that stops a double-click charging twice. */
     expect(sent.receipt).toBe('req_9')
@@ -94,12 +94,12 @@ describe('razorpayCreateOrder', () => {
   })
 
   it('refuses an order whose amount differs from what we asked for', async () => {
-    const { deps } = stubFetch([{ match: '/orders', body: { id: 'o', amount: 4900, currency: 'INR' } }])
+    const { deps } = stubFetch([{ match: '/orders', body: { id: 'o', amount: 5000, currency: 'INR' } }])
     await expect(RZP(deps)).rejects.toThrow(/razorpay_amount_mismatch/)
   })
 
   it('refuses a non-INR order', async () => {
-    const { deps } = stubFetch([{ match: '/orders', body: { id: 'o', amount: 9900, currency: 'USD' } }])
+    const { deps } = stubFetch([{ match: '/orders', body: { id: 'o', amount: 10000, currency: 'USD' } }])
     await expect(RZP(deps)).rejects.toThrow(/razorpay_currency_mismatch/)
   })
 
@@ -119,7 +119,7 @@ describe('razorpayCreateOrder', () => {
   })
 
   it('never leaks the key secret into the body or url', async () => {
-    const { deps, calls } = stubFetch([{ match: '/orders', body: { id: 'o', amount: 9900, currency: 'INR' } }])
+    const { deps, calls } = stubFetch([{ match: '/orders', body: { id: 'o', amount: 10000, currency: 'INR' } }])
     await RZP(deps)
     expect(calls[0].body).not.toContain('rzp_test_secret')
     expect(calls[0].url).not.toContain('rzp_test_secret')
@@ -144,7 +144,7 @@ describe('paypalCreateOrder', () => {
         },
       },
     ])
-    const result = await paypalCreateOrder(deps, { amountPaise: 9900, requestId: 'req_9' })
+    const result = await paypalCreateOrder(deps, { amountPaise: 10000, requestId: 'req_9' })
 
     expect(calls.map((c) => c.url)).toEqual([
       'https://api-m.sandbox.paypal.test/v1/oauth2/token',
@@ -153,8 +153,8 @@ describe('paypalCreateOrder', () => {
     expect(calls[1].headers.Authorization).toBe('Bearer TOKEN_123')
     const sent = JSON.parse(calls[1].body)
     expect(sent.intent).toBe('CAPTURE')
-    /* PayPal wants the string "99.00" — a float here is a money bug. */
-    expect(sent.purchase_units[0].amount).toEqual({ currency_code: 'INR', value: '99.00' })
+    /* PayPal wants the string "100.00" — a float here is a money bug. */
+    expect(sent.purchase_units[0].amount).toEqual({ currency_code: 'INR', value: '100.00' })
     expect(sent.purchase_units[0].custom_id).toBe('req_9')
     expect(result.approval_url).toBe('https://paypal.test/checkout/ORDER-7')
   })
@@ -175,13 +175,13 @@ describe('paypalCreateOrder', () => {
       { match: '/oauth2/token', body: { access_token: 'T' } },
       { match: '/v2/checkout/orders', body: { id: 'ORDER-8', status: 'CREATED' } },
     ])
-    const result = await paypalCreateOrder(deps, { amountPaise: 9900, requestId: 'r' })
+    const result = await paypalCreateOrder(deps, { amountPaise: 10000, requestId: 'r' })
     expect(result.approval_url).toBeNull()
   })
 
   it('fails loudly when the token call returns no token', async () => {
     const { deps } = stubFetch([{ match: '/oauth2/token', body: { error: 'invalid_client' } }])
-    await expect(paypalCreateOrder(deps, { amountPaise: 9900, requestId: 'r' })).rejects.toThrow(
+    await expect(paypalCreateOrder(deps, { amountPaise: 10000, requestId: 'r' })).rejects.toThrow(
       /paypal_token_missing/,
     )
   })
@@ -191,7 +191,7 @@ describe('paypalCreateOrder', () => {
       { match: '/oauth2/token', body: { access_token: 'T' } },
       { match: '/v2/checkout/orders', body: { id: 'O', status: 'CREATED' } },
     ])
-    await paypalCreateOrder(deps, { amountPaise: 9900, requestId: 'r' })
+    await paypalCreateOrder(deps, { amountPaise: 10000, requestId: 'r' })
     expect(calls[1].body).not.toContain('pp_secret')
   })
 })
@@ -280,7 +280,7 @@ describe('paypalCreateOrder return url', () => {
   it('sends the payer back to the app after they approve', async () => {
     const { deps, calls } = stubFetch(ORDER)
     await paypalCreateOrder(deps, {
-      amountPaise: 9900,
+      amountPaise: 10000,
       requestId: 'req_1',
       returnUrl: 'https://app.test/pay/req_1/paypal',
       cancelUrl: 'https://app.test/pay/req_1/method',
@@ -293,14 +293,14 @@ describe('paypalCreateOrder return url', () => {
 
   it('omits application_context entirely when no URL is given', async () => {
     const { deps, calls } = stubFetch(ORDER)
-    await paypalCreateOrder(deps, { amountPaise: 9900, requestId: 'req_1' })
+    await paypalCreateOrder(deps, { amountPaise: 10000, requestId: 'req_1' })
     expect(JSON.parse(calls[1].body).application_context).toBeUndefined()
   })
 
   it('refuses a value that is not an absolute http(s) URL', async () => {
     const { deps, calls } = stubFetch(ORDER)
     await paypalCreateOrder(deps, {
-      amountPaise: 9900,
+      amountPaise: 10000,
       requestId: 'req_1',
       returnUrl: 'javascript:alert(1)',
     })
@@ -320,7 +320,7 @@ describe('paypalCreateOrder return url', () => {
 })
 
 /* A COMPLETED capture only proves money moved on SOME order. These three fields
-   are what let the server function refuse to lock a ₹99 swap against a ₹1
+   are what let the server function refuse to lock a ₹100 swap against a ₹1
    order, or against someone else's order. */
 describe('paypalCaptureOrder receipt', () => {
   const CAPTURE = [
@@ -335,7 +335,7 @@ describe('paypalCaptureOrder receipt', () => {
           payments: {
             captures: [{
               id: 'CAP-1',
-              amount: { currency_code: 'INR', value: '99.00' },
+              amount: { currency_code: 'INR', value: '100.00' },
             }],
           },
         }],
@@ -348,7 +348,7 @@ describe('paypalCaptureOrder receipt', () => {
     const result = await paypalCaptureOrder(deps, { orderId: 'ORDER-9' })
     expect(result.status).toBe('paid')
     expect(result.provider_ref).toBe('CAP-1')
-    expect(result.amount_paise).toBe(9900)
+    expect(result.amount_paise).toBe(10000)
     expect(result.currency).toBe('INR')
     expect(result.custom_id).toBe('req_7')
   })

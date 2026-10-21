@@ -119,7 +119,7 @@ function SwappedState({ id, name }: { id: string; name: string }) {
   )
 }
 
-/* Design 20b: big ₹99, ready-to-use line, 12-month never-cash line. */
+/* Design 20b: big ₹100, ready-to-use line, 12-month never-cash line. */
 function CreditState() {
   const { t } = useI18n()
   return (

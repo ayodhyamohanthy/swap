@@ -8,7 +8,7 @@
    build: `--text-body` was 0.9375rem (15px), and the rule-4 / rule-6 / ₹ lines
    were rendered with `text-caption` (12px) on Home, the pay screens, the Swaps
    rules card and the trip screen — the smallest type in the theme carrying the
-   copy that decides whether someone hands over ₹99.
+   copy that decides whether someone hands over ₹100.
 
    So this file checks the two things the section states, and it derives them
    rather than restating them: the pixel sizes come out of `styles.css`, and the

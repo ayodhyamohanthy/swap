@@ -6,7 +6,7 @@
    - acceptance does NOT lock; only payment locks (rule 2)
    - the acceptor is never charged, and earns ₹50 only once the swap is done
      (rules 3, 5)
-   - a swap that did not happen sends ₹99 to the REQUESTER's credit, never to a
+   - a swap that did not happen sends ₹100 to the REQUESTER's credit, never to a
      bank refund (rule 6)
    - only a bank-level failure is an exception to that (rule 6)
    - credit is never cash and expires after 12 months (rule 4) */
@@ -88,11 +88,11 @@ describe('flow A: requester sends, waits, pays, locks', () => {
     expect(awaiting?.locked_offer_id).toBeNull()
     expect(creditPaise()).toBe(0)
 
-    /* Rules 1/9: the quote is always ₹99 until credit exists. */
+    /* Rules 1/9: the quote is always ₹100 until credit exists. */
     expect(buildQuote(creditPaise())).toEqual({
-      total: 9900,
+      total: 10000,
       creditUsed: 0,
-      due: 9900,
+      due: 10000,
       provider: null,
     })
 
@@ -142,9 +142,9 @@ describe('flow B: the swap happens, the acceptor is credited ₹50', () => {
   })
 })
 
-describe('flow C: the swap did not happen, ₹99 goes to credit not the bank', () => {
+describe('flow C: the swap did not happen, ₹100 goes to credit not the bank', () => {
   it.each(['no_show', 'not_possible', 'changed_mind'] as const)(
-    'moves the full ₹99 to requester credit when both sides say %s',
+    'moves the full ₹100 to requester credit when both sides say %s',
     (outcome) => {
       const resolution = resolveConfirmations(outcome, outcome)
       expect(resolution.status).toBe('voided')
@@ -156,7 +156,7 @@ describe('flow C: the swap did not happen, ₹99 goes to credit not the bank', (
       })
 
       credit(resolution.credits[0])
-      /* Rule 6: the requester gets the whole ₹99 as credit. Not a refund. */
+      /* Rule 6: the requester gets the whole ₹100 as credit. Not a refund. */
       expect(creditPaise()).toBe(PRICE_PAISE)
     },
   )
@@ -215,7 +215,7 @@ describe('rule 4: credit lowers fees but is never cash', () => {
     expect(creditPaise()).toBe(THANK_YOU_PAISE)
   })
 
-  it('splits ₹99 into ₹49 fee + ₹50 credit with no leftovers', () => {
+  it('splits ₹100 into ₹50 fee + ₹50 credit with no leftovers', () => {
     expect(FEE_PAISE + THANK_YOU_PAISE).toBe(PRICE_PAISE)
   })
 })
@@ -309,7 +309,7 @@ describe('webhook payload parsing (docs/06)', () => {
   it('reads a real Razorpay capture (payload.payment.entity.id)', () => {
     const body = JSON.stringify({
       event: 'payment.captured',
-      payload: { payment: { entity: { id: 'pay_123', amount: 9900 } } },
+      payload: { payment: { entity: { id: 'pay_123', amount: 10000 } } },
     })
     expect(parseWebhook('razorpay', { rawBody: body, headers: {} })).toEqual({
       status: 'ok',
@@ -469,7 +469,7 @@ describe('server planners persist every row of a transition (docs/03)', () => {
     expect(() =>
       planLockRequest(grouped, accepted, [], 'u_req', { payment_id: null, group: covered }),
     ).toThrow('group_swap_cap')
-    /* A lock backed by its own paid payment (the 4th+ swap paying ₹99)
+    /* A lock backed by its own paid payment (the 4th+ swap paying ₹100)
        always goes through. */
     expect(
       planLockRequest(grouped, accepted, [], 'u_req', { payment_id: 'pay_4th', group: covered }).status,

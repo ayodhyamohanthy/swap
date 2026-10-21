@@ -179,7 +179,7 @@ const SWAP_PHASE_BY_STATUS: Record<RequestStatus, SwapPhase> = {
   /* Money in, waiting on both confirmations. */
   locked: 'paid',
   confirmed: 'done',
-  /* Voided: rule 6 sends the ₹99 to the requester's credit, never the bank. */
+  /* Voided: rule 6 sends the ₹100 to the requester's credit, never the bank. */
   voided: 'to_credit',
   disputed: 'disputed',
   /* Ended without a swap and without credit moving. */
@@ -206,10 +206,10 @@ export function filterSwaps(rows: AdminSwapRow[], phase: SwapPhase | null): Admi
 /**
  * Money actually collected for one request.
  *
- * `amount_paise` is the full price charged (9900 single, 19900 group) and
+ * `amount_paise` is the full price charged (10000 single, 19900 group) and
  * `credit_used_paise` is the part paid from credit, so the cash that arrived is
- * the difference. Design 17 agrees with this definition: it prints **₹49** on a
- * swap part-paid with credit, **₹99** on the ones paid in full, and **₹0** while
+ * the difference. Design 17 agrees with this definition: it prints **₹50** on a
+ * swap part-paid with credit, **₹100** on the ones paid in full, and **₹0** while
  * nothing is paid. It is the same rule `moneyInTodayPaise` uses, and a test pins
  * the two together so a tile and a table on one console cannot disagree.
  */
@@ -348,7 +348,7 @@ export function shortId(id: string): string {
  *
  * `CreditLedgerRow` (lib/payments) is deliberately narrow — `id`,
  * `amount_paise`, `expires_at`. That is enough to sum a balance and not enough
- * to answer "was this the ₹50 thank-you or the ₹99 fallback?", which is why
+ * to answer "was this the ₹50 thank-you or the ₹100 fallback?", which is why
  * design 18's "Moved to credit" tile was written off as needing a definition
  * it did not have. The ledger CAN tell the two apart (`WalletTx.kind`); the
  * *view* of it could not.
@@ -363,12 +363,12 @@ export interface CreditOriginRow extends CreditLedgerRow {
   ref_request_id: string | null
 }
 
-/** The one kind meaning "a swap did not happen, so the ₹99 became credit"
+/** The one kind meaning "a swap did not happen, so the ₹100 became credit"
     (rule 6). The other earn, `acceptor_credit`, is the ₹50 thank-you (rule 3)
     and must never be counted as money moved. */
 const SWAP_TO_CREDIT: WalletTx['kind'] = 'swap_to_credit'
 
-/** Request ids whose ₹99 became credit under rule 6. */
+/** Request ids whose ₹100 became credit under rule 6. */
 export function swapToCreditRequestIds(wallet: CreditOriginRow[]): Set<string> {
   const ids = new Set<string>()
   for (const row of wallet) {
@@ -435,11 +435,11 @@ export interface AdminPaymentRow {
   /** The design's Swap column. */
   swap: string
   provider: string
-  /** Gross charged: 9900 single, 19900 group. */
+  /** Gross charged: 10000 single, 19900 group. */
   amount_paise: number
   credit_used_paise: number
   /** What the gateway actually captured: `amount − credit_used`. This is the
-      design's Amount column — ₹49 on a ₹99 swap paid with ₹50 credit — and the
+      design's Amount column — ₹50 on a ₹100 swap paid with ₹50 credit — and the
       same definition as `moneyInTodayPaise` and design 17's Amount. */
   received_paise: number
   status: PaymentRow['status']
@@ -771,7 +771,7 @@ export interface AdminOverview {
   creditGivenTodayPaise: number
   /**
    * The rule-6 slice of `creditGivenTodayPaise`: a swap that did not happen, so
-   * the requester's ₹99 became credit rather than a bank refund.
+   * the requester's ₹100 became credit rather than a bank refund.
    *
    * A SUBSET, by construction — both are summed from the same `credit_added`
    * rows with the same predicate, one narrowed by `kind` — so the two must
@@ -849,8 +849,8 @@ function num(value: unknown): number | null {
  *
  * `checkout.ticket()` already defines the received amount as
  * `max(0, amount_paise - credit_used_paise)`. Summing `amount_paise` alone
- * would count credit as revenue: ₹99 charged with ₹50 of credit collected is
- * ₹49 in the bank, not ₹99. Prefer the payment row (the record); fall back to
+ * would count credit as revenue: ₹100 charged with ₹50 of credit collected is
+ * ₹50 in the bank, not ₹100. Prefer the payment row (the record); fall back to
  * the log meta for a row whose payment has been pruned.
  */
 function moneyInPaise(row: ActivityRow, payments: PaymentRow[]): number | null {
@@ -1071,7 +1071,7 @@ export function buildOverview(input: AdminOverviewInput, nowMs = Date.now()): Ad
     swapsDoneToday: count('swap_confirmed'),
     moneyInTodayPaise,
     /* Signed sum: the store only writes the two fixed rule amounts (₹50
-       `acceptor_credit`, ₹99 `swap_to_credit`) plus staff grants, so this
+       `acceptor_credit`, ₹100 `swap_to_credit`) plus staff grants, so this
        equals gross credit issued today. */
     creditGivenTodayPaise: creditIssuedPaise(today),
     movedToCreditTodayPaise: creditIssuedPaise(today, SWAP_TO_CREDIT),

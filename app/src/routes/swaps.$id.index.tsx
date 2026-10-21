@@ -50,14 +50,14 @@ const REASONS: ReadonlyArray<{ key: MessageKey; outcome: ConfirmOutcome; icon: L
     Kept as a pure table so the money rules can be tested without a router. */
 export type LandingForward =
   | { kind: 'review' } // screen 49: answers don't match, money held (rule 7)
-  | { kind: 'credit' } // screen 48: ₹99 added to the requester's credit (rule 6)
+  | { kind: 'credit' } // screen 48: ₹100 added to the requester's credit (rule 6)
   | { kind: 'summary' }
   | { kind: 'pay' }
   | { kind: 'status' }
 
 export function landingForward(status: RequestStatus, requesterSide: boolean): LandingForward {
   if (status === 'disputed') return { kind: 'review' }
-  /* `voided` is only ever written by a resolution that also wrote the ₹99 to
+  /* `voided` is only ever written by a resolution that also wrote the ₹100 to
      the requester, so only that side is told the money landed. The acceptor
      never pays — showing them "Added to your credit" would invent money. */
   if (status === 'voided') return requesterSide ? { kind: 'credit' } : { kind: 'status' }
@@ -118,7 +118,7 @@ function SwapLandingScreen() {
   const requesterSide = listTrips().some((trip) => trip.id === request.trip_id)
   /* Screens 48/49 ARE this route (docs/05), so they are the landing itself —
      an automatic forward, not a button standing between the traveller and
-     the answer to "what happened to my ₹99". */
+     the answer to "what happened to my ₹100". */
   const forward = landingForward(request.status, requesterSide)
   if (forward.kind === 'review' || forward.kind === 'credit') {
     return (
@@ -153,7 +153,7 @@ function SwapLandingScreen() {
 
 /* Design 6b: back arrow, title, the four reason rows, then the rule-6 note.
    Rule 6 credits the *requester* — the side that paid — so the note is shown
-   to them only; the acceptor never pays ₹99 and must not be told it lands in
+   to them only; the acceptor never pays ₹100 and must not be told it lands in
    their credit. */
 function ProblemScreen({ id, request }: { id: string; request: SwapRequest }) {
   const { t } = useI18n()

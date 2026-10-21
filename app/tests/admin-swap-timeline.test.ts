@@ -74,7 +74,7 @@ const PAYMENT: PaymentRow = {
   payer_id: 'user_1',
   provider: 'razorpay',
   provider_ref: null,
-  amount_paise: 9900,
+  amount_paise: 10000,
   credit_used_paise: 0,
   currency: 'INR',
   status: 'paid',

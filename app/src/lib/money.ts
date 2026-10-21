@@ -1,12 +1,13 @@
 /* SeatSwap money rules (AGENTS.md, docs/03 money outcomes table).
-   Money is ALWAYS an integer number of paise. ₹99 = 9900.
+   Money is ALWAYS an integer number of paise. ₹100 = 10000.
    Nothing in steps 1-2 can change a balance: the wallet is a ledger the
    payment/acceptor steps write to, and it starts empty (no free rewards). */
 
-/** ₹99 — one swap: ₹49 SeatSwap fee + ₹50 thank-you credit to the acceptor. */
-export const PRICE_PAISE = 9900 as const
-/** ₹49 — SeatSwap's fee, kept only when a swap actually happens. */
-export const FEE_PAISE = 4900 as const
+/** ₹100 — one swap: ₹50 SeatSwap fee + ₹50 thank-you credit to the acceptor
+    (owner ruling 2026-10-21: reprice so the helper's credit is exactly 50%). */
+export const PRICE_PAISE = 10000 as const
+/** ₹50 — SeatSwap's fee, kept only when a swap actually happens. */
+export const FEE_PAISE = 5000 as const
 /** ₹50 — thank-you credit for the traveller who helps. Never cash. */
 export const THANK_YOU_PAISE = 5000 as const
 /** ₹199 — group trip, covers up to 3 swaps (docs/01, build step 10). */
@@ -19,7 +20,7 @@ export const CREDIT_VALIDITY_MONTHS = 12 as const
 export const PAYMENT_PROVIDERS = ['razorpay', 'paypal', 'credit'] as const
 export type PaymentProvider = (typeof PAYMENT_PROVIDERS)[number]
 
-/** ₹99 must always equal fee + thank-you. Guarded by tests. */
+/** ₹100 must always equal fee + thank-you. Guarded by tests. */
 export const PRICE_SPLIT_OK =
   FEE_PAISE + THANK_YOU_PAISE === PRICE_PAISE ? true : false
 
@@ -29,9 +30,9 @@ export function rupees(paise: number): number {
 }
 
 /* PayPal estimate (docs/06: "about US$X" is an estimate only — the charge is
-   always ₹99 INR = 9900 paise). The rate is a display hint, not a promise:
+   always the INR charge). The rate is a display hint, not a promise:
    integer tenths of a dollar, computed from whole paise with no float maths.
-   `usdTenthsFor(chargePaise)` returns e.g. 12 for ₹99 → "US$1.2". */
+   `usdTenthsFor(chargePaise)` returns e.g. 12 for ₹100-100 → "US$1.2". */
 export const PAYPAL_ESTIMATE_RATE_NUM = 12 as const
 export const PAYPAL_ESTIMATE_RATE_DEN = 9900 as const
 
@@ -51,7 +52,7 @@ export function formatUsdTenths(tenths: number): string {
   return `US$${Math.trunc(tenths / 10)}.${tenths % 10}`
 }
 
-/** "₹99", "-₹50". The sign belongs BEFORE the symbol: interpolating a negative
+/** "₹100", "-₹50". The sign belongs BEFORE the symbol: interpolating a negative
     straight after `₹` renders "₹-50", which is not how a rupee amount is
     written anywhere. The one negative this formatter is ever handed is a
     receipt's credit-used line (docs/06 "credit used (if any)"), which is a
@@ -63,7 +64,7 @@ export function formatRupees(paise: number): string {
 }
 
 /** Decimal string for payment-gateway wire formats. Razorpay takes integer
-    paise; PayPal takes "99.00". Never send a float to either (docs/02), and
+    paise; PayPal takes "100.00". Never send a float to either (docs/02), and
     never round: build the string from the integer parts. */
 export function paiseToDecimalString(paise: number): string {
   if (!Number.isInteger(paise)) {
@@ -77,7 +78,7 @@ export function paiseToDecimalString(paise: number): string {
 }
 
 /** Inverse of `paiseToDecimalString`, for reading an amount back off the wire
-    (a PayPal capture receipt). Integer maths only — parsing "99.00" through a
+    (a PayPal capture receipt). Integer maths only — parsing "100.00" through a
     float and re-rounding is how a rupee of someone's money disappears.
     Returns null for anything that is not a plain 1-2 decimal amount, so a
     malformed gateway field is never silently read as zero. */
