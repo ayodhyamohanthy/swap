@@ -88,7 +88,7 @@ function DoneScreen() {
         <p className="mt-1 text-body text-muted">
           {t('pay.paidLine', {
             amount: formatRupees(receipt.total),
-            method: payment.provider === 'credit' ? t('profile.credit') : payment.provider === 'paypal' ? 'PayPal' : 'Razorpay',
+            method: payment.provider === 'credit' ? t('profile.credit') : 'Razorpay',
           })}
         </p>
         <Card className="mt-4">
@@ -123,7 +123,7 @@ function DoneScreen() {
       <p className="mt-1 text-body text-muted">
         {t('pay.paidLine', {
           amount: formatRupees(receipt.total),
-          method: payment.provider === 'credit' ? t('profile.credit') : payment.provider === 'paypal' ? 'PayPal' : 'Razorpay',
+          method: payment.provider === 'credit' ? t('profile.credit') : 'Razorpay',
         })}
       </p>
       <Card className="mt-4">

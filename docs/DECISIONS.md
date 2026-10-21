@@ -32,3 +32,7 @@ Owner rulings (iMessage phonemsg-01M5E537NGY2DTGP7KQ09EQCXX 8:06 "allow people t
 - Helper receives 100% as credit (12-month, never cash). No split; SeatSwap absorbs the ~2% gateway fee.
 - Credit never pays for a tip. No self-serve refunds. Capture-before-credit, idempotent on payment id. "Never transferable" copy unchanged (no credit moves between users).
 - Server side: webhook planner extended for tip capture/failure; DB-backed tip persistence (a tip marker on `payments`) is a schema decision for when payment hosting is wired (step 3+), same status as the rest of the server payment layer.
+
+## 2026-10-21 (later still) — "Tip" renamed to "appreciation" in user-facing copy
+
+Owner ruling (iMessage phonemsg-01M5EKEB86NX3H5TW098TBPK8S, 12:17 PM IST): "Instead of tip use some other word appreciation etc because they are helping out though they are taking some minimal charges." All user-facing copy (EN+HI) now says appreciation / say thanks / thank {name}, with an "earned" framing for the helper. Logic, ids, wallet kinds, route paths and i18n key names unchanged. Also fixed: a received appreciation in profile payments now carries the "added to your credit" label instead of the generic paid label.

@@ -10,13 +10,15 @@ import { useI18n } from '@/lib/i18n'
 import { loadRazorpay } from '@/lib/pay-sdk'
 import { beginCheckout, payGateFor, CheckoutError } from '@/lib/checkout'
 import { acceptedOffer } from '@/lib/requests'
-import { buildQuote, usdEstimateFor } from '@/lib/payments'
+import { buildQuote } from '@/lib/payments'
 import { isGroupRequestId } from '@/lib/groups'
 import { PayBlocked } from './pay.$requestId'
 import { useCreditPaise } from '@/lib/use-store'
 
 /* Choose how to pay (docs/04 A10, design 27a): Razorpay first with UPI apps on
-   top, PayPal for international travellers. Tapping a method opens the real
+   top. India-only for now (owner 2026-10-21: Razorpay covers every method;
+   PayPal removed, re-enable from git history when international launches).
+   Tapping a method opens the real
    gateway when keys exist and otherwise leaves the payment pending for the
    status screen — it never claims a payment happened. */
 export const Route = createFileRoute('/pay/$requestId/method')({
@@ -52,27 +54,10 @@ function MethodScreen() {
   const quote = buildQuote(useCredit === 1 ? credit : 0, isGroup)
   const [busy, setBusy] = useState(false)
   const name = acceptedOffer(requestId)?.acceptor_name ?? t('common.traveller')
-  /* The estimate must describe the SAME amount the sentence names. This read
-     `usdTenthsFor(isGroup ? 19900 : PRICE_PAISE)` — the FULL price — while
-     `paypalNote` quotes `quote.due`, so a credit-covered order rendered
-     "PayPal shows about US$1.2 as an estimate. You are charged ₹50.": one
-     sentence, two different amounts, with the dollar figure describing the one
-     the payer is not paying. `usdEstimateFor` also floors the tenths, because
-     this screen is reached with `due = 0` (fully credit-covered) and with small
-     remainders the rate hint rounds to zero — and `formatUsdTenths` throws on
-     zero, so the estimate used to take the screen down mid-render. */
-  const usd = usdEstimateFor(quote.due)
 
-  async function pay(provider: 'razorpay' | 'paypal', method: Method) {
+  async function pay(provider: 'razorpay', method: Method) {
     if (busy) return
     setBusy(true)
-    /* PayPal leaves the app to authorise, so it gets its own screen (design
-       28a) which redirects out and captures the order on the way back. */
-    if (provider === 'paypal') {
-      setBusy(false)
-      navigate({ to: '/pay/$requestId/paypal', params: { requestId }, search: { useCredit } })
-      return
-    }
     /* The SDK is loaded first so a phone with no network finds out here, before
        any payment row exists. */
     try {
@@ -152,23 +137,6 @@ function MethodScreen() {
             </span>
           </button>
         ))}
-      </Card>
-
-      <p className="mt-5 text-note font-semibold uppercase tracking-wide text-muted">
-        {t('pay.intl')}
-      </p>
-      <Card className="mt-1">
-        <CardBody>
-          <Button
-            className="w-full border-accent bg-accent text-ink"
-            variant="outline"
-            disabled={busy}
-            onClick={() => void pay('paypal', { label: 'paypal', Icon: Wallet, waits: false })}
-          >
-            {t('pay.payPal')}
-          </Button>
-          <p className="mt-2 text-note text-muted">{t('pay.paypalNote', { amount: quote.due / 100, usd })}</p>
-        </CardBody>
       </Card>
 
       <p className="mt-3 text-center text-body font-semibold text-ink">{t('pay.under')}</p>

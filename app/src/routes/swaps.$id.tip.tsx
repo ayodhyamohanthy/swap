@@ -73,7 +73,7 @@ function TipScreen() {
     )
   }
 
-  function pay(provider: 'razorpay' | 'paypal') {
+  function pay(provider: 'razorpay') {
     if (busy) return
     setBusy(true)
     try {
@@ -144,9 +144,6 @@ function TipScreen() {
       ) : null}
       <Button className="mt-4" disabled={busy} onClick={() => pay('razorpay')}>
         {t('tip.payUpi', { amount: rupees(amount) })}
-      </Button>
-      <Button className="mt-2" variant="outline" disabled={busy} onClick={() => pay('paypal')}>
-        {t('tip.payPaypal', { amount: rupees(amount) })}
       </Button>
       <Button className="mt-2" variant="ghost" asChild>
         <Link to="/swaps/$id" params={{ id }}>{t('tip.noThanks')}</Link>

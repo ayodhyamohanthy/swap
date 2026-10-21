@@ -54,7 +54,6 @@ import { Route as GroupsIdPlanRouteImport } from './routes/groups.$id.plan'
 import { Route as PayRequestIdIndexRouteImport } from './routes/pay.$requestId.index'
 import { Route as PayRequestIdDoneRouteImport } from './routes/pay.$requestId.done'
 import { Route as PayRequestIdMethodRouteImport } from './routes/pay.$requestId.method'
-import { Route as PayRequestIdPaypalRouteImport } from './routes/pay.$requestId.paypal'
 import { Route as PayRequestIdStatusRouteImport } from './routes/pay.$requestId.status'
 import { Route as PayRequestIdUpiRouteImport } from './routes/pay.$requestId.upi'
 import { Route as ProfilePaymentsIndexRouteImport } from './routes/profile.payments.index'
@@ -296,11 +295,6 @@ const PayRequestIdMethodRoute = PayRequestIdMethodRouteImport.update({
   path: '/method',
   getParentRoute: () => PayRequestIdRoute,
 } as any)
-const PayRequestIdPaypalRoute = PayRequestIdPaypalRouteImport.update({
-  id: '/paypal',
-  path: '/paypal',
-  getParentRoute: () => PayRequestIdRoute,
-} as any)
 const PayRequestIdStatusRoute = PayRequestIdStatusRouteImport.update({
   id: '/status',
   path: '/status',
@@ -421,7 +415,6 @@ export interface FileRoutesByFullPath {
   '/groups/$id/plan': typeof GroupsIdPlanRoute
   '/pay/$requestId/done': typeof PayRequestIdDoneRoute
   '/pay/$requestId/method': typeof PayRequestIdMethodRoute
-  '/pay/$requestId/paypal': typeof PayRequestIdPaypalRoute
   '/pay/$requestId/status': typeof PayRequestIdStatusRoute
   '/pay/$requestId/upi': typeof PayRequestIdUpiRoute
   '/profile/payments/$id': typeof ProfilePaymentsIdRoute
@@ -476,7 +469,6 @@ export interface FileRoutesByTo {
   '/groups/$id/plan': typeof GroupsIdPlanRoute
   '/pay/$requestId/done': typeof PayRequestIdDoneRoute
   '/pay/$requestId/method': typeof PayRequestIdMethodRoute
-  '/pay/$requestId/paypal': typeof PayRequestIdPaypalRoute
   '/pay/$requestId/status': typeof PayRequestIdStatusRoute
   '/pay/$requestId/upi': typeof PayRequestIdUpiRoute
   '/profile/payments/$id': typeof ProfilePaymentsIdRoute
@@ -540,7 +532,6 @@ export interface FileRoutesById {
   '/groups/$id/plan': typeof GroupsIdPlanRoute
   '/pay/$requestId/done': typeof PayRequestIdDoneRoute
   '/pay/$requestId/method': typeof PayRequestIdMethodRoute
-  '/pay/$requestId/paypal': typeof PayRequestIdPaypalRoute
   '/pay/$requestId/status': typeof PayRequestIdStatusRoute
   '/pay/$requestId/upi': typeof PayRequestIdUpiRoute
   '/profile/payments/$id': typeof ProfilePaymentsIdRoute
@@ -605,7 +596,6 @@ export interface FileRouteTypes {
     | '/groups/$id/plan'
     | '/pay/$requestId/done'
     | '/pay/$requestId/method'
-    | '/pay/$requestId/paypal'
     | '/pay/$requestId/status'
     | '/pay/$requestId/upi'
     | '/profile/payments/$id'
@@ -660,7 +650,6 @@ export interface FileRouteTypes {
     | '/groups/$id/plan'
     | '/pay/$requestId/done'
     | '/pay/$requestId/method'
-    | '/pay/$requestId/paypal'
     | '/pay/$requestId/status'
     | '/pay/$requestId/upi'
     | '/profile/payments/$id'
@@ -723,7 +712,6 @@ export interface FileRouteTypes {
     | '/groups/$id/plan'
     | '/pay/$requestId/done'
     | '/pay/$requestId/method'
-    | '/pay/$requestId/paypal'
     | '/pay/$requestId/status'
     | '/pay/$requestId/upi'
     | '/profile/payments/$id'
@@ -1087,13 +1075,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PayRequestIdMethodRouteImport
       parentRoute: typeof PayRequestIdRoute
     }
-    '/pay/$requestId/paypal': {
-      id: '/pay/$requestId/paypal'
-      path: '/paypal'
-      fullPath: '/pay/$requestId/paypal'
-      preLoaderRoute: typeof PayRequestIdPaypalRouteImport
-      parentRoute: typeof PayRequestIdRoute
-    }
     '/pay/$requestId/status': {
       id: '/pay/$requestId/status'
       path: '/status'
@@ -1317,7 +1298,6 @@ const SwapsRouteWithChildren = SwapsRoute._addFileChildren(SwapsRouteChildren)
 interface PayRequestIdRouteChildren {
   PayRequestIdDoneRoute: typeof PayRequestIdDoneRoute
   PayRequestIdMethodRoute: typeof PayRequestIdMethodRoute
-  PayRequestIdPaypalRoute: typeof PayRequestIdPaypalRoute
   PayRequestIdStatusRoute: typeof PayRequestIdStatusRoute
   PayRequestIdUpiRoute: typeof PayRequestIdUpiRoute
   PayRequestIdIndexRoute: typeof PayRequestIdIndexRoute
@@ -1326,7 +1306,6 @@ interface PayRequestIdRouteChildren {
 const PayRequestIdRouteChildren: PayRequestIdRouteChildren = {
   PayRequestIdDoneRoute: PayRequestIdDoneRoute,
   PayRequestIdMethodRoute: PayRequestIdMethodRoute,
-  PayRequestIdPaypalRoute: PayRequestIdPaypalRoute,
   PayRequestIdStatusRoute: PayRequestIdStatusRoute,
   PayRequestIdUpiRoute: PayRequestIdUpiRoute,
   PayRequestIdIndexRoute: PayRequestIdIndexRoute,

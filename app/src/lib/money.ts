@@ -12,12 +12,13 @@ export const FEE_PAISE = 5000 as const
 export const THANK_YOU_PAISE = 5000 as const
 /** ₹199 — group trip, covers up to 3 swaps (docs/01, build step 10). */
 export const GROUP_PRICE_PAISE = 19900 as const
-/** Tip presets (paise). After a confirmed swap the requester may thank the
-    helper with a cash tip; the helper receives 100% of it AS CREDIT, never
-    cash, and SeatSwap takes no cut (owner rulings 2026-10-21: tips approved,
-    no split, cash-paid credit-received, no refunds). Credit itself can never
-    pay for a tip - credit paying for credit is circular. */
-export const TIP_PRESETS_PAISE = [1000, 2000, 5000] as const
+/** Appreciation presets (paise) - ₹50 / ₹100 / ₹200 (owner ruling
+    2026-10-21 12:21). After a confirmed swap the requester may thank the
+    helper with cash; the helper receives 100% of it AS CREDIT, never cash,
+    and SeatSwap takes no cut (owner rulings 2026-10-21: approved, no split,
+    cash-paid credit-received, no refunds). Credit itself can never pay for
+    an appreciation - credit paying for credit is circular. */
+export const TIP_PRESETS_PAISE = [5000, 10000, 20000] as const
 /** A paid group trip covers at most this many locked swaps (docs/01). */
 export const GROUP_MAX_SWAPS = 3 as const
 /** Credit is valid for 12 months from the day it is earned. */

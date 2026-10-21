@@ -8,7 +8,6 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import en from '../locales/en.json'
 import hi from '../locales/hi.json'
-import { CATALOGS } from '@/lib/i18n'
 import { isAdminRoute } from '@/lib/admin'
 import { enqueue, flush } from '@/lib/outbox'
 import { acceptOffer, createRequest, getRequest, lockRequest } from '@/lib/requests'
@@ -94,8 +93,6 @@ describe('360 px layout (step 14: every flow on a 360 px Android phone)', () => 
   it('fills every interpolation the key 360 px screens render', () => {
     const cases: Array<{ file: string; key: string }> = [
       { file: 'src/routes/index.tsx', key: 'home.empty' },
-      { file: 'src/routes/pay.$requestId.method.tsx', key: 'pay.paypalNote' },
-      { file: 'src/routes/pay.$requestId.paypal.tsx', key: 'pay.paypalDue' },
       { file: 'src/routes/swaps.$id.summary.tsx', key: 'summary.train' },
       { file: 'src/routes/swaps.$id.summary.tsx', key: 'summary.youGive' },
       { file: 'src/routes/share.$trainDate.tsx', key: 'share.qrOffline' },
@@ -109,8 +106,6 @@ describe('360 px layout (step 14: every flow on a 360 px Android phone)', () => 
         expect(src, `${file} renders ${key} without {${variable}}`).toContain(variable)
       }
     }
-    expect(CATALOGS.en.pay.paypalDue).toContain('{usd}')
-    expect(CATALOGS.hi.pay.paypalDue).toContain('{usd}')
   })
 })
 

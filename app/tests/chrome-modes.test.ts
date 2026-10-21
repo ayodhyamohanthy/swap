@@ -116,7 +116,6 @@ const TABBED: ReadonlyArray<readonly [string, string]> = [
   ['pay.$requestId.index.tsx', "{ chrome: 'tabs', tab: 'swaps', back: true }"],
   ['pay.$requestId.method.tsx', "{ chrome: 'tabs', tab: 'swaps' }"],
   ['pay.$requestId.upi.tsx', "{ chrome: 'tabs', tab: 'swaps' }"],
-  ['pay.$requestId.paypal.tsx', "{ chrome: 'tabs', tab: 'swaps' }"],
   ['pay.$requestId.status.tsx', "{ chrome: 'tabs', tab: 'swaps' }"],
   ['pay.$requestId.done.tsx', "{ chrome: 'tabs', tab: 'swaps' }"],
   ['incoming.$id.tsx', "{ chrome: 'tabs', tab: 'swaps' }"],

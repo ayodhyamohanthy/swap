@@ -10,7 +10,6 @@ import { describe, expect, it } from 'vitest'
 import en from '../locales/en.json'
 import hi from '../locales/hi.json'
 import { DEMO_FALLBACK_NAME, DEMO_FALLBACK_NAME_KEY } from '@/lib/demo-swap'
-import { CATALOGS } from '@/lib/i18n'
 
 const APP = join(import.meta.dirname, '..')
 
@@ -54,11 +53,10 @@ describe('placeholders punch-list (docs/10: nothing ships as an example)', () =>
     }
   })
 
-  it('computes the PayPal estimate from the charge instead of a frozen US$1.20', () => {
-    expect(JSON.stringify(en)).not.toContain('US$1.20')
-    expect(JSON.stringify(hi)).not.toContain('US$1.20')
-    expect(CATALOGS.en.pay.paypalDue).toContain('{usd}')
-    expect(CATALOGS.en.pay.paypalNote).toContain('{usd}')
-    expect(CATALOGS.hi.pay.paypalDue).toContain('{usd}')
+  it('offers no PayPal anywhere user-facing (owner 2026-10-21: India-only, Razorpay covers every method)', () => {
+    /* Re-enable PayPal from git history when international launches; until
+       then no catalogue may name it or quote a dollar estimate. */
+    expect(JSON.stringify(en)).not.toMatch(/paypal|US\$/i)
+    expect(JSON.stringify(hi)).not.toMatch(/paypal|US\$/i)
   })
 })

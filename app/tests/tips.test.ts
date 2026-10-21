@@ -1,6 +1,8 @@
-/* Tips (owner rulings 2026-10-21): a cash thank-you from the requester AFTER a
-   confirmed swap; the helper receives 100% of it as credit, never cash; no
-   split, no refunds, one tip per swap. These tests pin the money invariants:
+/* Appreciation (owner rulings 2026-10-21): a cash thank-you from the
+   requester AFTER a confirmed swap; the helper receives 100% of it as credit,
+   never cash; no split, no refunds, one per swap. Presets ₹50/₹100/₹200.
+
+   These tests pin the money invariants:
    presets only, credit never pays for a tip, capture-before-credit, and the
    idempotency that keeps a double webhook from minting credit twice. */
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -76,7 +78,7 @@ describe('tips', () => {
 
   it('gates: a missing or unconfirmed swap can never be tipped', async () => {
     expect(tipGateFor('req_nope')).toBe('missing')
-    expect(() => beginTip('req_nope', 2000, 'razorpay')).toThrow('missing')
+    expect(() => beginTip('req_nope', 10000, 'razorpay')).toThrow('missing')
     const request = await confirmedJourney()
     expect(getRequest(request.id)?.status).toBe('confirmed')
     expect(tipGateFor(request.id)).toBe('tippable')
@@ -93,12 +95,12 @@ describe('tips', () => {
     const request = createRequest({ trip_id: mine.id, choices: ['UB'] })
     sendRequest(request.id)
     expect(tipGateFor(request.id)).toBe('not_confirmed')
-    expect(() => beginTip(request.id, 2000, 'razorpay')).toThrow('not_confirmed')
+    expect(() => beginTip(request.id, 10000, 'razorpay')).toThrow('not_confirmed')
   })
 
   it('only ever charges a preset amount', async () => {
     const request = await confirmedJourney()
-    for (const bad of [0, 999, 1001, 4999, 10000, -2000]) {
+    for (const bad of [0, 4999, 5001, 9999, 20001, -2000]) {
       expect(() => beginTip(request.id, bad, 'razorpay')).toThrow('bad_tip_amount')
     }
     expect(listPayments().filter((p) => p.request_id.startsWith('tip:'))).toHaveLength(0)
@@ -107,9 +109,9 @@ describe('tips', () => {
   it('opens the payment before the gateway, with credit hard-pinned to zero', async () => {
     const request = await confirmedJourney()
     credit({ to: 'requester', amountPaise: 10000, kind: 'swap_to_credit' })
-    const payment = beginTip(request.id, 2000, 'razorpay')
+    const payment = beginTip(request.id, 10000, 'razorpay')
     expect(payment.request_id).toBe(`tip:${request.id}`)
-    expect(payment.amount_paise).toBe(2000)
+    expect(payment.amount_paise).toBe(10000)
     expect(payment.credit_used_paise).toBe(0)
     /* A tip must never read as the swap's own ₹100 payment. */
     expect(tipPaymentFor(request.id)?.id).toBe(payment.id)
@@ -117,17 +119,17 @@ describe('tips', () => {
 
   it('one tip per swap — a live payment blocks a second charge', async () => {
     const request = await confirmedJourney()
-    beginTip(request.id, 1000, 'razorpay')
+    beginTip(request.id, 5000, 'razorpay')
     expect(tipGateFor(request.id)).toBe('already_tipped')
-    expect(() => beginTip(request.id, 1000, 'razorpay')).toThrow('already_tipped')
+    expect(() => beginTip(request.id, 5000, 'razorpay')).toThrow('already_tipped')
   })
 
   it('a failed tip may be retried; only the retry can charge', async () => {
     const request = await confirmedJourney()
-    const payment = beginTip(request.id, 1000, 'razorpay')
+    const payment = beginTip(request.id, 5000, 'razorpay')
     setPaymentStatus(payment.id, 'failed')
     expect(tipGateFor(request.id)).toBe('tippable')
-    const retry = beginTip(request.id, 1000, 'razorpay')
+    const retry = beginTip(request.id, 5000, 'razorpay')
     expect(retry.id).not.toBe(payment.id)
     expect(tipGateFor(request.id)).toBe('already_tipped')
   })
@@ -135,7 +137,7 @@ describe('tips', () => {
   it('no capture, no credit: pending and failed tips mint nothing', async () => {
     const request = await confirmedJourney()
     const before = creditPaise()
-    const payment = beginTip(request.id, 5000, 'razorpay')
+    const payment = beginTip(request.id, 20000, 'razorpay')
     expect(settleTip(payment.id)).toBeUndefined()
     setPaymentStatus(payment.id, 'pending')
     expect(settleTip(payment.id)).toBeUndefined()
@@ -148,11 +150,11 @@ describe('tips', () => {
   it('a captured tip lands 100% as credit for the helper, 12-month life', async () => {
     const request = await confirmedJourney()
     const before = creditPaise()
-    const payment = beginTip(request.id, 5000, 'razorpay')
+    const payment = beginTip(request.id, 20000, 'razorpay')
     setPaymentStatus(payment.id, 'paid')
     const tx = settleTip(payment.id)
-    expect(tx).toMatchObject({ amount_paise: 5000, kind: 'tip_credit', ref_request_id: payment.id })
-    expect(creditPaise()).toBe(before + 5000)
+    expect(tx).toMatchObject({ amount_paise: 20000, kind: 'tip_credit', ref_request_id: payment.id })
+    expect(creditPaise()).toBe(before + 20000)
     /* Roughly 12 months out, never null (rule 4). */
     const lifeMs = Date.parse(tx!.expires_at!) - Date.parse(tx!.created_at)
     expect(lifeMs).toBeGreaterThan(360 * 86_400_000)
@@ -160,7 +162,7 @@ describe('tips', () => {
 
   it('a double capture can never mint the credit twice', async () => {
     const request = await confirmedJourney()
-    const payment = beginTip(request.id, 2000, 'razorpay')
+    const payment = beginTip(request.id, 10000, 'razorpay')
     setPaymentStatus(payment.id, 'paid')
     const first = settleTip(payment.id)
     const second = settleTip(payment.id)
@@ -188,11 +190,11 @@ describe('tips', () => {
 
   it('a tip is exactly one preset per swap, end to end', async () => {
     const request = await confirmedJourney()
-    const payment = beginTip(request.id, 1000, 'paypal')
+    const payment = beginTip(request.id, 5000, 'razorpay')
     setPaymentStatus(payment.id, 'paid')
     settleTip(payment.id)
     expect(tipGateFor(request.id)).toBe('already_tipped')
-    expect(() => beginTip(request.id, 5000, 'razorpay')).toThrow(TipError)
+    expect(() => beginTip(request.id, 20000, 'razorpay')).toThrow(TipError)
     expect(tipCredits()).toHaveLength(1)
   })
 })

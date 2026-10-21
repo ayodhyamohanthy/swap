@@ -24,7 +24,7 @@ function PaymentsLayout() {
 
 function kindLabel(kind: string): 'payments.paid' | 'payments.toCredit' | 'profile.credit' {
   if (kind === 'used' || kind === 'expired') return 'profile.credit'
-  if (kind === 'acceptor_credit' || kind === 'swap_to_credit') return 'payments.toCredit'
+  if (kind === 'acceptor_credit' || kind === 'swap_to_credit' || kind === 'tip_credit') return 'payments.toCredit'
   return 'payments.paid'
 }
 

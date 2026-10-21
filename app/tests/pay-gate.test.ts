@@ -101,7 +101,6 @@ describe('every screen under the pay layout applies the gate', () => {
   const CHILDREN = [
     'pay.$requestId.index.tsx',
     'pay.$requestId.method.tsx',
-    'pay.$requestId.paypal.tsx',
     'pay.$requestId.upi.tsx',
     'pay.$requestId.status.tsx',
     'pay.$requestId.done.tsx',

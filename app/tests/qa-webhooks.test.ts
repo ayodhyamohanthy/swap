@@ -39,7 +39,7 @@ describe('webhook replays (step 14: replay the provider until it is a no-op)', (
   })
 })
 
-describe('tip webhooks (owner 2026-10-21: cash tip, 100% credit, no refunds)', () => {
+describe('tip webhooks (owner 2026-10-21: cash appreciation, 100% credit, no refunds)', () => {
   it('a captured tip settles credit and a notification — never a lock', () => {
     const seen = new Set<string>()
     const captured = applyWebhookEvent(seen, { providerRef: 'pay_tip_1', kind: 'captured' }, { isTip: true })
