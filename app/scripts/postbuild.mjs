@@ -6,7 +6,7 @@
       /trips/abc boot the SPA shell.
    3. .nojekyll: stop Pages from filtering files that start with an underscore.
    4. dist/cf: the Cloudflare upload, staged without `_redirects` (see below). */
-import { copyFileSync, cpSync, existsSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -21,6 +21,30 @@ const swDest = join(dist, swFilename)
 if (!existsSync(shell)) {
   console.error('[postbuild] dist/client/index.html is missing — the SPA shell did not build.')
   process.exit(1)
+}
+
+/* Hydration parity: the shell is server-rendered with an EMPTY route
+   boundary — route content is client-rendered by design (see
+   tests/hydration.test.tsx). But the prerender crawl also preloads the
+   crawled route's code-split chunks into the shell, which makes that
+   route's component synchronously available while the client hydrates.
+   On `/` the client then renders content into a boundary the server left
+   incomplete, React throws the whole tree away (#418), and Home pays the
+   exact failure the shell exists to avoid. The entry chunk needs no
+   preload companions (its static deps are inlined) and route chunks are
+   meant to load lazily, so strip every modulepreload link now — before
+   the service-worker step below, whose precache would otherwise keep
+   serving the mismatching shell. */
+{
+  const html = readFileSync(shell, 'utf8')
+  const stripped = html.replace(/<link rel="modulepreload"[^>]*>\s*/g, '')
+  if (stripped !== html) {
+    const count = html.match(/<link rel="modulepreload"/g)?.length ?? 0
+    writeFileSync(shell, stripped)
+    console.log(
+      `[postbuild] stripped ${count} modulepreload link(s) from the SPA shell (hydration parity)`,
+    )
+  }
 }
 
 /* 1. Service worker --------------------------------------------------- */
