@@ -2,7 +2,7 @@
   "name": "seatswap",
   "private": true,
   "version": "0.1.0",
-  "description": "SeatSwap — mobile-first PWA for train berth swaps (Build Plan steps 1-2: Foundation + Trips).",
+  "description": "SeatSwap \u2014 mobile-first PWA for train berth swaps (Build Plan steps 1-2: Foundation + Trips).",
   "workspaces": [
     "app"
   ],
@@ -18,5 +18,8 @@
   },
   "engines": {
     "node": ">=20.19.0"
+  },
+  "overrides": {
+    "source-map-js": "^1.2.2"
   }
 }
