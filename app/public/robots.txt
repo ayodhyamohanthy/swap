@@ -1,0 +1,11 @@
+# toyoufromme.website is an app shell: every route past the root is
+# session-bound (a passenger's swaps, payments, admin), so a crawler can
+# never render them. Keep the admin and pay screens out of any index
+# outright.
+User-agent: *
+Disallow: /admin
+Disallow: /pay/
+Disallow: /signin
+Disallow: /profile
+
+Sitemap: https://toyoufromme.website/sitemap.xml
