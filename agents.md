@@ -37,6 +37,12 @@ by listing nothing).
    docs/DECISIONS.md are the live list. When Ayu rules on something new,
    record it here (or append to DECISIONS.md) in the same commit that
    acts on it.
+4. PROOF, NOT WORDS (Ayu, Oct 22 2026: "don't give me a word, give me
+   some kind of proof" -> "Make this as a rule"): nothing is reported
+   done, ready, fixed or verified without proof Ayu can see - a
+   screenshot, or log/output from a real test run, attached to the
+   handover. A claim without proof is labeled UNVERIFIED, never
+   presented as done.
 
 ## Definition of done — no partial credit
 1. `npm run typecheck` clean
