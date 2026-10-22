@@ -54,7 +54,10 @@ export default defineConfig({
         short_name: 'SeatSwap',
         description:
           'Tell us what berth you want. We find people on your train who want to swap. You pay ₹99 only when someone says yes.',
-        start_url: '/',
+        /* Source tag so installs are attributable in analytics (docs/17).
+           `id` stays '/', matching the start_url PATH, so an update never
+           mints a second installed app (backlog 1). */
+        start_url: '/?source=pwa',
         scope: '/',
         /* Identity for install/update: same origin path as start_url, so an
            update never mints a second installed app (backlog 1). */

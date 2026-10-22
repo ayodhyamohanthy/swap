@@ -95,6 +95,15 @@ strong {
   max-width: 34rem;
 }
 
+/* Opting out of the phone column must not mean unbounded: on a 1440px
+   monitor a full-bleed admin table runs a line of text the eye cannot
+   track back. 72rem is the console's own comfortable width. */
+.app-console {
+  margin-inline: auto;
+  max-width: 72rem;
+  width: 100%;
+}
+
 .tap {
   min-height: 3rem;
   min-width: 3rem;

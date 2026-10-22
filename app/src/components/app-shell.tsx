@@ -226,7 +226,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const inColumn = !mounted || !isAdminRoute(location.pathname)
 
   return (
-    <div className={cn('flex min-h-dvh flex-col', inColumn && 'app-column')}>
+    <div className={cn('flex min-h-dvh flex-col', inColumn ? 'app-column' : 'app-console')}>
       {mode !== 'setup' ? (
         chrome.header ? (
           <chrome.header />
