@@ -170,7 +170,8 @@ describe("local trips store", () => {
     expect(settings().user_id).toBe(userId)
 
     const detached = detachFromAccount()
-    expect(detached[0].user_id).toBeNull()
+    expect(detached[0].user_id).toBe(userId)
+    expect(getTrip(trip.id)?.user_id).toBe(userId)
     expect(settings().user_id).toBeNull()
   })
 
