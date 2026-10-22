@@ -94,7 +94,7 @@ for (const shortcut of manifest.shortcuts ?? []) {
 }
 
 /* 3. Icons + fonts ---------------------------------------------------- */
-for (const icon of ['icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png']) {
+for (const icon of ['icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-192.png', 'icons/maskable-512.png']) {
   check(existsSync(join(dist, icon)), `${icon} is missing from the build`)
 }
 const builtAssets = existsSync(join(dist, 'assets')) ? readdirSync(join(dist, 'assets')) : []

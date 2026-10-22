@@ -25,6 +25,21 @@ export const Route = createRootRoute({
       { name: 'apple-mobile-web-app-capable', content: 'yes' },
       { name: 'apple-mobile-web-app-title', content: 'SeatSwap' },
       { name: 'apple-mobile-web-app-status-bar-style', content: 'default' },
+      /* Link previews (WhatsApp/iMessage/social): canonical domain is
+         toyoufromme.website (docs/16 Cloudflare zone). og:image is a static
+         1200x630 card in public/ - keep its copy in step with meta.*. */
+      { property: 'og:title', content: translate(DEFAULT_LANG, 'meta.title') },
+      { property: 'og:description', content: translate(DEFAULT_LANG, 'meta.description') },
+      { property: 'og:type', content: 'website' },
+      { property: 'og:url', content: 'https://toyoufromme.website/' },
+      { property: 'og:image', content: 'https://toyoufromme.website/og-image.png' },
+      { property: 'og:image:width', content: '1200' },
+      { property: 'og:image:height', content: '630' },
+      { property: 'og:image:alt', content: 'SeatSwap - swap your berth with someone on your train.' },
+      { name: 'twitter:card', content: 'summary_large_image' },
+      { name: 'twitter:title', content: translate(DEFAULT_LANG, 'meta.title') },
+      { name: 'twitter:description', content: translate(DEFAULT_LANG, 'meta.description') },
+      { name: 'twitter:image', content: 'https://toyoufromme.website/og-image.png' },
     ],
     links: [
       { rel: 'stylesheet', href: appCss },
