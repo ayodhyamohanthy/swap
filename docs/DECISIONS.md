@@ -9,6 +9,8 @@ Format: `YYYY-MM-DD | L# | decision | why`
 
 
 
+2026-10-22 | — | Branch-tidy rule: only working branches; delete each branch after its PR merges (record name + tip SHA first); escalate unmerged branches with unique work | Ayu's rule, 3:08 PM
+2026-10-22 | — | Deleted stale branch fo/swap-razorpay-primary, tip 2e87507c15a6bcf670cd86f5c69f8437880e7ef3 (restorable from this SHA) | superseded: main is Razorpay-only since 72ec216 (PayPal removed, live-verified); branch's remaining diff targeted the pre-workspace layout
 2026-10-22 | — | Fullstack verification rule: test + verify end to end (UI/API/data/deploy) with shared test accounts before anything is called done; usernames + vault pointer to be published in repo notes, passwords only ever in the vault | Ayu's instruction, 3:00 PM relay
 2026-10-22 | — | Proof rule: no done/ready/verified report without visible proof (screenshot or real test-run output); unproven claims are labeled UNVERIFIED | Ayu's rule, his words: "don't give me a word, give me some kind of proof" + "Make this as a rule"
 2026-10-16 | — | Money rule: never choose money-spending options; free or money-earning options only; paid plans/add-ons dropped, not proposed as defaults | Ayu's bootstrap rule

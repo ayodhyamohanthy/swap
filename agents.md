@@ -51,6 +51,12 @@ by listing nothing).
    (rule 4). Test-account usernames and a vault-item pointer live in
    this file / DECISIONS.md once the accounts are proven; PASSWORDS
    NEVER go into the repo or chat - agents fetch them from the vault.
+6. TIDY BRANCHES (Ayu, Oct 22 2026: "just have only working branches,
+   once done it should be merged" + "repo should be tidy"): work on a
+   branch, merge it, delete it. After every PR merges, delete the
+   branch (record its name + tip SHA in docs/DECISIONS.md first).
+   Unmerged branches with unique work are escalated to Ayu, never
+   deleted unilaterally.
 
 ## Definition of done — no partial credit
 1. `npm run typecheck` clean
