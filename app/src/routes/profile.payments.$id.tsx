@@ -44,7 +44,7 @@ function ReceiptScreen() {
     )
   }
 
-  const isGroup = isGroupRequestId(payment.request_id)
+  const isGroup = isGroupRequestId(payment.request_id ?? payment.group_id ?? '')
   const receipt = splitReceipt(payment.amount_paise, payment.credit_used_paise, isGroup)
   const number = payment.receipt_number ?? ''
 

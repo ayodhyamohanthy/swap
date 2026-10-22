@@ -103,7 +103,7 @@ describe('tips', () => {
     for (const bad of [0, 4999, 5001, 9999, 20001, -2000]) {
       expect(() => beginTip(request.id, bad, 'razorpay')).toThrow('bad_tip_amount')
     }
-    expect(listPayments().filter((p) => p.request_id.startsWith('tip:'))).toHaveLength(0)
+    expect(listPayments().filter((p) => p.request_id?.startsWith('tip:'))).toHaveLength(0)
   })
 
   it('opens the payment before the gateway, with credit hard-pinned to zero', async () => {

@@ -103,7 +103,7 @@ export function beginTip(
  */
 export function settleTip(paymentId: string): WalletTx | undefined {
   const payment = getPayment(paymentId)
-  if (!payment || !isTipPaymentKey(payment.request_id)) return undefined
+  if (!payment || payment.request_id === null || !isTipPaymentKey(payment.request_id)) return undefined
   if (payment.status !== 'paid') return undefined
   const existing = walletTxForRef(payment.id)
   if (existing) return existing
