@@ -43,6 +43,14 @@ by listing nothing).
    screenshot, or log/output from a real test run, attached to the
    handover. A claim without proof is labeled UNVERIFIED, never
    presented as done.
+5. FULLSTACK VERIFICATION WITH TEST ACCOUNTS (Ayu, Oct 22 2026: "Test
+   and verify every time if something is stating done. Always verify
+   fullstack. Make this as an instruction."): before calling anything
+   done, run the real flow end to end - UI, API, data and the deploy -
+   signing in with the shared test accounts, and attach the proof
+   (rule 4). Test-account usernames and a vault-item pointer live in
+   this file / DECISIONS.md once the accounts are proven; PASSWORDS
+   NEVER go into the repo or chat - agents fetch them from the vault.
 
 ## Definition of done — no partial credit
 1. `npm run typecheck` clean

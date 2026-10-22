@@ -9,6 +9,7 @@ Format: `YYYY-MM-DD | L# | decision | why`
 
 
 
+2026-10-22 | — | Fullstack verification rule: test + verify end to end (UI/API/data/deploy) with shared test accounts before anything is called done; usernames + vault pointer to be published in repo notes, passwords only ever in the vault | Ayu's instruction, 3:00 PM relay
 2026-10-22 | — | Proof rule: no done/ready/verified report without visible proof (screenshot or real test-run output); unproven claims are labeled UNVERIFIED | Ayu's rule, his words: "don't give me a word, give me some kind of proof" + "Make this as a rule"
 2026-10-16 | — | Money rule: never choose money-spending options; free or money-earning options only; paid plans/add-ons dropped, not proposed as defaults | Ayu's bootstrap rule
 2026-10-16 | — | Session-start sync: every session reads agents.md + DECISIONS.md + docs/12 §2 before acting | Ayu's standing instruction
