@@ -425,13 +425,16 @@ export function paymentOutcome(
   toCreditRequestIds: ReadonlySet<string>,
 ): PaymentOutcome {
   const base = PAYMENT_OUTCOME_BY_STATUS[payment.status] ?? 'failed'
-  if (base === 'paid' && toCreditRequestIds.has(payment.request_id)) return 'to_credit'
+  if (base === 'paid' && payment.request_id !== null && toCreditRequestIds.has(payment.request_id)) return 'to_credit'
   return base
 }
 
 export interface AdminPaymentRow {
   id: string
-  request_id: string
+  /** Null on a single-swap payment; the target id still shows in `swap`. */
+  request_id: string | null
+  /** Null on a single-swap payment (docs/08 payments_target). */
+  group_id: string | null
   /** The design's Swap column. */
   swap: string
   provider: string
@@ -459,7 +462,8 @@ export function paymentRows(
     .map((payment) => ({
       id: payment.id,
       request_id: payment.request_id,
-      swap: shortId(payment.request_id),
+      group_id: payment.group_id,
+      swap: shortId(payment.request_id ?? payment.group_id ?? ''),
       provider: payment.provider,
       amount_paise: payment.amount_paise,
       credit_used_paise: payment.credit_used_paise,

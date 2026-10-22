@@ -208,7 +208,7 @@ describe('group checkout (docs/01, docs/04 C)', () => {
     expect(getGroup(group.id)?.paid).toBe(true)
     /* Second attempt reuses the paid row — never a double charge. */
     expect(beginCheckout(group.id, 'razorpay').settled).toBe(true)
-    expect(listPayments().filter((p) => p.request_id === group.id)).toHaveLength(1)
+    expect(listPayments().filter((p) => p.group_id === group.id)).toHaveLength(1)
   })
 
   it('credit can cover the group payment oldest-first', async () => {
