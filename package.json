@@ -21,5 +21,9 @@
   },
   "overrides": {
     "source-map-js": "^1.2.2"
+  },
+  "devDependencies": {
+    "vite": "^7.3.7",
+    "vitest": "^4.1.12"
   }
 }
