@@ -24,9 +24,13 @@ your lane. Check it [x] in the same commit that completes it.
       safe-area set, manifest verified by build; ZERO violations so zero
       fix tasks. Watch: 202.5KB total with CSS (7KB headroom); switches
       pass via expanded hit-slop, not box size.
-- [ ] Payments: make Razorpay the single primary gateway for domestic
+- [x] Payments: make Razorpay the single primary gateway for domestic
       AND international; demote PayPal to fallback path only; update
-      docs/06-PAYMENTS.md to match
+      docs/06-PAYMENTS.md to match (done stronger, owner 2026-10-21 12:18:
+      PayPal removed from every user-facing surface, India-only, Razorpay
+      covers every method; docs/06 rewritten in 72ec216 with a removal-guard
+      test, live-verified; re-enable from git history when international
+      launches)
 
 ## L1..L8 — (existing feature lanes: keep current tasks, converted to [ ]/[x])
 
