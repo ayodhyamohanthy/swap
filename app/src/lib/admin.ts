@@ -21,6 +21,7 @@ import {
   adminMarkDone,
   adminMoveToCredit,
   adminResolveDispute,
+  requireRole,
 } from '@/server/admin'
 
 export type AdminRole = 'admin' | 'support'
@@ -1640,3 +1641,28 @@ export function activityTime(iso: string, lang: LangCode): string {
   }
 }
 
+
+/* ---- who sees the console ----
+   `demo`: no backend, so the console shows only this device's own data and
+   every action is logged on the device (docs/04-D). `staff`: the server said
+   yes. `denied`: a backend exists and the server did not say yes - not
+   signed in, not staff, or the check itself failed. Fails closed. This only
+   decides which screen to draw; the write guard stays in `@/server/admin`. */
+export type StaffAccess = 'demo' | 'staff' | 'denied'
+
+export async function resolveStaffAccess(
+  configured: boolean = isSupabaseConfigured(),
+  check: () => Promise<unknown> = () => requireRole({ data: { role: 'support' } }),
+): Promise<StaffAccess> {
+  if (!configured) return 'demo'
+  try {
+    const answer = (await check()) as { ok?: unknown; uid?: unknown } | null
+    /* `ok === true` alone is not enough: when the server function is not
+       reachable and a host answers 200 with a web page, the client hands back
+       a fetch Response, whose own `ok` is true. The real answer also names the
+       account (`uid`), which a Response never has. */
+    return answer?.ok === true && typeof answer.uid === 'string' && answer.uid.length > 0 ? 'staff' : 'denied'
+  } catch {
+    return 'denied'
+  }
+}
