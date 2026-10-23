@@ -112,7 +112,7 @@ function TopBar({
   )
 }
 
-function TabBar({ active }: { active: TabId }) {
+function TabBar({ active, settled }: { active: TabId; settled: boolean }) {
   const { t } = useI18n()
   const unread = useUnreadUpdates()
   const tabs = [
@@ -129,7 +129,17 @@ function TabBar({ active }: { active: TabId }) {
         const badge = id === 'swaps' ? unread.length : 0
         return (
           <Link
-            key={id}
+            /* Hydration parity: the router adds data-status="active" from the
+               real URL, but the shell is prerendered at "/", so on any other
+               route the first client render disagreed with the HTML (#418).
+               React is told to tolerate that one attribute on first render, and
+               the key changes once the shell has settled so the links are
+               rebuilt with the router's true state. The visible active tab is
+               drawn from `active`, which is already mount-gated. */
+            key={`${id}:${settled}`}
+            suppressHydrationWarning
+            activeProps={{}}
+            inactiveProps={{}}
             to={to}
             aria-current={active === id ? 'page' : undefined}
             aria-label={badge > 0 ? `${label}, ${badge} new` : label}
@@ -240,9 +250,15 @@ export function AppShell({ children }: { children: ReactNode }) {
         )
       ) : null}
       <OfflineBanner />
-      <main className={cn('flex-1 px-4 pt-4', mode === 'setup' && 'pt-10', 'pb-8')}>{children}</main>
+      {/* Route content is client-rendered by design. Gating it on `mounted` makes
+          the first client render equal the prerendered shell whether or not the
+          route's chunk is already cached; otherwise a warm cache renders the
+          route into the shell's empty boundary during hydration (#418). */}
+      <main className={cn('flex-1 px-4 pt-4', mode === 'setup' && 'pt-10', 'pb-8')}>
+        {mounted ? children : null}
+      </main>
       {mode === 'tabs' ? <span className="h-24" aria-hidden /> : null}
-      {mode === 'tabs' ? <TabBar active={chrome.tab ?? 'home'} /> : null}
+      {mode === 'tabs' ? <TabBar active={chrome.tab ?? 'home'} settled={mounted} /> : null}
     </div>
   )
 }
