@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SplatRouteImport } from './routes/$'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as CheckRouteImport } from './routes/check'
 import { Route as GoodbyeRouteImport } from './routes/goodbye'
@@ -73,6 +74,11 @@ import { Route as SwapsIdTipRouteImport } from './routes/swaps.$id.tip'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SplatRoute = SplatRouteImport.update({
+  id: '/$',
+  path: '/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -373,6 +379,7 @@ const SwapsIdTipRoute = SwapsIdTipRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
   '/check': typeof CheckRoute
   '/goodbye': typeof GoodbyeRoute
@@ -435,6 +442,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/$': typeof SplatRoute
   '/check': typeof CheckRoute
   '/goodbye': typeof GoodbyeRoute
   '/signin': typeof SigninRoute
@@ -490,6 +498,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
   '/check': typeof CheckRoute
   '/goodbye': typeof GoodbyeRoute
@@ -554,6 +563,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/$'
     | '/admin'
     | '/check'
     | '/goodbye'
@@ -616,6 +626,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/$'
     | '/check'
     | '/goodbye'
     | '/signin'
@@ -670,6 +681,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/$'
     | '/admin'
     | '/check'
     | '/goodbye'
@@ -733,6 +745,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SplatRoute: typeof SplatRoute
   AdminRoute: typeof AdminRouteWithChildren
   CheckRoute: typeof CheckRoute
   GoodbyeRoute: typeof GoodbyeRoute
@@ -765,6 +778,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$': {
+      id: '/$'
+      path: '/$'
+      fullPath: '/$'
+      preLoaderRoute: typeof SplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -1331,6 +1351,7 @@ const RequestIdRouteWithChildren = RequestIdRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SplatRoute: SplatRoute,
   AdminRoute: AdminRouteWithChildren,
   CheckRoute: CheckRoute,
   GoodbyeRoute: GoodbyeRoute,

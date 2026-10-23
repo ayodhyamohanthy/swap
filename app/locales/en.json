@@ -899,5 +899,10 @@
     "cardTitle": "Say thanks to {name}",
     "cardNote": "Send ₹50, ₹100 or ₹200 as appreciation. {name} earned it - and gets it all as credit, never cash.",
     "cardCta": "Thank {name}"
+  },
+  "notFound": {
+    "title": "This page was not found",
+    "body": "The link may be old or mistyped. Your trips and requests are safe.",
+    "home": "Go to home"
   }
 }
