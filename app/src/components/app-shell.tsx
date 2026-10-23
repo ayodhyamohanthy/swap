@@ -131,6 +131,12 @@ function TabBar({ active }: { active: TabId }) {
           <Link
             key={id}
             to={to}
+            /* Hydration parity: the router's own active class and data-status
+               come from the real URL, but the shell is prerendered at "/" - so
+               on any other route the first client render disagreed (#418).
+               The tab's active state is already drawn from `active` below. */
+            activeProps={{}}
+            inactiveProps={{}}
             aria-current={active === id ? 'page' : undefined}
             aria-label={badge > 0 ? `${label}, ${badge} new` : label}
             className={cn(
