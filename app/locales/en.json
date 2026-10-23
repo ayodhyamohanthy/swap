@@ -547,6 +547,7 @@
   },
   "incoming": {
     "title": "Swap request",
+    "none": "No open request for this booking right now. New ones show up on Swaps.",
     "giveGet": "You give {yours} · you get {theirs}",
     "reason": "Reason: {reason}",
     "earn": "Earn 50% credit · you pay nothing",

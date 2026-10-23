@@ -31,7 +31,7 @@ function IncomingScreen() {
     return (
       <div>
         <Card>
-          <CardTitle>{t('swaps.empty')}</CardTitle>
+          <CardTitle>{trip ? t('incoming.none') : t('swaps.empty')}</CardTitle>
         </Card>
         <Button className="mt-4" asChild>
           <Link to="/">{t('nav.home')}</Link>
