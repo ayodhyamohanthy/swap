@@ -718,6 +718,9 @@
   },
   "admin": {
     "title": "Admin",
+    "staffOnly": "Staff only",
+    "staffOnlyBody": "This console is for SeatSwap staff. Your trips and requests are not affected.",
+    "demoBanner": "Demo console. It shows only this device's own data. Actions are noted on this device and change no one's account.",
     "gate": "Admin tools are guarded. Turn on demo access on this device.",
     "overview": "Overview",
     "log": "Activity log",
@@ -875,7 +878,7 @@
     "resolveConfirm": "Resolve: swapped",
     "reasonPh": "Reason — required for credit moves",
     "acted": "Done.",
-    "actedDemo": "Logged on this device. The server applies it when connected.",
+    "actedDemo": "Noted on this device only. No one's account was changed.",
     "actedFailed": "That did not go through. Nothing was changed.",
     "userTimeline": "User timeline",
     "timelineAutomation": "Automated"

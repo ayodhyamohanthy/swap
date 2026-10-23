@@ -1,7 +1,8 @@
 import { Link, Outlet, createFileRoute } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import type { RouteChrome } from '@/components/app-shell'
-import { ADMIN_ROUTES } from '@/lib/admin'
+import { useEffect, useState } from 'react'
+import { ADMIN_ROUTES, resolveStaffAccess, type StaffAccess } from '@/lib/admin'
 import { useI18n } from '@/lib/i18n'
 
 /* Admin console shell (docs/05 screens A1-A6).
@@ -31,6 +32,36 @@ const LABEL_KEYS: Record<(typeof ADMIN_ROUTES)[number]['label'], 'admin.overview
 
 function AdminLayout() {
   const { t } = useI18n()
+  const [access, setAccess] = useState<StaffAccess | 'checking'>('checking')
+  useEffect(() => {
+    let live = true
+    void resolveStaffAccess().then((next) => live && setAccess(next))
+    return () => {
+      live = false
+    }
+  }, [])
+
+  if (access === 'checking' || access === 'denied') {
+    return (
+      <div className="mx-auto max-w-md py-10" data-testid="admin-gate">
+        <p className="font-head text-title font-bold text-primary">{t('admin.title')}</p>
+        {access === 'denied' ? (
+          <>
+            <h1 className="mt-3 text-title text-ink">{t('admin.staffOnly')}</h1>
+            <p className="mt-2 text-body text-muted">{t('admin.staffOnlyBody')}</p>
+          </>
+        ) : (
+          <p className="mt-3 text-body text-muted" role="status">{t('common.loading')}</p>
+        )}
+        <p className="mt-6">
+          <Link to="/" className="inline-flex min-h-12 items-center gap-1.5 text-body text-primary">
+            <ArrowLeft aria-hidden className="size-5" />
+            {t('admin.backToApp')}
+          </Link>
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="lg:flex lg:gap-6">
@@ -50,6 +81,11 @@ function AdminLayout() {
       </aside>
 
       <div className="mt-6 min-w-0 flex-1 lg:mt-0">
+        {access === 'demo' ? (
+          <p className="mb-4 rounded-btn border border-line bg-card px-3 py-2 text-body text-muted" data-testid="admin-demo-banner">
+            {t('admin.demoBanner')}
+          </p>
+        ) : null}
         <Outlet />
         <p className="mt-6">
           <Link to="/" className="inline-flex min-h-12 items-center gap-1.5 text-body text-primary">
