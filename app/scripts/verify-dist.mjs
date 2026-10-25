@@ -1,6 +1,7 @@
 /* Verifies the built PWA against docs/08-PWA-AND-TECH.md and AGENTS.md.
    Runs at the end of `npm run build`, and standalone with `npm run verify`. */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { gzipSync } from 'node:zlib'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -174,6 +175,28 @@ console.log(
   `[verify] shell html ${(html.length / 1024).toFixed(1)} KB · built assets ${(assetBytes / 1024).toFixed(1)} KB · worker ${(sw.length / 1024).toFixed(1)} KB`,
 )
 check(html.length < 40_000, 'the shell HTML looks too big for a slow-3G first paint')
+
+/* docs/17 W6 item 2 and docs/16 section 6.2: the Home route's first-load JS is
+   the shell's entry chunk, and it must stay at or under 200 KB gzipped. The
+   budget is enforced here, at build time, where a regression is caught before
+   a deploy, not by eye afterwards. */
+const JS_BUDGET_BYTES = 200 * 1024
+const entrySrc = /<script[^>]*\ssrc="([^"]+\.js)"/.exec(html)?.[1]
+if (!entrySrc) {
+  check(false, 'index.html has no entry <script src> — the initial-JS budget cannot be measured')
+} else {
+  const entryPath = join(dist, entrySrc.replace(/^\//, ''))
+  if (!existsSync(entryPath)) {
+    check(false, `the shell's entry script ${entrySrc} is missing from the build`)
+  } else {
+    const entryGz = gzipSync(readFileSync(entryPath)).length
+    console.log(`[verify] initial JS ${entrySrc} gzip ${(entryGz / 1024).toFixed(1)} KB (budget ${JS_BUDGET_BYTES / 1024} KB)`)
+    check(
+      entryGz <= JS_BUDGET_BYTES,
+      `initial JS ${entrySrc} is ${(entryGz / 1024).toFixed(1)} KB gzipped, over the ${JS_BUDGET_BYTES / 1024} KB budget (docs/17 W6) — split a screen out of the entry chunk or drop a dependency before shipping`,
+    )
+  }
+}
 
 if (problems.length > 0) {
   console.error('\n[verify] failed:')
