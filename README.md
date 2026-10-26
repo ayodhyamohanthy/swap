@@ -12,6 +12,7 @@ release the lane. Full paste list: `PROMPTS.md`.
   `docs/11-COLLAB.md` (git discipline), `docs/12-INFRA-CREDITS.md` (stack,
   credits, free-only spend rule), `docs/13-COLLAB-CONTRACT.md` (one lane per
   agent) and `docs/14-LANES.md` (live claims).
+  Standards chain (docs/17 W8.2): `docs/11-COLLAB.md` → `docs/12-INFRA-CREDITS.md` → `docs/13-COLLAB-CONTRACT.md` → `docs/16-BEST-PRACTICES.md` (standards) → `docs/15-AUDIT.md` (state) → `docs/17-PRODUCTION-PATH.md` (backlog source).
 - `designs/` — screen images (3 phone screens per image; admin pages are single). Use them for layout and wording; the rules in `agents.md` win if an image disagrees.
 - `PROMPTS.md` — the simple prompt (`start` / `continue`) + the one integration prompt.
 - `SeatSwap-journeys.html` — clickable walkthrough (Requester / Acceptor / Admin).

@@ -10,6 +10,8 @@ this one wins and the other file is a bug — fix it.
 3. docs/14-LANES.md — claim your lane before touching files
 4. docs/10-BUILD-PLAN.md — find your next task
 
+Standards chain (docs/17 W8.2): `docs/11-COLLAB.md` → `docs/12-INFRA-CREDITS.md` → `docs/13-COLLAB-CONTRACT.md` → `docs/16-BEST-PRACTICES.md` (standards) → `docs/15-AUDIT.md` (state) → `docs/17-PRODUCTION-PATH.md` (backlog source).
+
 Collision check (mandatory, before touching files — another agent may be
 mid-edit): `find app/src app/tests app/locales -mmin -15 -type f` (BSD-safe
 form; never `-newermt`, which macOS `find` rejects and which fails silent
