@@ -11,6 +11,7 @@ import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { swFilename, workboxOptions } from '../pwa.workbox.mjs'
+import { parse } from 'parse5'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const dist = join(root, 'dist', 'client')
@@ -90,3 +91,53 @@ cpSync(dist, cfDist, {
 console.log(
   `[postbuild] staged ${cfDist.replace(root + '/', '')} for Cloudflare (no _redirects — the deploy rejects it)`,
 )
+
+/* 5. CSP inline-script hashes -------------------------------------------
+   The prerendered shell carries TanStack Start's inline bootstrap and
+   hydration scripts, whose content is build-specific, so a static
+   script-src cannot name them from app/public/_headers. After staging
+   dist/cf, hash every inline script in index.html and 404.html and inject
+   the 'sha256-…' tokens into the deployed CSP's script-src, right after
+   'self'. The scripts are read with parse5, not a regex: the prerendered
+   payload carries raw NUL row separators, and a tag-matching regex pairs
+   the tags wrongly there, producing a hash the browser then refuses. The template deliberately ships WITHOUT the hashes: an
+   un-processed deploy breaks visibly (inline scripts refused, app cannot
+   boot) instead of silently dropping the whole policy, which a malformed
+   token in the file would cause. e2e/csp.spec.ts asserts the served CSP
+   actually carries the hashes. */
+const headersPath = join(cfDist, '_headers')
+if (!existsSync(headersPath)) {
+  console.error('[postbuild] dist/cf/_headers is missing — app/public/_headers did not stage')
+  process.exit(1)
+}
+const scriptTexts = (node) => {
+  const found = []
+  if (node.nodeName === 'script' && !node.attrs.some((a) => a.name === 'src')) {
+    found.push((node.childNodes ?? []).map((child) => child.value ?? '').join(''))
+  }
+  for (const child of node.childNodes ?? []) found.push(...scriptTexts(child))
+  /* Template content is a separate fragment node: the hydration boundary
+     scripts live inside one, and the client adopts them at hydration. */
+  if (node.content) found.push(...scriptTexts(node.content))
+  return found
+}
+const inlineScripts = ['index.html', '404.html']
+  .map((name) => join(cfDist, name))
+  .filter(existsSync)
+  .flatMap((file) => scriptTexts(parse(readFileSync(file, 'utf8'))))
+  .filter((code) => code.trim().length > 0)
+if (inlineScripts.length > 0) {
+  const { createHash } = await import('node:crypto')
+  const hashes = [
+    ...new Set(inlineScripts.map((code) => `'sha256-${createHash('sha256').update(code).digest('base64')}'`)),
+  ]
+  const headers = readFileSync(headersPath, 'utf8')
+  if (!headers.includes("script-src 'self'")) {
+    console.error("[postbuild] _headers carries no `script-src 'self'` to inject hashes into")
+    process.exit(1)
+  }
+  writeFileSync(headersPath, headers.replace("script-src 'self'", `script-src 'self' ${hashes.join(' ')}`))
+  console.log(`[postbuild] injected ${hashes.length} inline-script hash(es) into the deployed CSP`)
+} else {
+  console.warn('[postbuild] no inline scripts found in the shells — CSP left without hashes')
+}

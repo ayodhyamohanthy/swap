@@ -2,6 +2,16 @@
 # sw.js must revalidate (otherwise phones keep a stale worker); hashed
 # assets + icons are immutable for a year; HTML shells must not be cached
 # by the CDN (the worker's NetworkFirst handles offline instead).
+#
+# Security headers (docs/17 W7.1). The CSP is the real one, not just
+# frame-ancestors: script/style/img/font/connect/frame sources are named
+# so the browser refuses everything else. The inline bootstrap and
+# hydration scripts in the prerendered shell are build-specific, so
+# postbuild.mjs hashes them and injects the 'sha256-...' tokens into the
+# deployed script-src (app/public/_headers stays valid without them, on
+# purpose: an un-processed deploy fails visibly instead of silently
+# dropping the whole policy, which a malformed token would cause). HSTS is
+# deliberately absent until the custom domain is stable (docs/17 W7.1).
 /sw.js
   Cache-Control: no-cache
   Content-Type: application/javascript; charset=utf-8
@@ -18,7 +28,7 @@
   Cache-Control: no-cache
 /*
   X-Content-Type-Options: nosniff
-  Referrer-Policy: strict-origin-when-cross-origin
   X-Frame-Options: DENY
-  Content-Security-Policy: frame-ancestors 'none'
+  Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://checkout.razorpay.com https://www.paypal.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.qrserver.com; font-src 'self' data:; connect-src 'self' https://*.supabase.co https://api.razorpay.com https://api-m.paypal.com https://www.paypal.com https://us.i.posthog.com https://*.ingest.sentry.io; frame-src https://api.razorpay.com https://hooks.razorpay.com https://www.paypal.com https://www.sandbox.paypal.com; worker-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
