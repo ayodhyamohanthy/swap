@@ -66,4 +66,29 @@ test.describe('W6.1 slice: add PNR from Home', () => {
     await expect(page.getByText('PNR ends 9630')).toBeVisible()
     expect(errors).toEqual([])
   })
+  test('a CNF trip can ask for a swap end to end', async ({ page }) => {
+    const errors = collectErrors(page)
+    await openHome(page)
+    await page.fill('#home-pnr', PNR)
+    await page.getByRole('button', { name: SUBMIT }).click()
+    /* The manual form defaults to class SL and status CNF, so this trip is
+       open to swap and the swaps screen offers the request CTA. */
+    await page.fill('#train', '12951')
+    await page.fill('#date', '2026-11-05')
+    await page.getByRole('button', { name: SUBMIT }).click()
+    await expect(page).toHaveURL(/\/trips\/(?!add)/)
+    /* Both CTAs render Button asChild + Link, so both are role=link. */
+    await page.getByRole('link', { name: 'Ask for a swap' }).click()
+    await expect(page).toHaveURL(/\/swaps/)
+    await page.getByRole('link', { name: 'Ask for a swap' }).click()
+    await expect(page).toHaveURL(/\/request\/new/)
+    /* An empty form is stopped at the first-choice chip, not sent. */
+    await page.getByRole('button', { name: 'See matches' }).click()
+    await expect(page.getByText('Pick at least your 1st choice.')).toBeVisible()
+    await page.getByRole('button', { name: 'Lower' }).first().click()
+    await page.getByRole('button', { name: 'See matches' }).click()
+    await expect(page).toHaveURL(/\/request\/[^/]+\/matches/)
+    await expect(page.getByText('Request saved. Sending is free.')).toBeVisible()
+    expect(errors).toEqual([])
+  })
 })
