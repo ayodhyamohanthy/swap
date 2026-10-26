@@ -68,3 +68,12 @@ Domain (currently planned: toyoufromme.website), example names (Arjun, Priya, Ri
 
 ## L9 — owner-authorized isolated backend staging (2026-10-16)
 - [x] Add readiness-only swap-backend-staging runtime and exact account/target deployment guard; no payment effects, secrets, frontend cutover or production writes. Typecheck, 1008 tests, build and collaboration gates pass. Functional backend remains blocked on the separately verified staging Supabase setup and transactional server/payment executors described in docs/cloudflare.md.
+
+## L9 — ownership map completion (2026-10-27)
+- [x] Complete the docs/13 §1 ownership map: assign the seven unowned surfaces
+  flagged on the board and in L4’s request (`routes/__root.tsx` → L1,
+  `routes/profile.*` → L6, `lib/money.ts` + `lib/checkout.ts` → L4,
+  `lib/use-store.ts` → L2, `lib/share.ts` → L3, `lib/analytics.ts` → L9);
+  `app/.tanstack/` is a gitignored build cache needing no owner; the remaining
+  unowned `lib/*` files are listed for Ayu rather than guessed. Gates on 002c2c2:
+  typecheck, 1046/1046 tests, build and collab-check green.

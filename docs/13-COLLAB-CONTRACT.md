@@ -16,20 +16,21 @@ file a `docs/14-LANES.md` handoff note instead.
 
 | Lane | Surface (routes/files) | Typical agent |
 |---|---|---|
-| L1 PWA shell + design system | `app/src/components/ui/**`, `app/src/components/app-shell.tsx`, `app/src/components/pwa*.tsx`, `app/src/styles.css`, `app/public/**`, `app/pwa.workbox.mjs`, `app/wrangler.toml` | Cline |
-| L2 Trips + PNR | `routes/index`, `routes/trips.*`, `lib/pnr.ts`, `lib/store.ts` | Codex |
-| L3 Requests + matching | `routes/request.*`, `routes/share.*`, `lib/requests.ts`, `lib/matching.ts` | Claude |
-| L4 Payments | `routes/pay.*`, `server/payments*`, `server/razorpay-client.ts`, `server/paypal-client.ts`, `lib/payments.ts` | Gemini |
+| L1 PWA shell + design system | `app/src/components/ui/**`, `app/src/components/app-shell.tsx`, `app/src/components/pwa*.tsx`, `app/src/styles.css`, `app/public/**`, `app/pwa.workbox.mjs`, `app/wrangler.toml`, `routes/__root.tsx` | Cline |
+| L2 Trips + PNR | `routes/index`, `routes/trips.*`, `lib/pnr.ts`, `lib/store.ts`, `lib/use-store.ts` | Codex |
+| L3 Requests + matching | `routes/request.*`, `routes/share.*`, `lib/requests.ts`, `lib/matching.ts`, `lib/share.ts` | Claude |
+| L4 Payments | `routes/pay.*`, `server/payments*`, `server/razorpay-client.ts`, `server/paypal-client.ts`, `lib/payments.ts`, `lib/money.ts`, `lib/checkout.ts` | Gemini |
 | L5 Swaps + chat + safety | `routes/swaps.*`, `routes/chat.*`, `lib/chat-guard.ts`, `lib/safety.ts`, `lib/outbox.ts` | Copilot |
-| L6 Groups + onboard | `routes/groups.*`, `routes/onboard.*`, `lib/groups.ts` | Cursor |
+| L6 Groups + onboard | `routes/groups.*`, `routes/onboard.*`, `lib/groups.ts`, `routes/profile.*` | Cursor |
 | L7 Admin | `routes/admin.*`, `server/admin.ts`, `lib/admin.ts` | Windsurf |
 | L8 DB + schema | `app/supabase/**`, `app/tests/schema.test.ts` | one agent at a time, announce first |
-| L9 Infra + credits | `app/azure/**`, `docs/12-*`, `.github/workflows/**`, `app/scripts/**` | Aider |
+| L9 Infra + credits | `app/azure/**`, `docs/12-*`, `.github/workflows/**`, `app/scripts/**`, `lib/analytics.ts` | Aider |
 | L10 i18n | `app/locales/**`, `lib/i18n.tsx` | **single writer only** |
 
 Shared files (`package.json`, `routeTree.gen.ts`, `app/vite.config.ts`)
 are **generated or additive-only**: run the build after touching routes and
-commit the regenerated tree; never hand-edit.
+commit the regenerated tree; never hand-edit. `app/.tanstack/` is TanStack
+Start’s gitignored build cache: never committed, so it needs no owner.
 
 Two more were unowned (flagged by L9, 2026-09-28) and are now assigned here:
 `app/vitest.config.ts` follows L1, and `app/scripts/**` — the collab guard and
@@ -53,6 +54,36 @@ the PWA components, and the tokens/public assets. Feature components are
 change inside `components/ui/**` or `app-shell.tsx`, that is a `request:` to L1.
 This is the guard working as intended: it caught a genuine cross-lane boundary
 problem that prose alone had let through twice.
+
+**2026-10-27 (L9, Fo): the map completed — backlog item 10’s five-path
+pattern plus L4’s 2026-09-29 request.** Seven surfaces that sat outside the
+table now have owners, each on evidence already recorded on the board:
+`routes/__root.tsx` → L1 (the root document is the shell document; backlog 11
+was already filed as “L10 + whoever owns `routes/__root.tsx`”);
+`routes/profile.*` → L6 (the account screens — settings, easy mode, help,
+delete — and L6 already added the Profile row pointing at `/groups`,
+`060de0d`; the `profile.payments.*` screens render L4’s payment rows
+read-only, so a change to payment logic under profile stays a `request:` to
+L4, not an L6 edit); `lib/money.ts` + `lib/checkout.ts` → L4 (L4’s own
+filed request — `checkout.ts` holds the `payGateFor` rule-2 gate L4 built,
+and `money.ts` renders every pay-screen amount, which L4 already had to fix
+once from inside the gap); `lib/use-store.ts` → L2 (it is the React binding
+of L2’s `lib/store.ts`; L3’s requests subscriptions flow through it, so a
+requests-shaped hook change there is a request to L2); `lib/share.ts` → L3
+(L3 created it in `086f364` when the invite parsing moved out of JSX);
+`lib/analytics.ts` → L9 (the on-device log sits beside `lib/telemetry.ts`,
+which L9 shipped and guards). `app/.tanstack/` needs no owner: it is TanStack
+Start’s gitignored build cache and is never committed. Deliberately **not**
+assigned here, for lack of recorded evidence, and listed for Ayu or the
+claiming lane: `lib/chat-sync.ts`, `lib/demo-swap.ts`, `lib/invites.ts`,
+`lib/job-sweep.ts`, `lib/jobs.ts`, `lib/outcomes.ts`, `lib/pay-access.ts`,
+`lib/pay-sdk.ts`, `lib/posthog.ts`, `lib/push.ts`, `lib/session.ts`,
+`lib/settle.ts`, `lib/supabase.ts`, `lib/telemetry.ts`, `lib/tips.ts`,
+`lib/use-online.ts`, `lib/utils.ts` (the `pay-*`/`tips`/`telemetry` families
+look like L4/L9 work, but a wrong owner blocks the right lane, so they wait
+for a claim), and `.gitignore`, which Cline’s 2026-09-29 note deliberately
+left to its owner. Every assignment is a recommendation under rule 2: Ayu can
+move any of them.
 
 ### Pre-commit guard (L9, live since 2026-09-29)
 
