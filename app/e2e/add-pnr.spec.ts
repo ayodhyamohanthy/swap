@@ -89,6 +89,11 @@ test.describe('W6.1 slice: add PNR from Home', () => {
     await page.getByRole('button', { name: 'See matches' }).click()
     await expect(page).toHaveURL(/\/request\/[^/]+\/matches/)
     await expect(page.getByText('Request saved. Sending is free.')).toBeVisible()
+    /* A fresh request has nobody to match yet, so the searching state shows
+       the first-on-train card instead of candidate rows. */
+    await expect(page.getByRole('heading', { name: 'Matches' })).toBeVisible()
+    await expect(page.getByText("You're the first on 12951")).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Share coach link' })).toBeVisible()
     expect(errors).toEqual([])
   })
 })
