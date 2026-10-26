@@ -322,7 +322,7 @@ function AdminActivity() {
                  can paste into a search, and a design's "Riya P" is a mock. */
               const isAutomation = group.actorId === null
               return (
-                <li key={group.actorId ?? ' automation'}>
+                <li key={group.actorId ?? 'automation'}>
                   <Card>
                     <CardBody>
                       <div className="flex items-baseline justify-between gap-2">
