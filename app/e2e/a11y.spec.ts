@@ -63,3 +63,17 @@ test('main journey screens pass axe critical/serious', async ({ page }) => {
   await scan(page, 'matches')
   expect(errors).toEqual([])
 })
+
+test('updates and profile screens pass axe critical/serious', async ({ page }) => {
+  const errors = collectErrors(page)
+  await openHome(page)
+  /* Updates sits in the header; profile is the last tab. Both are on the
+     main shell, so every traveller reaches them on every session. */
+  await page.getByRole('link', { name: 'Updates' }).first().click()
+  await expect(page).toHaveURL(/\/updates/)
+  await scan(page, 'updates')
+  await page.getByRole('link', { name: 'Profile' }).first().click()
+  await expect(page).toHaveURL(/\/profile/)
+  await scan(page, 'profile')
+  expect(errors).toEqual([])
+})
