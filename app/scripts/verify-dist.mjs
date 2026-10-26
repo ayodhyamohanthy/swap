@@ -60,6 +60,55 @@ check(!existsSync(join(cfDist, '_redirects')), 'dist/cf must NOT contain _redire
 check(existsSync(join(cfDist, swFilename)), `dist/cf/${swFilename} is missing (offline needs the worker)`)
 check(existsSync(join(cfDist, '_headers')), 'dist/cf/_headers is missing (Cloudflare reads it)')
 
+/* The _headers file carries the security and cache claims the deploy relies
+   on (docs/17 W7). A header claim without a verifier is a silent regression,
+   so the file is parsed in Cloudflare's shape (a path, then indented
+   directives) and every claim it makes today is asserted below. */
+const headersFile = join(cfDist, '_headers')
+const headers = existsSync(headersFile) ? readFileSync(headersFile, 'utf8') : ''
+const headerRules = {}
+let currentRule = ''
+for (const line of headers.split('\n')) {
+  if (!line.trim()) continue
+  if (/^\s/.test(line)) (headerRules[currentRule] ??= []).push(line.trim())
+  else currentRule = line.trim()
+}
+const headerValue = (path, name) => {
+  const entry = (headerRules[path] ?? []).find((line) => line.startsWith(`${name}:`))
+  return entry ? entry.slice(name.length + 1).trim() : ''
+}
+check(headerValue('/sw.js', 'Cache-Control') === 'no-cache', '_headers: /sw.js must be no-cache or phones keep a stale worker')
+check(
+  headerValue('/sw.js', 'Content-Type').startsWith('application/javascript'),
+  '_headers: /sw.js must carry a javascript content type',
+)
+for (const path of ['/assets/*', '/icons/*']) {
+  const cache = headerValue(path, 'Cache-Control')
+  check(
+    cache.includes('max-age=31536000') && cache.includes('immutable'),
+    `_headers: ${path} must be immutable for a year`,
+  )
+}
+check(headerValue('/index.html', 'Cache-Control') === 'no-cache', '_headers: the shell must not be cached by the CDN')
+check(headerValue('/404.html', 'Cache-Control') === 'no-cache', '_headers: 404.html must not be cached')
+for (const [name, value] of [
+  ['X-Content-Type-Options', 'nosniff'],
+  ['X-Frame-Options', 'DENY'],
+  ['Referrer-Policy', 'strict-origin-when-cross-origin'],
+]) {
+  check(headerValue('/*', name) === value, `_headers: /* must set ${name}: ${value}`)
+}
+check(
+  headerValue('/*', 'Content-Security-Policy').includes("frame-ancestors 'none'"),
+  "_headers: the CSP must forbid framing (frame-ancestors 'none')",
+)
+for (const denied of ['camera=()', 'microphone=()', 'geolocation=()']) {
+  check(
+    headerValue('/*', 'Permissions-Policy').includes(denied),
+    `_headers: Permissions-Policy must deny ${denied.replace('=()', '')}`,
+  )
+}
+
 /* 2. Manifest --------------------------------------------------------- */
 const manifest = JSON.parse(read('manifest.webmanifest') || '{}')
 check(manifest.name === 'SeatSwap', 'manifest name must be SeatSwap')
