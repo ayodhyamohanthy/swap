@@ -49,4 +49,21 @@ test.describe('W6.1 slice: add PNR from Home', () => {
     await expect(page.locator('#pnr')).toHaveValue(PNR)
     expect(errors).toEqual([])
   })
+  test('a completed trip form saves and lands on the trip detail', async ({ page }) => {
+    const errors = collectErrors(page)
+    await openHome(page)
+    await page.fill('#home-pnr', PNR)
+    await page.getByRole('button', { name: SUBMIT }).click()
+    await expect(page).toHaveURL(/\/trips\/add/)
+    /* Only PNR, train and date are required; from/to and the passenger row
+       carry defaults, so the minimal honest form is what this fills. */
+    await page.fill('#train', '12951')
+    await page.fill('#date', '2026-11-05')
+    await page.fill('#from', 'BCT')
+    await page.fill('#to', 'NDLS')
+    await page.getByRole('button', { name: SUBMIT }).click()
+    await expect(page).toHaveURL(/\/trips\/(?!add)/)
+    await expect(page.getByText('PNR ends 9630')).toBeVisible()
+    expect(errors).toEqual([])
+  })
 })
