@@ -45,3 +45,29 @@ Owner rulings (iMessage phonemsg-01M5E537NGY2DTGP7KQ09EQCXX 8:06 "allow people t
 ## 2026-10-21 (later still) — "Tip" renamed to "appreciation" in user-facing copy
 
 Owner ruling (iMessage phonemsg-01M5EKEB86NX3H5TW098TBPK8S, 12:17 PM IST): "Instead of tip use some other word appreciation etc because they are helping out though they are taking some minimal charges." All user-facing copy (EN+HI) now says appreciation / say thanks / thank {name}, with an "earned" framing for the helper. Logic, ids, wallet kinds, route paths and i18n key names unchanged. Also fixed: a received appreciation in profile payments now carries the "added to your credit" label instead of the generic paid label.
+
+## 2026-10-27 — External origins in src/ are checked against the docs/12 §2 ledger
+
+`tests/vendor-origins.test.ts` makes the ledger's "an agent never adds a vendor"
+rule enforceable: it walks every `.ts`/`.tsx`/`.css` file under `app/src`, pulls
+every `https?://` host out of the raw text (comments included — a vendor sneaking
+in through a runtime-built string is caught the same way as one pasted into JSX),
+and asserts each host is on an annotated allowlist. Three kinds of host are
+legitimate: the product's own domain (`toyoufromme.website`, og tags), share
+intent targets the user taps (`wa.me`, `t.me`, `www.facebook.com`,
+`www.instagram.com` inbox), and vendors whose ledger row says WIRED (PostHog,
+Razorpay, PayPal). Three checks: every host src names is allowlisted (a new
+vendor fails by name, and the fix — adding it with a reason — IS the review the
+ledger asks for); the allowlist stays exact, i.e. every entry is still named by
+src, so a deleted call site forces a conscious list edit instead of a stale
+entry; and every vendor-cited host names a vendor that exists on the docs/12 §2
+ledger text. Four mutations checked: an `api.mixpanel.com` string added to
+`src/lib/share.ts` fails check 1 (Mixpanel is BENCH, no SDK); deleting the
+`wa.me` entry fails check 1; a fabricated `Sentry` entry src never names fails
+check 2; renaming PostHog to a vendor off the ledger fails check 3.
+
+One deliberate gap, self-enforcing: main still names `api.qrserver.com` in both
+share routes — an unlisted vendor the branch `fo/swap-qr-local` removes. It is
+allowlisted with `why: UNLISTED vendor pending removal by fo/swap-qr-local`, so
+the moment that branch merges, check 2 fires on the entry and forces its
+deletion; the guard then proves the vendor is gone rather than trusting it.
