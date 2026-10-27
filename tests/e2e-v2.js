@@ -3,6 +3,7 @@
 const PW = process.env.PLAYWRIGHT_CORE || '/Users/ayodhyarammohanthy/node_modules/playwright-core';
 const { chromium } = require(PW);
 const BASE = process.env.BASE || 'http://localhost:8099/index.html';
+const e2eGuard = require('./e2e-guard');
 const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
 let fail = 0;
@@ -10,6 +11,7 @@ const ok = (c, m) => { if (!c) { console.log('  FAIL ' + m); fail++; } else cons
 const ls = (page, k) => page.evaluate((k) => localStorage.getItem(k), k);
 
 (async () => {
+  await e2eGuard(BASE);
   const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const page = await ctx.newPage();

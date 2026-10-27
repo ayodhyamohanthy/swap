@@ -15,6 +15,7 @@ const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/M
 
 const PORT = 8600 + Math.floor(Math.random() * 300);
 const BASE = 'http://localhost:' + PORT;
+const e2eGuard = require('./e2e-guard');
 const DATA = path.join(os.tmpdir(), 'swapseat-req-' + process.pid + '.json');
 const ROOT = path.join(__dirname, '..');
 const SHOTS = process.env.SHOTS_DIR || '/tmp';
@@ -45,6 +46,7 @@ async function apiSignIn(phone) {
     env: { ...process.env, PORT: String(PORT), SWAP_DATA: DATA }, stdio: 'ignore',
   });
   await new Promise(r => setTimeout(r, 800));
+  await e2eGuard(BASE);
   const browser = await chromium.launch({ executablePath: CHROME, headless: true });
   const errors = [];
   try {

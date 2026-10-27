@@ -14,6 +14,7 @@ const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/M
 
 const PORT = 8300 + Math.floor(Math.random() * 300);
 const BASE = 'http://localhost:' + PORT + '/index.html';
+const e2eGuard = require('./e2e-guard');
 const DATA = path.join(os.tmpdir(), 'swapseat-e2e-' + process.pid + '.json');
 const ROOT = path.join(__dirname, '..');
 
@@ -78,6 +79,7 @@ async function revisitBoard(page) {
       try { const r = await fetch('http://localhost:' + PORT + '/api/health'); up = r.ok; } catch (_) { await new Promise((r2) => setTimeout(r2, 100)); }
     }
     if (!up) throw new Error('dev server did not start');
+    await e2eGuard(BASE);
     browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
 
     console.log('== traveller A: sign in + publish ==');
