@@ -2,6 +2,8 @@ import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-r
 import { useEffect, type ReactNode } from 'react'
 import appCss from '../styles.css?url'
 import { AppShell } from '@/components/app-shell'
+import { ErrorScreen } from '@/components/error-screen'
+import { NotFoundScreen } from '@/components/not-found'
 import { JobRunner } from '@/components/job-runner'
 import { ServiceWorkerRegistrar } from '@/components/service-worker'
 import { ToastProvider } from '@/components/ui/toast'
@@ -10,6 +12,12 @@ import { BOOT_SCRIPT, DEFAULT_LANG, I18nProvider, translate } from '@/lib/i18n'
 /* Shell rules: manifest + theme colour (docs/08), one wordmark, and the tab
    bar that the setup screens hide. */
 export const Route = createRootRoute({
+  /* A thrown error renders the branded, translated screen with a retry;
+     a thrown notFound() from a loader or beforeLoad renders the same
+     NotFoundScreen the catch-all route uses, so every miss gets Hindi
+     copy and a way home, not the router's English default. */
+  errorComponent: ErrorScreen,
+  notFoundComponent: NotFoundScreen,
   head: () => ({
     meta: [
       { charSet: 'utf-8' },

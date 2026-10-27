@@ -908,5 +908,10 @@
     "title": "This page was not found",
     "body": "The link may be old or mistyped. Opening this link did not change your trips or requests.",
     "home": "Go to home"
+  },
+  "error": {
+    "title": "Something went wrong",
+    "body": "Nothing was changed. Try again to reload this screen.",
+    "retry": "Try again"
   }
 }

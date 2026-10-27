@@ -45,3 +45,16 @@ Owner rulings (iMessage phonemsg-01M5E537NGY2DTGP7KQ09EQCXX 8:06 "allow people t
 ## 2026-10-21 (later still) — "Tip" renamed to "appreciation" in user-facing copy
 
 Owner ruling (iMessage phonemsg-01M5EKEB86NX3H5TW098TBPK8S, 12:17 PM IST): "Instead of tip use some other word appreciation etc because they are helping out though they are taking some minimal charges." All user-facing copy (EN+HI) now says appreciation / say thanks / thank {name}, with an "earned" framing for the helper. Logic, ids, wallet kinds, route paths and i18n key names unchanged. Also fixed: a received appreciation in profile payments now carries the "added to your credit" label instead of the generic paid label.
+
+## 2026-10-27 — Root error screen with retry (Fo)
+No route or the root set `errorComponent`, so any thrown render error showed
+TanStack's default screen: a stack trace in dev, an unbranded English overlay
+in prod, with no way back. The root route now renders ErrorScreen
+(components/error-screen.tsx): the app's own calm copy in the reader's
+language (new `error.*` keys in en+hi, "Nothing was changed" reassurance), a
+retry button that re-renders the failed route, and error details kept off the
+screen (dev-only console log) since a message can carry data the reader must
+not see. `notFoundComponent` now also routes thrown notFound() to the same
+NotFoundScreen the catch-all uses, so loader misses get Hindi copy and a way
+home too. Branch fo/swap-error-screen; L1 claimed and released; three
+mutations caught (wiring removed, retry removed, locale key dropped).
