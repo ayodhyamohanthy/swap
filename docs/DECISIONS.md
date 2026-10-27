@@ -45,3 +45,16 @@ Owner rulings (iMessage phonemsg-01M5E537NGY2DTGP7KQ09EQCXX 8:06 "allow people t
 ## 2026-10-21 (later still) — "Tip" renamed to "appreciation" in user-facing copy
 
 Owner ruling (iMessage phonemsg-01M5EKEB86NX3H5TW098TBPK8S, 12:17 PM IST): "Instead of tip use some other word appreciation etc because they are helping out though they are taking some minimal charges." All user-facing copy (EN+HI) now says appreciation / say thanks / thank {name}, with an "earned" framing for the helper. Logic, ids, wallet kinds, route paths and i18n key names unchanged. Also fixed: a received appreciation in profile payments now carries the "added to your credit" label instead of the generic paid label.
+
+## 2026-10-27 — CSV formula-injection guard in admin exports (Fo)
+Admin CSV exports open in Excel/Sheets, and first_name / acceptor_name / the raw
+report reason are caller-controlled text that reaches the CSV on purpose (L7's
+own contract). A cell value beginning with `=`, `+`, `@`, tab or CR is evaluated
+as a formula when the file opens, so a hostile profile name like
+`=HYPERLINK(...)` would turn the operator's own export into the attack.
+`csvCell` now prefixes an apostrophe to such values (spreadsheets read the
+leading `'` as text-not-formula). A plain decimal number is exempt so
+`-500` stays a numeric cell; `+91…` phone-style data intentionally becomes text,
+which is the only way a spreadsheet preserves a leading `+`. Branch
+fo/swap-csv-formula-guard; guard tests cover triggers, the numeric carve-out,
+and a hostile name through usersToCsv; three mutations caught.
