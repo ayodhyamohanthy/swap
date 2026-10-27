@@ -117,6 +117,6 @@ const SeatSwapStore = (() => {
   return {
     trips, get, addTrip, setOpen, remove,
     logActivity, creditPaise, seen, markSeen, attachToAccount,
-    PRICE_PAISE: 9900, FEE_PAISE: 4900, CREDIT_PAISE: 5000,
+    PRICE_PAISE: 10000, FEE_PAISE: 5000, CREDIT_PAISE: 5000,
   };
 })();

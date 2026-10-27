@@ -3,7 +3,7 @@
    functions land (Step 6 backend). Until then the clearly-labeled demo bank
    processes the same created>pending>paid|failed machine, with QA controls
    to replay pending/failed/success (webhook replay tests, Step 14).
-   Amount always ₹99 INR (₹199 group). Webhook stays source of truth server-side. */
+   Amount always ₹100 INR (₹199 group). Webhook stays source of truth server-side. */
 const SeatSwapPay = (() => {
   const C = (typeof SeatSwapConfig !== 'undefined' ? SeatSwapConfig : {});
   const inr = (paise) => '₹' + (paise / 100).toFixed(paise % 100 ? 2 : 0);
@@ -37,7 +37,7 @@ const SeatSwapPay = (() => {
 
   function receiptLines(payment) {
     const price = payment.amount_paise;
-    const fee = Math.min(C.FEE_PAISE || 4900, price);
+    const fee = Math.min(C.FEE_PAISE || 5000, price);
     return [
       { label: 'SeatSwap fee', amount: fee },
       { label: 'Thank-you credit', amount: price - fee },

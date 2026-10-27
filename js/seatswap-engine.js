@@ -20,7 +20,7 @@ const SeatSwapEngine = (() => {
   function save(d) { try { localStorage.setItem(DB, JSON.stringify(d)); } catch {} }
   const uid = (p) => p + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   const now = () => new Date().toISOString();
-  const C = (typeof SeatSwapConfig !== 'undefined' ? SeatSwapConfig : { PRICE_PAISE: 9900, FEE_PAISE: 4900, CREDIT_PAISE: 5000, CREDIT_MONTHS: 12, MAX_OUT_PER_DAY: 10 });
+  const C = (typeof SeatSwapConfig !== 'undefined' ? SeatSwapConfig : { PRICE_PAISE: 10000, FEE_PAISE: 5000, CREDIT_PAISE: 5000, CREDIT_MONTHS: 12, MAX_OUT_PER_DAY: 10 });
 
   function log(d, action, meta) {
     d.activity.unshift(Object.assign({ id: uid('a'), actor: meId(), actor_role: 'user', action, entity: null, entity_id: null, meta: {}, created_at: now() }, meta || { action }));
@@ -198,7 +198,7 @@ const SeatSwapEngine = (() => {
     const r = d.requests[o.request_id];
     if (r.status === 'searching') {
       r.status = 'accepted_awaiting_payment'; r.updated_at = now();
-      notify(d, r.requester_id, 'someone_accepted', 'Someone said yes! Pay ₹99', 'The swap locks once you pay. Until then, your other matches can still accept.', '#/pay/' + r.id);
+      notify(d, r.requester_id, 'someone_accepted', 'Someone said yes! Pay ₹100', 'The swap locks once you pay. Until then, your other matches can still accept.', '#/pay/' + r.id);
       log(d, 'offer_accepted', { entity: 'offer', entity_id: offerId });
     } else {
       log(d, 'offer_accepted_late', { entity: 'offer', entity_id: offerId });
@@ -239,7 +239,7 @@ const SeatSwapEngine = (() => {
     const d = db(); const r = d.requests[reqId];
     if (!r || r.requester_id !== meId()) throw new Error('not_yours');
     if (r.status !== 'accepted_awaiting_payment') throw new Error('not_awaiting_payment');
-    const price = r.group_id ? (C.GROUP_PRICE_PAISE || 19900) : (C.PRICE_PAISE || 9900);
+    const price = r.group_id ? (C.GROUP_PRICE_PAISE || 19900) : (C.PRICE_PAISE || 10000);
     let creditUsed = 0;
     if (o.useCredit !== false) {
       const avail = balance(d, meId());
@@ -408,8 +408,8 @@ const SeatSwapEngine = (() => {
   }
   function finalizeVoided(d, r, why) {
     r.status = 'voided'; r.updated_at = now();
-    addCredit(d, r.requester_id, C.PRICE_PAISE || 9900, 'swap_to_credit', r.id, 'swap_to_credit');
-    notify(d, r.requester_id, 'to_credit', '₹99 added to your credit', 'Valid for 12 months · never cash.', '#/swaps/' + r.id);
+    addCredit(d, r.requester_id, C.PRICE_PAISE || 10000, 'swap_to_credit', r.id, 'swap_to_credit');
+    notify(d, r.requester_id, 'to_credit', '₹100 added to your credit', 'Valid for 12 months · never cash.', '#/swaps/' + r.id);
     log(d, 'swap_voided', { entity: 'request', entity_id: r.id, why });
     save(d);
     return r;
@@ -423,7 +423,7 @@ const SeatSwapEngine = (() => {
     if (acceptorId && byId === acceptorId) d.backouts.push({ user: acceptorId, at: now() });
     const out = finalizeVoided(d, r, 'cancelled_by_' + (byId === r.requester_id ? 'requester' : 'acceptor'));
     if (byId === acceptorId && !String(r.requester_id).startsWith('seed:')) {
-      notify(d, r.requester_id, 'partner_cancelled', 'They can’t swap now', '₹99 added to your credit. Other matches are still open.', '#/swaps/' + r.id);
+      notify(d, r.requester_id, 'partner_cancelled', 'They can’t swap now', '₹100 added to your credit. Other matches are still open.', '#/swaps/' + r.id);
     }
     return out;
   }

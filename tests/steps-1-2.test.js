@@ -1,7 +1,7 @@
 /* SeatSwap Steps 1-2 checks: non-negotiable rules + build plan definition of done.
    Run: node --test tests/steps-1-2.test.js
    - No banned words in shipped locales/UI (footer disclaimer sentence excepted).
-   - Exactly 3 bottom tabs. Google-only sign-in. ₹99 = ₹49 + ₹50 constants.
+   - Exactly 3 bottom tabs. Google-only sign-in. ₹100 = ₹50 + ₹50 constants.
    - PNR utils: 10-digit validation, SMS parse, chair-car seats, quota note.
    - PWA manifest tokens + service worker strategy. */
 const { describe, it } = require('node:test');
@@ -54,7 +54,7 @@ describe('locales', () => {
 
   it('pricing + positioning copy present', () => {
     const en = JSON.parse(read('locales/en.json'));
-    assert.match(en.first.coreValue, /₹99/);
+    assert.match(en.first.coreValue, /₹100/);
     assert.match(en.first.hint, /₹50/);
     assert.match(en.first.signedOutNote, /signed out/i);
     assert.match(en.signin.body, /Google/i);
@@ -75,10 +75,10 @@ describe('app shell', () => {
     assert.ok(/SETUP.*language.*note.*privacy.*alerts.*signin/s.test(app));
     assert.ok(/el\.hidden = true/.test(app));
   });
-  it('money in paise, ₹99 = ₹49 + ₹50', () => {
+  it('money in paise, ₹100 = ₹50 + ₹50', () => {
     const store = read('js/seatswap-store.js');
-    assert.ok(/PRICE_PAISE:\s*9900/.test(store));
-    assert.ok(/FEE_PAISE:\s*4900/.test(store));
+    assert.ok(/PRICE_PAISE:\s*10000/.test(store));
+    assert.ok(/FEE_PAISE:\s*5000/.test(store));
     assert.ok(/CREDIT_PAISE:\s*5000/.test(store));
   });
   it('every state change writes activity_log', () => {
@@ -247,7 +247,7 @@ describe('engine state machines + money outcomes', () => {
     assert.ok(out.log, 'activity log written');
   });
 
-  it('money: no-show agreed > requester +9900 credit; failed payment charges nothing', async () => {
+  it('money: no-show agreed > requester +10000 credit; failed payment charges nothing', async () => {
     const out = await flow(`
       const req = SeatSwapEngine.newRequest({ tripId: trip.id, choices: ch, sameCoach: false, keepTogether: false, reason: '' });
       const seeds = SeatSwapData.seedsFor(trip);
@@ -270,14 +270,14 @@ describe('engine state machines + money outcomes', () => {
       out.stillWaiting = SeatSwapEngine.getRequest(req2.id).status;
     `);
     assert.equal(out.st, 'voided');
-    assert.equal(out.bal, 9900, 'requester credit should be exactly ₹99, got ' + out.bal);
+    assert.equal(out.bal, 10000, 'requester credit should be exactly ₹100, got ' + out.bal);
     assert.equal(out.payFailed, 'failed');
     assert.equal(out.stillWaiting, 'accepted_awaiting_payment');
   });
 
   it('money: credit covers full amount > instant lock, provider credit', async () => {
     const out = await flow(`
-      SeatSwapEngine.adminAdjust(me.id, 9900, 'test grant');
+      SeatSwapEngine.adminAdjust(me.id, 10000, 'test grant');
       out.bal0 = SeatSwapEngine.myBalance();
       const req = SeatSwapEngine.newRequest({ tripId: trip.id, choices: ch, sameCoach: false, keepTogether: false, reason: '' });
       const seeds = SeatSwapData.seedsFor(trip);
@@ -289,7 +289,7 @@ describe('engine state machines + money outcomes', () => {
       out.st = SeatSwapEngine.getRequest(req.id).status;
       out.bal1 = SeatSwapEngine.myBalance();
     `);
-    assert.equal(out.bal0, 9900);
+    assert.equal(out.bal0, 10000);
     assert.equal(out.provider, 'credit');
     assert.equal(out.st, 'locked');
     assert.equal(out.bal1, 0);
@@ -321,7 +321,7 @@ describe('engine state machines + money outcomes', () => {
     `);
     assert.equal(out.disputed, 'disputed');
     assert.equal(out.resolved, 'voided');
-    assert.equal(out.bal, 9900);
+    assert.equal(out.bal, 10000);
     assert.equal(out.cancelled, 'voided');
   });
 

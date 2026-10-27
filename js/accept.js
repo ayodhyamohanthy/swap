@@ -194,7 +194,7 @@
       const wait = root.querySelector('#awaitPayment');
       if (wait) wait.addEventListener('click', () => {
         /* Demo path only: on a real deployment the requester's device completes
-           the ₹99 and the backend flips completionPaid. Nothing here is faked
+           the ₹100 and the backend flips completionPaid. Nothing here is faked
            as confirmed without payment. */
         if (!online()) { toast('📴 Payments need a connection.'); return; }
         checkout('completion', (res) => {

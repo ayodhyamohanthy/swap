@@ -11,8 +11,8 @@ const SeatSwapConfig = {
   paypalClientId: '',    // -> real PayPal buttons (needs server capture fn)
   vapidPublicKey: '',    // -> real web push (needs server + subscriptions table)
   supportContact: '',    // optional help link shown on Help screen
-  PRICE_PAISE: 9900,     // ₹99 per swap
-  FEE_PAISE: 4900,       // ₹49 SeatSwap fee
+  PRICE_PAISE: 10000,    // ₹100 per swap (Oct 21 ruling)
+  FEE_PAISE: 5000,       // ₹50 SeatSwap fee
   CREDIT_PAISE: 5000,    // ₹50 thank-you credit to acceptor
   GROUP_PRICE_PAISE: 19900, // ₹199 group trip (up to 3 swaps)
   CREDIT_MONTHS: 12,

@@ -3,7 +3,7 @@
    cache); CacheFirst for hashed static assets. Payment SDKs never cached.
    Kill switch: open the app with ?sw=off (index.html unregisters). Never
    registered in dev/preview/iframe (see index.html). */
-const VERSION = 'seatswap-v1-steps-1-2';
+const VERSION = 'seatswap-v1-steps-1-3';
 const CORE = [
   './',
   './index.html',
