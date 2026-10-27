@@ -825,3 +825,18 @@ Validation for this docs-only inventory passed typecheck, 975 tests across 70 fi
 ## Swap isolated staging runtime (2026-10-16)
 
 L9 released: Kat staging agent, 2026-10-16. Readiness-only runtime and exact-target guard complete; 1008 tests/typecheck/build/collaboration checks passed. Owner-authorized narrow deployment task: app/scripts/swap-staging-deploy.mjs, app/scripts/swap-staging-deploy.d.mts, app/wrangler.staging.json, app/src/staging-worker.ts, app/tests/swap-staging.test.ts and docs/cloudflare.md. No edits to existing Worker/router, frontend, Supabase schema or production config. New runtime is readiness-only and fails closed until backend dependencies and executors are verified.
+
+## Fo claim, released in-commit (2026-10-27)
+
+L1 (PWA shell, the document head) claimed and released in the same commit.
+One-file scope: the app emitted no `rel="canonical"`, so the workers.dev
+mirror and the apex (toyoufromme.website, docs/16) both serve identical
+documents and crawlers index every mirror as its own site. Every page now
+self-canonicalizes onto the apex origin, path-aware from the head context's
+matches (the deepest match names the URL), with query and fragment stripped
+inside `canonicalUrl()` (per-link params like an invite's `?date=` are not
+identity). Helper in `app/src/lib/meta.ts` so the URL is assertable, guard
+tests in `app/tests/meta-canonical.test.ts`. No new dependency, no locale
+keys (the link carries no copy). `fo/swap-error-screen` also edits
+`__root.tsx` but only its imports and `errorComponent` lines, so the two
+changes merge cleanly.

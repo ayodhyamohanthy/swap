@@ -6,11 +6,12 @@ import { JobRunner } from '@/components/job-runner'
 import { ServiceWorkerRegistrar } from '@/components/service-worker'
 import { ToastProvider } from '@/components/ui/toast'
 import { BOOT_SCRIPT, DEFAULT_LANG, I18nProvider, translate } from '@/lib/i18n'
+import { canonicalUrl } from '@/lib/meta'
 
 /* Shell rules: manifest + theme colour (docs/08), one wordmark, and the tab
    bar that the setup screens hide. */
 export const Route = createRootRoute({
-  head: () => ({
+  head: ({ matches }) => ({
     meta: [
       { charSet: 'utf-8' },
       {
@@ -42,6 +43,13 @@ export const Route = createRootRoute({
       { name: 'twitter:image', content: 'https://toyoufromme.website/og-image.png' },
     ],
     links: [
+      /* Self-canonical on the apex origin: the workers.dev mirror and any
+         staging host serve the same documents, so search engines otherwise
+         index every mirror as its own site. The deepest matched route names
+         the URL each page claims; canonicalUrl drops the query and fragment,
+         which are per-link, not identity (an invite's ?date= names one
+         journey). */
+      { rel: 'canonical', href: canonicalUrl(matches[matches.length - 1]?.pathname ?? '/') },
       { rel: 'stylesheet', href: appCss },
       { rel: 'manifest', href: '/manifest.webmanifest' },
       { rel: 'icon', type: 'image/png', href: '/icons/icon-192.png' },
