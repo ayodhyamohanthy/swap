@@ -126,6 +126,32 @@ describe('toCsv', () => {
     expect(toCsv(['x'], [['line1\nline2']])).toBe('x\n"line1\nline2"\n')
   })
 
+  it('neutralises formula-injection leading characters (CSV opened in Excel)', () => {
+    // first_name, acceptor_name and the raw report reason are caller-controlled.
+    expect(toCsv(['x'], [['=cmd|\' /C calc\'!A0']])).toBe('x\n\'=cmd|\' /C calc\'!A0\n')
+    expect(toCsv(['x'], [['+919876543210']])).toBe('x\n\'+919876543210\n')
+    expect(toCsv(['x'], [['@mentions bot']])).toBe('x\n\'@mentions bot\n')
+    expect(toCsv(['x'], [['- see note']])).toBe('x\n\'- see note\n')
+    expect(toCsv(['x'], [['\tTab first']])).toBe('x\n\'\tTab first\n')
+  })
+
+  it('leaves plain numbers, including negative ones, untouched', () => {
+    expect(toCsv(['x'], [[500]])).toBe('x\n500\n')
+    expect(toCsv(['x'], [['-500']])).toBe('x\n-500\n')
+    expect(toCsv(['x'], [['-5.5']])).toBe('x\n-5.5\n')
+  })
+
+  it('usersToCsv neutralises a hostile profile name', () => {
+    const csv = usersToCsv([
+      {
+        id: 'u-1', first_name: '=HYPERLINK("http://evil","click")', last_initial: 'K',
+        created_at: '2026-01-01', blocked: false, reported: false,
+        trips: 0, swaps: 0, credit_paise: 0,
+      },
+    ])
+    expect(csv).toContain("'=HYPERLINK")
+  })
+
   it('renders null and undefined as empty cells', () => {
     expect(toCsv(['x', 'y'], [[null, undefined]])).toBe('x,y\n,\n')
   })

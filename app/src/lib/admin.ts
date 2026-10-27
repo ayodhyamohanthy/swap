@@ -44,8 +44,27 @@ export function isAdminRoute(pathname: string): boolean {
   return pathname === '/admin' || pathname.startsWith('/admin/')
 }
 
+/**
+ * CSV formula-injection guard (OWASP "CSV Injection"). Admin exports open in
+ * Excel or Sheets, and several cells carry caller-controlled text on purpose
+ * (first_name / acceptor_name are profile names; reportsToCsv ships the raw
+ * report reason to the operator). A cell whose value begins with `=`, `+`,
+ * `@`, tab or CR is evaluated as a formula on open, so a traveller whose
+ * profile name is `=HYPERLINK(...)` would turn the admin's own export into
+ * the attack. Such values are prefixed with an apostrophe, which spreadsheets
+ * read as "text, not a formula". A plain decimal number is exempt so negative
+ * amounts and E.164-style plus-prefixed data keep their numeric/text meaning
+ * (`-500` stays a number; `+91…` becomes text on purpose — that is the only
+ * way a spreadsheet keeps a leading `+`).
+ */
+const FORMULA_SAFE_NUMBER = /^-?\d+(\.\d+)?$/
+
 function csvCell(value: unknown): string {
-  const text = value === null || value === undefined ? '' : String(value)
+  let text = value === null || value === undefined ? '' : String(value)
+  const first = text.charAt(0)
+  const dangerous =
+    first === '=' || first === '+' || first === '@' || first === '\t' || first === '\r' || first === '-'
+  if (dangerous && !FORMULA_SAFE_NUMBER.test(text)) text = `'${text}`
   if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`
   return text
 }
