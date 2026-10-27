@@ -45,3 +45,15 @@ Owner rulings (iMessage phonemsg-01M5E537NGY2DTGP7KQ09EQCXX 8:06 "allow people t
 ## 2026-10-21 (later still) — "Tip" renamed to "appreciation" in user-facing copy
 
 Owner ruling (iMessage phonemsg-01M5EKEB86NX3H5TW098TBPK8S, 12:17 PM IST): "Instead of tip use some other word appreciation etc because they are helping out though they are taking some minimal charges." All user-facing copy (EN+HI) now says appreciation / say thanks / thank {name}, with an "earned" framing for the helper. Logic, ids, wallet kinds, route paths and i18n key names unchanged. Also fixed: a received appreciation in profile payments now carries the "added to your credit" label instead of the generic paid label.
+
+## 2026-10-27 — Root manifest restored (the #10 fold removal was wrong)
+
+The #10 fold commit 9d4f454 "Remove the stale root manifest duplicate" claimed
+nothing consumed the root manifest. That verification missed three consumers:
+index.html line 12 links it, root sw.js precaches it in CORE (atomic
+cache.addAll meant every install failed and the root prototype PWA never
+installed), and tests/steps-1-2.test.js "manifest per spec" reads it, so that
+suite was red on main (21/22) since Oct 2. The exact file from 9d4f454^ is
+restored (commit a9c1a55, branch fo/swap-root-manifest-dangling). The
+VitePWA-generated app manifest in app/dist remains the served one for the real
+app; this root file serves the root prototype only.
