@@ -15,3 +15,11 @@ dist/
 coverage/
 # Embedded prototype repo (separate codebase — not part of the TanStack app)
 swap/
+
+/* Playwright's run artefacts (`app/test-results/<test>/
+   error-context.md` + `.last-run.json`). Every E2E run rewrites them, so
+   `git status` carried a fresh untracked entry after each run - same
+   mechanism as `.tanstack/` above. They are run output, not source. */
+app/test-results/
+playwright-report/
+blob-report/
