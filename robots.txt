@@ -1,0 +1,7 @@
+# toyoufromme.website serves the public SeatSwap site. The app deploy's
+# robots.txt (app/public/robots.txt) points crawlers at the sitemap on this
+# host, so the URL it names has to resolve here.
+User-agent: *
+Allow: /
+
+Sitemap: https://toyoufromme.website/sitemap.xml
