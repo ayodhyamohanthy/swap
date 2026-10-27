@@ -5,6 +5,7 @@ import { AppFooter, type RouteChrome } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
+import { qrSvgDataUrl } from '@/lib/qr'
 import { useI18n } from '@/lib/i18n'
 import { trackEvent } from '@/lib/analytics'
 import { getRequest } from '@/lib/requests'
@@ -128,7 +129,7 @@ function ShareCardScreen() {
           <CardTitle>{t('share.qrHeading')}</CardTitle>
           <p className="mt-1 font-head text-section text-ink">{train}</p>
           <img
-            src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(link)}`}
+            src={qrSvgDataUrl(link)}
             alt={t('share.qr')}
             className="mx-auto my-3 size-44 rounded-card bg-card"
             width={176}

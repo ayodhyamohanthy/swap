@@ -45,3 +45,27 @@ Owner rulings (iMessage phonemsg-01M5E537NGY2DTGP7KQ09EQCXX 8:06 "allow people t
 ## 2026-10-21 (later still) — "Tip" renamed to "appreciation" in user-facing copy
 
 Owner ruling (iMessage phonemsg-01M5EKEB86NX3H5TW098TBPK8S, 12:17 PM IST): "Instead of tip use some other word appreciation etc because they are helping out though they are taking some minimal charges." All user-facing copy (EN+HI) now says appreciation / say thanks / thank {name}, with an "earned" framing for the helper. Logic, ids, wallet kinds, route paths and i18n key names unchanged. Also fixed: a received appreciation in profile payments now carries the "added to your credit" label instead of the generic paid label.
+
+## 2026-10-27 — Share-screen QR generated on-device; external QR image vendor removed
+
+Lane L3 (branch `fo/swap-qr-local`). Both share screens (`share.$trainDate.tsx`,
+`swaps.$id.share.tsx`) rendered their QR as an `<img>` whose src pointed at
+`https://api.qrserver.com/v1/create-qr-code/?...data=<invite link>` — a QR image
+vendor that is not on docs/12 §2's WIRED list, and one that received the invite
+link (train number, journey date) on every render, contradicting the share
+screen's own header promise that the QR "is drawn on this device ... never
+leaves the phone until scanned". It also broke offline: no network, no QR.
+
+Replacement: `app/src/lib/qr.ts` (qrcode-generator ^2.0.4, MIT, Kazuhiko Arase;
+types shipped in-package) encodes the matrix on-device and returns a
+`data:image/svg+xml` URI whose `<svg>` tag scales (`viewBox`, no fixed
+width/height), so the existing `size-44` styling still controls display size.
+No request leaves the device. Verification (`app/tests/qr.test.ts`, jsqr
+^1.4.0, Apache-2.0, devDependency-only): the URI is self-contained; the
+generated modules decode back through jsQR to exactly the invite link they were
+built from (short link, query-tagged link, and a long link that forces a larger
+QR version); and a source guard fails by name if any file under `app/src` sends
+the invite link to an external QR service again — mutation-checked both ways
+(vendor src restored → guard fails; wrong payload encoded → decode test fails).
+The guard intentionally does not name the vendor, so the history can be
+recorded here without re-adding the string the guard hunts.

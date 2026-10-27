@@ -8,6 +8,7 @@ import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/lib/i18n'
 import { trackEvent } from '@/lib/analytics'
 import { INSTAGRAM_INBOX_URL, instagramClipboardText, inviteLink, shareDateLabel, splitTrainDate } from '@/lib/share'
+import { qrSvgDataUrl } from '@/lib/qr'
 import { useOnline } from '@/lib/use-online'
 
 /* Screen 18 "Invite / share anywhere" (design 14b): WhatsApp, Instagram,
@@ -178,7 +179,7 @@ function ShareScreen() {
           </p>
           {online ? (
             <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(link)}`}
+              src={qrSvgDataUrl(link)}
               alt={t('share.qr')}
               className="mx-auto my-3 size-44 rounded-card bg-card"
               width={176}
