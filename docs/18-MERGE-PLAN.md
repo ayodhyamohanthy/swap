@@ -98,3 +98,24 @@ ones: `js/accept.js` delete-vs-modify (root-legacy-js before root-reprice-100),
 No new conflict pairs appeared beyond the pairwise map. The simulation resolved
 the appended docs and locale files with union merge; the package.json/lock
 groups still need the documented lock regeneration with `npm install`.
+
+## PR #8 conflict surface (measured 2026-10-30 16:00 IST)
+
+`docs/instructions-v2` (head d695c53) does NOT merge cleanly onto main
+`002c2c2`: a direct merge attempt conflicts on 20 files —
+.github/workflows/seatswap-backup.yml, app/scripts/collab-check.mjs,
+app/scripts/lane-board.{mjs,d.mts}, app/src/lib/{admin,store,utils}.ts,
+app/src/routes/{admin.payments,pay.$requestId.method,profile.payments.$id,
+profile.settings}.tsx, app/src/styles.css, app/tests/{admin,collab-check,
+groups,qa-protocol,rule6-paid,schema}.test.ts, docs/06-PAYMENTS.md, and
+package-lock.json. The branch predates the Razorpay-primary landing (86d2c78)
+and the lane-board/collab-check changes, so its stale copies collide with what
+main already shipped. Resolution is the owner's call (it is their branch):
+rebase/refresh PR #8 onto current main before landing, or land the fo/* pile
+first (its sequence from 002c2c2 is verified below) and rebase PR #8 on top —
+either way the conflicts above must be resolved by hand, keeping main's
+landed payments and lane-board state.
+
+Re-run of the pile sequence with PR #8 removed reproduced the 13:00 IST
+result exactly: everything lands clean except the three documented
+conflicts (js/accept.js, __root.tsx, .gitignore x2).
