@@ -56,7 +56,11 @@ pairwise against main and within the pile, and every gate claim was run locally
 
 ## Branch-vs-branch within the pile (7 real pairs of 253)
 
-- canonical-link x error-screen: `app/src/routes/__root.tsx` — keep BOTH changes.
+- canonical-link x error-screen: `app/src/routes/__root.tsx` — keep BOTH changes:
+  error-screen's `errorComponent`/`notFoundComponent` lines AND canonical-link's
+  `head: ({ matches }) =>` signature. Taking error-screen's `head: () =>` verbatim
+  breaks the per-route canonical (the body reads `matches`), the typecheck, and
+  the build's prerendered head. Verified below.
 - dev-deps-audit x zod-security: `package.json` — moot after deps-batch; if the
   singles are used instead, keep both dep sets and regenerate the lock.
 - e2e-pnr-flow x gitignore-playwright, and gitignore-playwright x headers-csp:
@@ -161,3 +165,27 @@ zod ^4.6.7 with transitive fast-uri ^3.1.9 and serialize-javascript ^7.1.4
 (supersedes undici-pin, seroval-pin, zod-security).
 **Docs.** `backup-status`: outage note under the docs/10 backup item.
 `merge-plan` (this branch): the plan you are reading.
+
+## End-state verification (2026-10-30, gates run on the merged result)
+
+The whole pile was merged in a scratch clone following this plan (js/accept.js
+deletion applied, .gitignore taken from gitignore-playwright, locale unions,
+both devDependency additions kept per conflict, lock regenerated with
+`npm install --package-lock-only` + `npm ci`). Three failures surfaced that no
+textual diff shows, all consequences of qr-local landing; apply these after the
+pile merges:
+
+1. `app/tests/vendor-origins.test.ts` — delete the `api.qrserver.com`
+   pending-gap entry. The guard's own comment says check 2 fires the moment
+   qr-local merges; it fired, and deleting the entry makes the guard prove the
+   vendor is gone rather than trusting it.
+2. `app/e2e/csp.spec.ts` — drop the `expect(csp).toContain('api.qrserver.com')`
+   line; the vendor no longer appears in src.
+3. `app/public/_headers` — drop `https://api.qrserver.com` from `img-src`
+   (stale after qr-local; the dist copies regenerate on build).
+
+With those three plus the exact __root.tsx merge above, the end state passes
+every gate on node 22.20 unflagged: typecheck clean, 84 files / 1064 tests,
+build green (initial JS 189.5 KB gzip of the 200 KB budget, PWA
+manifest/icons/worker verified). The merge session can proceed with these
+resolutions in hand.
