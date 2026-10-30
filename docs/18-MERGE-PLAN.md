@@ -85,3 +85,16 @@ docs/ currently has duplicate numbers (15-AUDIT/15-NAMING, 16-BEST-PRACTICES/
 16-EXIT-PLAYBOOK, 17-MOBILE-FIRST/17-PRODUCTION-PATH). This file takes 18 as
 the next free number; renumbering is deferred so it cannot conflict with the
 pile. Worth a dedicated pass once the pile lands.
+
+## Sequence check (2026-10-30 13:00 IST)
+
+The full order above was simulated from `002c2c2` in a scratch clone, merging
+one branch at a time in the listed order. Result: all 26 non-conflicted
+branches land clean in sequence (phase A: 3/3, phase B: 10/11, phase C: 8/11
+attempts), and the only conflicts that surfaced are exactly the documented
+ones: `js/accept.js` delete-vs-modify (root-legacy-js before root-reprice-100),
+`app/src/routes/__root.tsx` (canonical-link before error-screen), and
+`.gitignore` twice (gitignore-playwright before e2e-pnr-flow and headers-csp).
+No new conflict pairs appeared beyond the pairwise map. The simulation resolved
+the appended docs and locale files with union merge; the package.json/lock
+groups still need the documented lock regeneration with `npm install`.
