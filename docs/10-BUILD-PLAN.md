@@ -13,6 +13,12 @@ your lane. Check it [x] in the same commit that completes it.
       (file provided in handoff), add the 6 GH Actions secrets per
       docs/12 §8, set R2 30-day lifecycle rule, verify one manual run
       (workflow_dispatch) succeeds end-to-end
+      (2026-10-30 status note: the nightly backup has failed every run
+      since at least Oct 23, latest 40985684308 on Oct 30 01:24 UTC, always
+      in the awscli install step, so no prod backup has uploaded for a week.
+      Fix ready on fo/swap-backup-awscli (4f7b4dc, AWS CLI v2 from official
+      zip); needs a workflows-scope GitHub token to push, then merge and
+      one workflow_dispatch run to verify.)
 - [ ] Claim Student Pack domain (Namecheap .me or Name.com) → Cloudflare
       DNS, TTL 300 (Ayu does the claim; agent wires DNS + wrangler routes)
 - [x] Sweep (2026-09-30, L9): 14 deps + 13 devDeps clean, no BENCH/RESERVE
