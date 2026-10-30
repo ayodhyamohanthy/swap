@@ -119,3 +119,45 @@ landed payments and lane-board state.
 Re-run of the pile sequence with PR #8 removed reproduced the 13:00 IST
 result exactly: everything lands clean except the three documented
 conflicts (js/accept.js, __root.tsx, .gitignore x2).
+
+## What each branch contains (commit subjects, 2026-10-30 17:00 IST)
+
+**Merge-clean singles.** `desc-refresh`: refresh the stale package
+description. `gitignore-playwright`: ignore Playwright's app/test-results run
+artefacts. `read-order-crossref`: add the docs/17 W8.2 standards-chain read
+order to agents.md and README.
+
+**Ledger-docs-only singles.** `canonical-link`: self-canonicalize every page
+onto the apex origin (shell). `csv-formula-guard`: neutralise CSV formula
+injection in exports (L7). `e2e-stale-guard`: mark the legacy root E2E suites
+as guarded instead of failing like regressions. `lane-board-archive`: archive
+lane prose, resolved requests and backlog text off the board (W8.1).
+`root-legacy-js`: drop 15 unreferenced prototype scripts from the root legacy
+surface + decision record. `root-manifest-dangling`: restore the root manifest
+the #10 fold removed while it was still consumed + decision record.
+`root-reprice-100`: reprice the root Steps 1-2 PWA to the Oct 21 rupee-100
+ruling, carrying the manifest restore (root suite 22/22).
+`root-robots-sitemap`: ship root robots.txt + sitemap.xml and correct the
+decision row (toyoufromme.website serves the app).
+`vendor-origin-guard`: check every external origin in src against the docs/12
+vendor ledger (L9).
+
+**Real-conflict singles.** `admin-nul-byte`: remove a stray NUL byte from
+admin.activity.tsx and guard src against control characters.
+`dev-deps-audit`: bump vite to 7.3.7 and vitest to 4.1.12 for security
+advisories. `error-screen`: branded, translated root error screen with retry
+(L1). `tanstack-start-security`: bump @tanstack/react-start to 1.168.60
+(GHSA-qx66-fv34-fjm8). `e2e-pnr-flow`: Playwright e2e for the PNR flow (sign-in
+gate, axe scans, offline summaries, docs/17 W6.1). `headers-csp`: ship the real
+CSP with parse5-derived inline-script hashes (W7), built on e2e-pnr-flow.
+`headers-verifier`: assert every security and cache claim the _headers file
+makes (W7). `js-budget-guard`: enforce the 200KB initial-JS budget in
+verify-dist (W6). `lane-map-unowned`: complete the docs/13 ownership map,
+seven unowned surfaces (L9). `qr-local`: draw the invite QR on-device instead
+of a QR image vendor (L3).
+
+**Dependencies.** `deps-batch`: undici ^8.12.2 override + seroval 1.7.5 +
+zod ^4.6.7 with transitive fast-uri ^3.1.9 and serialize-javascript ^7.1.4
+(supersedes undici-pin, seroval-pin, zod-security).
+**Docs.** `backup-status`: outage note under the docs/10 backup item.
+`merge-plan` (this branch): the plan you are reading.
