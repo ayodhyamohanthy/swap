@@ -171,7 +171,7 @@ zod ^4.6.7 with transitive fast-uri ^3.1.9 and serialize-javascript ^7.1.4
 The whole pile was merged in a scratch clone following this plan (js/accept.js
 deletion applied, .gitignore taken from gitignore-playwright, locale unions,
 both devDependency additions kept per conflict, lock regenerated with
-`npm install --package-lock-only` + `npm ci`). Three failures surfaced that no
+`npm install --package-lock-only` + `npm ci`). Four fixes surfaced that no
 textual diff shows, all consequences of qr-local landing; apply these after the
 pile merges:
 
@@ -180,12 +180,21 @@ pile merges:
    qr-local merges; it fired, and deleting the entry makes the guard prove the
    vendor is gone rather than trusting it.
 2. `app/e2e/csp.spec.ts` — drop the `expect(csp).toContain('api.qrserver.com')`
-   line; the vendor no longer appears in src.
+   line in the served-policy test, AND rewrite the core-flow test's QR step:
+   it walks the old path (clicks Show QR, expects an
+   `img[src*="api.qrserver.com"]`); under qr-local the share screen draws the
+   QR on-device into a data: URL (`lib/qr.ts`), so expect
+   `img[src^="data:image/svg"]` instead — that assertion proves the vendor is
+   gone from the served page, not just off the allowlist.
 3. `app/public/_headers` — drop `https://api.qrserver.com` from `img-src`
    (stale after qr-local; the dist copies regenerate on build).
+4. Rerun the e2e suite, not just the unit gates: the stale QR step above only
+   fails in Playwright.
 
-With those three plus the exact __root.tsx merge above, the end state passes
+With those fixes plus the exact __root.tsx merge above, the end state passes
 every gate on node 22.20 unflagged: typecheck clean, 84 files / 1064 tests,
 build green (initial JS 189.5 KB gzip of the 200 KB budget, PWA
-manifest/icons/worker verified). The merge session can proceed with these
+manifest/icons/worker verified), and the full Playwright e2e suite
+(`app/e2e`, mobile-360 + desktop-1440) passes 20/20 against the built app,
+served by `e2e/static-server.mjs`. The merge session can proceed with these
 resolutions in hand.
